@@ -2,112 +2,198 @@
 import { ref } from 'vue';
 import MainLayout from '@/components/layout/MainLayout.vue';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { Zap, Wand2, FileText, MoveUp } from 'lucide-vue-next';
 
 const videoPrompt = ref('');
+const selectedMode = ref('one_click');
 const aspectRatio = ref('16:9');
 const videoType = ref('电影感');
+const showAspectRatioMenu = ref(false);
+const showStyleMenu = ref(false);
+
+const modes = [
+  { id: 'one_click', label: '一键成片', icon: '⚡' },
+  { id: 'free_creation', label: '自由创作', icon: '🎨' },
+  { id: 'storyboard', label: '分镜脚本', icon: '📋' },
+];
+
+const aspectRatios = [
+  { id: '16:9', label: '16:9', description: '横屏' },
+  { id: '9:16', label: '9:16', description: '竖屏' },
+  { id: '1:1', label: '1:1', description: '方形' },
+  { id: '4:3', label: '4:3', description: '标准' },
+];
+
+const styles = [
+  { id: 'cinematic', label: '电影感', icon: '🎬' },
+  { id: 'documentary', label: '纪录片', icon: '📹' },
+  { id: 'vlog', label: 'Vlog', icon: '✨' },
+  { id: 'commercial', label: '广告片', icon: '🎯' },
+  { id: 'animation', label: '动画', icon: '🎨' },
+  { id: 'minimal', label: '极简', icon: '⚪' },
+];
 
 const quickTemplates = [
   '制作一个产品宣传视频',
   '创建旅行Vlog剪辑',
-  '午成教学演示视频',
+  '生成教学演示视频',
   '制作婚礼回忆短片',
   '创建企业介绍视频',
-  '午成品牌MV'
+  '生成音乐MV'
 ];
 
-const handleGenerate = () => {
-  console.log('Generating video with prompt:', videoPrompt.value);
+const handleSubmit = () => {
+  if (videoPrompt.value.trim()) {
+    console.log('Submitting prompt:', videoPrompt.value);
+  }
 };
 
-const handleSubmit = () => {
-  console.log('Submitting prompt:', videoPrompt.value);
+const selectAspectRatio = (ratio: string) => {
+  aspectRatio.value = ratio;
+  showAspectRatioMenu.value = false;
+};
+
+const selectStyle = (style: string) => {
+  videoType.value = styles.find(s => s.id === style)?.label || '电影感';
+  showStyleMenu.value = false;
 };
 </script>
 
 <template>
   <MainLayout>
-    <div class="min-h-[calc(100vh-200px)] bg-slate-50 py-12 dark:">
-      <div class="container mx-auto px-4">
-        <!-- Promo Banner -->
-        <div class="mb-8 flex justify-center">
-          <div
-            class="inline-flex items-center gap-2 rounded-full bg-yellow-100 px-4 py-2 text-sm text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-            <span>🎁</span>
-            <span>新用户注册送500积分~</span>
+    <div class="min-h-[calc(100vh-200px)] bg-[#fafafa] py-20 px-10">
+      <div class="max-w-[1000px] mx-auto">
+        <!-- Promo Banner & Title Section -->
+        <div class="flex flex-col items-center mb-14">
+          <div class="inline-flex items-center gap-2 bg-[#fef3c7] px-5 py-2 rounded-[20px] border border-[#fde68a] mb-6">
+            <span class="text-base">🎁</span>
+            <span class="text-sm text-[#92400e]">新用户注册送500积分～</span>
           </div>
-        </div>
 
-        <!-- Main Title -->
-        <div class="mb-8 text-center">
-          <div class="mb-4 flex items-center justify-center gap-3">
-            <div class="flex h-12 w-12 items-center justify-center rounded-full  dark:bg-slate-100">
-              <span class="text-xl font-bold text-white dark:text-slate-900">Z</span>
+          <div class="flex items-center gap-3 mb-5">
+            <div class="w-10 h-10 rounded-full bg-[#111827] flex items-center justify-center text-xl font-bold text-white">
+              Z
             </div>
-            <h1 class="text-4xl font-bold text-slate-900 dark:text-slate-50">ZeroCut AI</h1>
+            <h1 class="text-[42px] font-bold text-[#111827] m-0 tracking-tight">
+              ZeroCut AI
+            </h1>
           </div>
-          <p class="text-lg text-slate-600 dark:text-slate-400">
+          <p class="text-lg text-[#6b7280] font-normal m-0 text-center">
             让视频创作更简单，用自然语言描述，一键生成专业视频
           </p>
         </div>
 
         <!-- Main Input Card -->
-        <div class="mx-auto max-w-4xl">
-          <Card class="border-2 shadow-lg">
-            <div class="p-6">
-              <Textarea v-model="videoPrompt" placeholder="让 ZeroCut 帮你一键创作视频..."
-                class="min-h-[200px] resize-none border-0 text-base focus-visible:ring-0" />
+        <div class="w-full mb-10">
+          <div class="relative w-full bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08)] border border-[#e5e7eb] p-5 mb-5">
+            <Textarea
+              v-model="videoPrompt"
+              placeholder="让 ZeroCut 帮你一键创作视频..."
+              class="min-h-[100px] resize-none border-0 text-base focus-visible:ring-0 p-0 leading-[1.6] text-[#111827]"
+            />
 
-              <div class="mt-4 flex items-center justify-between border-t pt-4">
-                <div class="flex gap-4">
-                  <Button variant="ghost" size="sm" class="gap-2">
+            <div class="flex justify-between items-center pt-2 border-t border-[#f3f4f6]">
+              <div class="flex gap-2">
+                <!-- Aspect Ratio Selector -->
+                <div class="relative">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    @click="showAspectRatioMenu = !showAspectRatioMenu; showStyleMenu = false"
+                    class="px-3.5 py-2 border border-[#e5e7eb] rounded-lg bg-white hover:bg-[#f9fafb] text-[#6b7280] gap-1.5 h-auto"
+                  >
                     <span>📐</span>
                     <span>{{ aspectRatio }}</span>
+                    <span class="text-xs">▼</span>
                   </Button>
-                  <Button variant="ghost" size="sm" class="gap-2">
-                    <span>🎬</span>
-                    <span>{{ videoType }}</span>
-                  </Button>
-                </div>
-                <Button 
-                  size="sm" 
-                  @click="videoPrompt ? handleSubmit() : null"
-                  :class="videoPrompt ? 'bg-black text-white hover:bg-slate-800 cursor-pointer' : 'text-slate-400 cursor-not-allowed opacity-50'"
-                  class="rounded-full w-10 h-10">
-                  <MoveUp />
-                </Button>
-              </div>
-            </div>
-          </Card>
 
-          <!-- Action Buttons -->
-          <div class="mt-6 flex justify-center gap-4">
-            <Button @click="handleGenerate" size="lg"
-              class="gap-2  px-8 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200">
-              <Zap class="h-5 w-5" />
-              一键成片
-            </Button>
-            <Button size="lg" variant="outline" class="gap-2 px-8">
-              <Wand2 class="h-5 w-5" />
-              自由创作
-            </Button>
-            <Button size="lg" variant="outline" class="gap-2 px-8">
-              <FileText class="h-5 w-5" />
-              分镜脚本
+                  <div v-if="showAspectRatioMenu" class="absolute bottom-full left-0 mb-2 bg-white border border-[#e5e7eb] rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.12)] p-2 min-w-[180px] z-[1000]">
+                    <Button
+                      v-for="ratio in aspectRatios"
+                      :key="ratio.id"
+                      variant="ghost"
+                      @click="selectAspectRatio(ratio.id)"
+                      :class="['w-full justify-between px-3 py-2.5 rounded-lg text-left h-auto', aspectRatio === ratio.id ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]']"
+                    >
+                      <span class="text-sm font-medium text-[#111827]">{{ ratio.label }}</span>
+                      <span class="text-xs text-[#9ca3af]">{{ ratio.description }}</span>
+                    </Button>
+                  </div>
+                </div>
+
+                <!-- Style Selector -->
+                <div class="relative">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    @click="showStyleMenu = !showStyleMenu; showAspectRatioMenu = false"
+                    class="px-3.5 py-2 border border-[#e5e7eb] rounded-lg bg-white hover:bg-[#f9fafb] text-[#6b7280] gap-1.5 h-auto"
+                  >
+                    <span>{{ styles.find(s => s.label === videoType)?.icon || '🎬' }}</span>
+                    <span>{{ videoType }}</span>
+                    <span class="text-xs">▼</span>
+                  </Button>
+
+                  <div v-if="showStyleMenu" class="absolute bottom-full left-0 mb-2 bg-white border border-[#e5e7eb] rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.12)] p-2 min-w-[200px] z-[1000]">
+                    <Button
+                      v-for="style in styles"
+                      :key="style.id"
+                      variant="ghost"
+                      @click="selectStyle(style.id)"
+                      :class="['w-full justify-start gap-2.5 px-3 py-2.5 rounded-lg text-left h-auto', videoType === style.label ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]']"
+                    >
+                      <span class="text-lg">{{ style.icon }}</span>
+                      <span class="text-sm font-medium text-[#111827]">{{ style.label }}</span>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Submit Button -->
+              <Button
+                @click="handleSubmit"
+                :disabled="!videoPrompt.trim()"
+                :class="[
+                  'w-9 h-9 rounded-full p-0 flex-shrink-0 transition-all',
+                  videoPrompt.trim() 
+                    ? 'bg-[#111827] hover:bg-black hover:scale-105' 
+                    : 'bg-[#e5e7eb] cursor-not-allowed'
+                ]"
+              >
+                <span class="text-lg text-white">↑</span>
+              </Button>
+            </div>
+          </div>
+
+          <!-- Mode Selection Buttons -->
+          <div class="flex gap-3 mb-5 justify-center">
+            <Button
+              v-for="mode in modes"
+              :key="mode.id"
+              @click="selectedMode = mode.id"
+              :variant="selectedMode === mode.id ? 'default' : 'outline'"
+              :class="[
+                'px-6 py-3 rounded-3xl gap-2 text-[15px] font-medium h-auto transition-all',
+                selectedMode === mode.id 
+                  ? 'bg-[#111827] text-white border-2 border-[#111827]' 
+                  : 'bg-white text-[#6b7280] border-2 border-[#e5e7eb] hover:border-[#d1d5db] hover:-translate-y-0.5'
+              ]"
+            >
+              <span>{{ mode.icon }}</span>
+              <span>{{ mode.label }}</span>
             </Button>
           </div>
 
           <!-- Quick Templates -->
-          <div class="mt-12">
-            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <button v-for="template in quickTemplates" :key="template" @click="videoPrompt = template"
-                class="rounded-lg border border-slate-200 bg-white px-4 py-3 text-left text-sm text-slate-700 transition-all hover:border-slate-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600">
-                {{ template }}
-              </button>
-            </div>
+          <div class="grid grid-cols-3 gap-3">
+            <button
+              v-for="template in quickTemplates"
+              :key="template"
+              @click="videoPrompt = template"
+              class="p-4 border border-[#e5e7eb] rounded-xl bg-white cursor-pointer transition-all text-left text-sm text-[#6b7280] hover:border-[#d1d5db] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:-translate-y-0.5"
+            >
+              {{ template }}
+            </button>
           </div>
         </div>
       </div>

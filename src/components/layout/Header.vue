@@ -132,64 +132,64 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <header class="sticky top-0 z-50 w-full border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
-    <div class="container mx-auto flex h-16 items-center justify-between px-4">
+  <header class="sticky top-0 z-50 w-full h-16 bg-white border-b border-[#e5e7eb]">
+    <div class="flex h-full items-center justify-between px-10">
       <!-- Logo -->
-      <a href="/" class="flex items-center gap-2">
-        <img src="/src/assets/logo.png" alt="ZeroCut" class="h-8" />
+      <a href="/" class="flex items-center">
+        <img src="/src/assets/logo.png" alt="ZeroCut" class="h-8 cursor-pointer" />
       </a>
 
       <!-- Right Actions -->
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-4">
         <!-- Show login/register when not logged in -->
         <template v-if="!authStore.isAuthenticated">
-          <Button size="sm" variant="ghost" @click="showLoginModal = true">
+          <Button size="sm" variant="ghost" @click="showLoginModal = true" class="text-[#6b7280]">
             登录
           </Button>
-          <Button size="sm"
-            class=" hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 rounded-full"
-            @click="showLoginModal = true">
+          <Button 
+            size="sm"
+            @click="showLoginModal = true"
+            class="bg-[#111827] text-white hover:bg-black rounded-[20px] px-4 py-2 text-sm font-medium"
+          >
             注册
           </Button>
         </template>
 
         <!-- Show user info when logged in -->
         <template v-else>
-          <div
-            class="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
-            <Gem class="h-4 w-4 text-blue-600 dark:text-blue-500" />
-            <span class="text-sm font-medium text-slate-900 dark:text-slate-50">
+          <div class="flex items-center gap-2 bg-[#f9fafb] px-4 py-2 rounded-[20px] border border-[#e5e7eb]">
+            <span class="text-base">💎</span>
+            <span class="text-sm font-semibold text-[#111827]">
               {{ creditsBalance.toLocaleString() }}
             </span>
           </div>
-          <Button size="sm"
-            class=" hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 rounded-full">
+          
+          <Button 
+            size="sm"
+            class="bg-[#111827] text-white hover:bg-black rounded-[20px] px-4 py-2 text-sm font-medium"
+          >
             升级
           </Button>
 
           <!-- User menu -->
           <div ref="userMenuRef" class="relative">
-            <Button size="sm"
-              class="rounded-full p-0 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
-              @click="showUserMenu = !showUserMenu">
-              <span class="text-sm font-semibold text-white">{{ userInitial }}</span>
-            </Button>
+            <button
+              @click="showUserMenu = !showUserMenu"
+              class="w-9 h-9 rounded-full bg-[#111827] border-2 border-[#e5e7eb] cursor-pointer flex items-center justify-center text-base font-semibold text-white"
+            >
+              {{ userInitial }}
+            </button>
 
             <!-- Dropdown menu -->
             <div v-if="showUserMenu"
-              class="absolute right-0 mt-2 min-w-[12rem] max-w-[16rem] rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 dark:bg-slate-800 dark:ring-slate-700">
-              <div class="py-1">
-                <div class="px-4 py-2 text-sm text-slate-700 dark:text-slate-300">
-                  <div class="font-medium truncate">{{ authStore.userName }}</div>
-                  <div class="text-xs text-slate-500 dark:text-slate-400 truncate">{{ authStore.user?.email }}</div>
-                </div>
-                <hr class="my-1 border-slate-200 dark:border-slate-700" />
-                <button @click="handleLogout"
-                  class="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700">
-                  <LogOut class="h-4 w-4" />
-                  退出登录
-                </button>
-              </div>
+              class="absolute right-0 mt-2 min-w-[160px] bg-white border border-[#e5e7eb] rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.12)] overflow-hidden z-[1000]">
+              <button 
+                @click="handleLogout"
+                class="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-[#dc2626] hover:bg-[#fef2f2] transition-colors"
+              >
+                <span>🚪</span>
+                <span>退出</span>
+              </button>
             </div>
           </div>
         </template>
