@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "lint": "eslint src --ext .ts,.vue",
     "lint:fix": "eslint src --ext .ts,.vue --fix",
-    "type-check": "vue-tsc --noEmit"
+    "type-check": "vue-tsc --noEmit",
+    "build:authing-css": "node scripts/scope-authing-css.js"
   },
   "dependencies": {
     "@authing/guard-vue3": "^5.3.9",
@@ -38,6 +39,9 @@
     "eslint-plugin-prettier": "^5.2.1",
     "eslint-plugin-vue": "^9.32.0",
     "postcss": "^8.4.49",
+    "postcss-cli": "^11.0.1",
+    "postcss-import": "^16.1.1",
+    "postcss-prefixwrap": "^1.57.2",
     "prettier": "^3.4.2",
     "prettier-plugin-tailwindcss": "^0.6.9",
     "tailwindcss": "^4.1.18",

@@ -3,6 +3,9 @@ import { useAuthStore } from '@/stores/authStore';
 import type { User } from '@authing/guard-vue3';
 import { useGuard } from '@authing/guard-vue3';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
+// Import clean Authing CSS with global resets removed
+import '@/assets/authing-clean.css';
+//import '@authing/guard-vue3/dist/esm/guard.min.css';
 
 const props = defineProps<{
   open: boolean;

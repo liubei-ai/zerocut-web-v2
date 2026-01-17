@@ -2,10 +2,10 @@ import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';
 import { createGuard } from '@authing/guard-vue3';
-import '@authing/guard-vue3/dist/esm/guard.min.css';
 import App from './App.vue';
 import router from './routes';
 import './index.css';
+// Removed authing-overrides.css since we're using scoped CSS now
 
 const app = createApp(App);
 
