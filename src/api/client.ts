@@ -1,9 +1,11 @@
 import type { ApiError, ApiResponse } from '@/types/api';
 import axios, { AxiosError, AxiosInstance, AxiosResponse } from 'axios';
 
+// URL prefixes that should use the proxy target
+const USER_TARGET_PREFIXES = ['/wallet/', '/homepage'];
+
 // Create axios instance with default configuration
 const apiClient: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   timeout: Number(import.meta.env.VITE_REQUEST_TIMEOUT) || 15000,
   withCredentials: true, // Enable httpOnly cookies
   headers: {
@@ -14,6 +16,16 @@ const apiClient: AxiosInstance = axios.create({
 // Request interceptor
 apiClient.interceptors.request.use(
   (config) => {
+    // Set baseURL based on request URL
+    const shouldUseUserTarget = USER_TARGET_PREFIXES.some(prefix =>
+      config.url?.startsWith(prefix)
+    );
+
+    if (shouldUseUserTarget) {
+      config.baseURL = import.meta.env.VITE_API_USER_URL;
+    } else {
+      config.baseURL = import.meta.env.VITE_API_AGENT_URL;
+    }
     return config;
   },
   (error) => {

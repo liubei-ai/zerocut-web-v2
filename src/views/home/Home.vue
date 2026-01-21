@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 import MainLayout from '@/components/layout/MainLayout.vue';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import ProjectGrid from '@/views/project/ProjectGrid.vue';
+
+const router = useRouter();
 
 const videoPrompt = ref('');
 const selectedMode = ref('one_click');
@@ -45,6 +49,9 @@ const quickTemplates = [
 const handleSubmit = () => {
   if (videoPrompt.value.trim()) {
     console.log('Submitting prompt:', videoPrompt.value);
+    // Generate a project ID and navigate to workspace
+    const projectId = `project-${Date.now()}`;
+    router.push(`/workspace/${projectId}`);
   }
 };
 
@@ -198,5 +205,8 @@ const selectStyle = (style: string) => {
         </div>
       </div>
     </div>
+
+    <!-- Project Grid Section -->
+    <ProjectGrid :is-in-home-page="true" />
   </MainLayout>
 </template>

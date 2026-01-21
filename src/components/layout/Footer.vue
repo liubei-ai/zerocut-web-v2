@@ -2,7 +2,7 @@
 </script>
 
 <template>
-  <footer class="border-t border-[#e5e7eb] bg-[#fafafa]">
+  <footer class="border-t border-[#e5e7eb] bg-white">
     <div class="container mx-auto px-4 py-12">
       <div class="grid gap-8 md:grid-cols-3">
         <!-- Brand Section -->

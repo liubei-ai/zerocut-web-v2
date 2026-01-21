@@ -4,7 +4,17 @@ const routes = [
   {
     path: '/',
     name: 'Home',
-    component: () => import('@/views/Home.vue'),
+    component: () => import('@/views/home/Home.vue'),
+  },
+  {
+    path: '/projects',
+    name: 'Projects',
+    component: () => import('@/views/project/Projects.vue'),
+  },
+  {
+    path: '/workspace/:projectId',
+    name: 'Workspace',
+    component: () => import('@/views/workspace/Workspace.vue'),
   },
 ];
 

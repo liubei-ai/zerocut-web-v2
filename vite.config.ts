@@ -20,10 +20,17 @@ export default defineConfig(({ command, mode }) => {
     },
     server: {
       proxy: {
-        '/api': {
-          target: env.VITE_API_BASE_URL_PROXY_TARGET,
+        '/api_user': {
+          target: env.VITE_API_USER_URL_PROXY_TARGET,
           changeOrigin: true,
           followRedirects: true,
+          rewrite: (path) => path.replace(/^\/api_user/, '/api'),
+        },
+        '/api_agent': {
+          target: env.VITE_API_AGENT_URL_PROXY_TARGET,
+          changeOrigin: true,
+          followRedirects: true,
+          rewrite: (path) => path.replace(/^\/api_agent/, '/api'),
         },
       },
     },
