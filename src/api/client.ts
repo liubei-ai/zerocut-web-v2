@@ -2,7 +2,7 @@ import type { ApiError, ApiResponse } from '@/types/api';
 import axios, { AxiosError, AxiosInstance, AxiosResponse } from 'axios';
 
 // URL prefixes that should use the proxy target
-const USER_TARGET_PREFIXES = ['/wallet/', '/homepage'];
+const USER_TARGET_PREFIXES = ['/wallet/', '/homepage','/auth'];
 
 // Create axios instance with default configuration
 const apiClient: AxiosInstance = axios.create({
@@ -39,7 +39,7 @@ apiClient.interceptors.response.use(
     const { code, message, data } = response.data;
 
     // Check if the response indicates success
-    if (code === 200 || code === 0) {
+    if (code >= 200 || code <= 300) {
       // Return the data directly for successful responses
       return { ...response, data: data };
     } else if (code === 401) {

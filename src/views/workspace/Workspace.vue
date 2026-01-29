@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import MainLayout from '@/components/layout/MainLayout.vue';
 import FileList from './components/FileList.vue';
 import PreviewArea from './components/PreviewArea.vue';
 import ChatBox from './components/ChatBox.vue';
+import { createVideoProject, createVideo, getProjectDetails, getChatHistory, getOssMapping, abortVideoCreation } from '@/api/videoProjectApi';
+import { type ChatMessage } from '@/types/workspace';
 
 interface WorkspaceFile {
   id: string;
@@ -16,37 +18,38 @@ interface WorkspaceFile {
   created_at: string;
 }
 
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  message_type: 'text' | 'thinking' | 'file' | 'error';
-  file_references?: Array<{
-    id: string;
-    file_name: string;
-    thumbnail_url?: string;
-    file_type: string;
-  }>;
-  created_at: string;
-}
-
 const route = useRoute();
 const router = useRouter();
 
 const files = ref<WorkspaceFile[]>([]);
 const messages = ref<ChatMessage[]>([]);
 const selectedFileId = ref<string>();
-const isLoading = ref(false);
+const isRuning = ref(false);
 const projectTitle = ref('音乐节海报设计');
+const initialChatMessage = ref<string>();
+const isNewProject = ref(false);
+const projectCreated = ref(false);
+const pollingTimer = ref<NodeJS.Timeout | null>(null);
+const isAborting = ref(false);
+const isPolling = ref(false);
+const projectId = ref<string>('');
 
 const selectedFile = computed(() => {
   return files.value.find(f => f.id === selectedFileId.value);
 });
 
 onMounted(() => {
-  const projectId = route.params.projectId as string;
-  
-  if (!projectId) {
+  projectId.value = route.params.projectId as string;
+
+  // Handle new workspace creation
+  if (projectId.value === 'new' || route.path === '/workspace/new') {
+    isNewProject.value = true;
+    initialChatMessage.value = history.state?.chatMessage as string;
+    loadProject();
+    return;
+  }
+
+  if (!projectId.value) {
     router.push('/');
     return;
   }
@@ -54,81 +57,206 @@ onMounted(() => {
   loadProject();
 });
 
-const loadProject = () => {
-  // Sample data - in real app this would come from API
-  const sampleMessages: ChatMessage[] = [
-    {
-      id: 'sample-1',
-      role: 'user',
-      content: '为音乐节制作一张包豪斯风格的海报。使用粉色、红色和奶油色的有限调色板。代表声波的抽象几何形状。极简垂直文本。',
-      message_type: 'text',
-      file_references: [{
-        id: 'ref-1',
-        file_name: 'ZeroCut Logo',
-        file_type: 'image'
-      }],
-      created_at: new Date(Date.now() - 86400000).toISOString(),
-    },
-    {
-      id: 'sample-2',
-      role: 'assistant',
-      content: '我将创建一张包豪斯风格的音乐节海报，采用指定的配色和设计元素。',
-      message_type: 'text',
-      created_at: new Date(Date.now() - 86300000).toISOString(),
-    },
-    {
-      id: 'sample-3',
-      role: 'assistant',
-      content: '完美！我已经创建了一张包豪斯风格的音乐节海报，展示了代表声波的抽象几何形状，采用粉色、红色和奶油色调色板，并配有极简垂直文本布局。',
-      message_type: 'text',
-      created_at: new Date(Date.now() - 86200000).toISOString(),
-    },
-  ];
+// Clean up timer when component is unmounted
+onUnmounted(() => {
+  stopPolling();
+});
 
-  const sampleFiles: WorkspaceFile[] = [
-    {
-      id: 'sample-file-1',
-      file_name: 'Bauhaus Music Festival Poster.jpg',
-      file_type: 'image',
-      file_url: 'https://images.pexels.com/photos/1563356/pexels-photo-1563356.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-      thumbnail_url: 'https://images.pexels.com/photos/1563356/pexels-photo-1563356.jpeg?auto=compress&cs=tinysrgb&w=400',
-      file_size: 2456789,
-      created_at: new Date(Date.now() - 86200000).toISOString(),
-    },
-    {
-      id: 'sample-file-2',
-      file_name: 'Abstract Geometric Design.jpg',
-      file_type: 'image',
-      file_url: 'https://images.pexels.com/photos/1389460/pexels-photo-1389460.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-      thumbnail_url: 'https://images.pexels.com/photos/1389460/pexels-photo-1389460.jpeg?auto=compress&cs=tinysrgb&w=400',
-      file_size: 1834567,
-      created_at: new Date(Date.now() - 172800000).toISOString(),
-    },
-    {
-      id: 'sample-file-3',
-      file_name: 'Festival Background Music.mp3',
-      file_type: 'audio',
-      file_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-      file_size: 5234567,
-      created_at: new Date(Date.now() - 259200000).toISOString(),
-    },
-    {
-      id: 'sample-file-4',
-      file_name: 'Promotional Video Draft.mp4',
-      file_type: 'video',
-      file_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-      thumbnail_url: 'https://images.pexels.com/photos/1181244/pexels-photo-1181244.jpeg?auto=compress&cs=tinysrgb&w=400',
-      file_size: 15234567,
-      created_at: new Date(Date.now() - 345600000).toISOString(),
-    },
-  ];
+const loadProject = async () => {
+  // For new workspace, start with empty data
+  if (isNewProject.value) {
+    messages.value = [];
+    files.value = [];
+    selectedFileId.value = undefined;
+    projectTitle.value = '新项目';
+    return;
+  }
 
-  messages.value = sampleMessages;
-  files.value = sampleFiles;
-  selectedFileId.value = sampleFiles[0].id;
+  // Load real project data from API
+  if (!projectId.value) return;
+
+  try {
+    await refreshWorkspaceData();
+
+    // Start polling for project updates every 5 seconds
+    startPolling();
+
+  } catch (error) {
+    console.error('❌ 加载项目失败:', error);
+  }
+};
+
+// Load chat history independently
+const loadChatHistory = async () => {
+  try {
+    const chatData = await getChatHistory(projectId.value, 'all');
+
+    // Convert chat history to message list
+    if (chatData.chatHistory && Array.isArray(chatData.chatHistory)) {
+      messages.value = chatData.chatHistory;
+    }
+  } catch (error) {
+    console.error('❌ 加载聊天记录失败:', error);
+    // If chat history fails to load, keep existing messages or set empty array
+    if (!messages.value.length) {
+      messages.value = [];
+    }
+  }
+};
+
+// Load OSS mapping independently
+const loadOssMapping = async () => {
+  try {
+    const ossData = await getOssMapping(projectId.value);
+
+    // Convert OSS mapping to file list
+    if (ossData.ossMapping && Array.isArray(ossData.ossMapping)) {
+      files.value = ossData.ossMapping.map((item, index) => ({
+        id: `file-${index}`,
+        file_name: item.localFile.split('/').pop() || item.localFile,
+        file_type: getFileTypeFromExtension(item.localFile) || item.fileType,
+        file_url: item.ossUrl,
+        thumbnail_url: item.fileType === 'image' ? item.ossUrl : undefined,
+        file_size: item.fileSize,
+        created_at: item.uploadTime,
+      }));
+
+      // Select first file if none selected
+      if (files.value.length > 0 && !selectedFileId.value) {
+        selectedFileId.value = files.value[0].id;
+      }
+    }
+  } catch (error) {
+    console.error('❌ 加载OSS映射失败:', error);
+    // If OSS mapping fails to load, keep existing files or set empty array
+    if (!files.value.length) {
+      files.value = [];
+    }
+  }
+};
+
+const loadOssAndMessages = async () => {
+  return Promise.all([
+    loadOssMapping(),
+    loadChatHistory()
+  ]);
+}
+
+const refreshWorkspaceData = async (isLastRefresh = false) => {
+  console.log('refreshWorkspaceData projectId', projectId.value)
+  try {
+    const projectData = await getProjectDetails(projectId.value);
+
+    // Handle status changes
+    const currentStatus = projectData.status;
+
+    // TODO: use Enum here
+    if (currentStatus === 'RUNNING') {
+      isRuning.value = true;
+    }
+
+    // Update project title, unnessary now：we've already set the title in the createProject logic
+    /* projectTitle.value = projectData.project_name; */
+
+
+    // Check if task has ended
+    if (currentStatus && currentStatus !== 'RUNNING') {
+      console.log('任务结束:', currentStatus);
+      // 任务结束
+      isRuning.value = false;
+      stopPolling();
+
+      /* // Find the latest assistant message and update its status
+      const latestAssistantMsg = messages.value
+        .filter(msg => msg.role === 'assistant')
+        .pop();
+
+      if (latestAssistantMsg) {
+        if (currentStatus === 'SUCCESS') {
+          latestAssistantMsg.message_type = 'text';
+        } else if (currentStatus === 'FAILED') {
+          latestAssistantMsg.message_type = 'error';
+          latestAssistantMsg.content = '视频生成失败';
+        } else if (currentStatus === 'CANCELLED') {
+          latestAssistantMsg.message_type = 'text';
+        }
+      } */
+
+
+    }
+
+
+    // nomatter what's the project's status,load Oss and Messages
+    await loadOssAndMessages();
+
+  } catch (error) {
+    console.error('❌ 刷新工作区数据失败:', error);
+  }
+};
+
+const stopPolling = () => {
+  if (pollingTimer.value) {
+    clearTimeout(pollingTimer.value);
+    pollingTimer.value = null;
+  }
+  isPolling.value = false;
+};
+
+const scheduleNextPoll = (delay: number = 5000) => {
+  if (isPolling.value) {
+    pollingTimer.value = setTimeout(async () => {
+      if (!isPolling.value) return; // Check if polling was stopped
+
+      try {
+        await refreshWorkspaceData();
+        // Schedule next poll only if current one completed and polling is still active
+        if (isPolling.value) {
+          scheduleNextPoll(delay);
+        }
+      } catch (error) {
+        console.error('❌ 轮询刷新数据失败:', error);
+        // Continue polling even if one request fails
+        if (isPolling.value) {
+          scheduleNextPoll(delay);
+        }
+      }
+    }, delay);
+  }
+};
+
+const startPolling = () => {
+  // Clear existing timer
+  stopPolling();
+
+  // Start polling
+  isPolling.value = true;
+  scheduleNextPoll();
+};
+
+const getFileTypeFromExtension = (filename: string): string => {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  if (!ext) return 'document';
+
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
+    return 'image';
+  } else if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm'].includes(ext)) {
+    return 'video';
+  } else if (['mp3', 'wav', 'flac', 'aac', 'ogg'].includes(ext)) {
+    return 'audio';
+  } else {
+    return 'document';
+  }
 };
 
 const handleSendMessage = async (content: string) => {
+
+  // If this is a new project and we haven't created it yet, create it first
+  const needCreateProject = !projectCreated.value && isNewProject.value;
+
+  isRuning.value = true;
+
+
+  // Create a new user message and add it to the chat,after we loaded this message from the server,this message will be coverd.
   const userMessage: ChatMessage = {
     id: `user-${Date.now()}`,
     role: 'user',
@@ -136,38 +264,105 @@ const handleSendMessage = async (content: string) => {
     message_type: 'text',
     created_at: new Date().toISOString(),
   };
-
   messages.value.push(userMessage);
-  isLoading.value = true;
 
-  // Simulate thinking
-  setTimeout(() => {
-    const thinkingMessage: ChatMessage = {
-      id: `thinking-${Date.now()}`,
+
+  if (needCreateProject) {
+    try {
+
+      // Add a creating message
+      const creatingMessage: ChatMessage = {
+        id: `creating-${Date.now()}`,
+        role: 'system',
+        content: '正在创建项目，请稍后...',
+        message_type: 'thinking',
+        created_at: new Date().toISOString(),
+      };
+      messages.value.push(creatingMessage);
+
+
+      // Create the project using the first message as prompt
+      const projectData = await createVideoProject({
+        prompt: content
+      });
+
+      // Update the URL to use the new project ID
+      const newProjectId = projectData.id.toString();
+      await router.replace(`/workspace/${newProjectId}`);
+
+      // Update the projectId ref
+      projectId.value = newProjectId;
+
+      // Update project title with the generated name
+      projectTitle.value = projectData.project_name;
+
+      // Mark project as created
+      projectCreated.value = true;
+      isNewProject.value = false;
+
+      console.log('✅ 项目创建成功:', projectData);
+
+
+    } catch (error) {
+      console.error('❌ 创建项目失败:', error);
+
+      // Add error message to chat
+      const errorMessage: ChatMessage = {
+        id: `error-${Date.now()}`,
+        role: 'assistant',
+        content: '抱歉，创建项目时出现错误，请稍后重试。',
+        message_type: 'error',
+        created_at: new Date().toISOString(),
+      };
+
+      messages.value.push(errorMessage);
+      isRuning.value = false;
+      return;
+    }
+  }
+
+
+  // Create video (common logic for both new and existing projects)
+  try {
+    const videoCreationResult = await createVideo({
+      projectId: projectId.value,
+      prompt: content
+    });
+
+    console.log('✅ 视频创建任务已启动:', videoCreationResult);
+
+
+    /* // Add success message to chat
+    const successMessage: ChatMessage = {
+      id: `success-${Date.now()}`,
       role: 'assistant',
-      content: '正在思考如何帮你实现这个想法...',
+      content: `视频创建任务已启动，任务ID: ${videoCreationResult.taskId}。正在为您生成视频内容...`,
       message_type: 'thinking',
       created_at: new Date().toISOString(),
     };
 
-    messages.value.push(thinkingMessage);
+    messages.value.push(successMessage); */
 
-    // Remove thinking message and add response
-    setTimeout(() => {
-      messages.value = messages.value.filter(m => m.message_type !== 'thinking');
+    // Start polling for updates
+    startPolling();
 
-      const responseMessage: ChatMessage = {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: '我理解你的需求了。正在为你生成相关素材，请稍候...',
-        message_type: 'text',
-        created_at: new Date().toISOString(),
-      };
+  } catch (videoError) {
+    isRuning.value = false;
 
-      messages.value.push(responseMessage);
-      isLoading.value = false;
-    }, 1500);
-  }, 500);
+    console.error('❌ 创建视频失败:', videoError);
+
+    // Add video creation error message to chat
+    const videoErrorMessage: ChatMessage = {
+      id: `video-error-${Date.now()}`,
+      role: 'assistant',
+      content: '启动视频创建时出现错误。请稍后重试。',
+      message_type: 'error',
+      created_at: new Date().toISOString(),
+    };
+
+    messages.value.push(videoErrorMessage);
+  }
+
 };
 
 const handleFileSelect = (fileId: string) => {
@@ -181,8 +376,8 @@ const handleProjectTitleChange = (newTitle: string) => {
 const handleFileUpload = (file: File) => {
   const fileType = file.type.startsWith('image/') ? 'image'
     : file.type.startsWith('video/') ? 'video'
-    : file.type.startsWith('audio/') ? 'audio'
-    : 'document';
+      : file.type.startsWith('audio/') ? 'audio'
+        : 'document';
 
   const newFile: WorkspaceFile = {
     id: `file-${Date.now()}`,
@@ -220,36 +415,41 @@ const handleModify = () => {
 const handleShowPrompt = () => {
   console.log('Show prompt');
 };
+
+const handleAbortTask = async () => {
+  if (!projectId.value || isAborting.value) return;
+
+
+  try {
+    isAborting.value = true;
+
+    // Call abort API
+    await abortVideoCreation({ projectId: projectId.value });
+
+    console.log('任务中断请求已发送');
+
+    // The polling will handle the status change to CANCELLED
+
+  } catch (error) {
+    console.error('❌ 中断任务失败:', error);
+    isAborting.value = false;
+  }
+};
 </script>
 
 <template>
   <MainLayout :show-footer="false" :show-sidebar="false">
     <div class="flex h-[calc(100vh-64px)] overflow-hidden bg-white">
-      <FileList
-        :files="files"
-        :selected-file-id="selectedFileId"
-        :project-title="projectTitle"
-        @file-select="handleFileSelect"
-        @project-title-change="handleProjectTitleChange"
-        @file-upload="handleFileUpload"
-        @download-all="handleDownloadAll"
-      />
+      <FileList :files="files" :selected-file-id="selectedFileId" :project-title="projectTitle"
+        @file-select="handleFileSelect" @project-title-change="handleProjectTitleChange" @file-upload="handleFileUpload"
+        @download-all="handleDownloadAll" />
 
-      <PreviewArea
-        :file-url="selectedFile?.file_url"
-        :file-type="selectedFile?.file_type"
-        :file-name="selectedFile?.file_name"
-        @regenerate="handleRegenerate"
-        @download="handleDownload"
-        @modify="handleModify"
-        @show-prompt="handleShowPrompt"
-      />
+      <PreviewArea :file-url="selectedFile?.file_url" :file-type="selectedFile?.file_type"
+        :file-name="selectedFile?.file_name" @regenerate="handleRegenerate" @download="handleDownload"
+        @modify="handleModify" @show-prompt="handleShowPrompt" />
 
-      <ChatBox
-        :messages="messages"
-        :is-loading="isLoading"
-        @send-message="handleSendMessage"
-      />
+      <ChatBox :messages="messages" :project-id="projectId" :is-runing="isRuning" :initial-message="initialChatMessage"
+        @send-message="handleSendMessage" @abort-task="handleAbortTask" />
     </div>
   </MainLayout>
 </template>

@@ -62,7 +62,10 @@ const fetchCreditsBalance = async () => {
 
     const walletInfo = await getWalletInfo(workspaceId);
     creditsBalance.value = walletInfo.availableCredits;
-  } catch (error) {
+  } catch (error: any) {
+    if (error.code === 401) {
+      authStore.clearAuthState();
+    }
     console.error('Failed to fetch wallet balance:', error);
   } finally {
     isLoadingCredits.value = false;
@@ -146,11 +149,8 @@ onUnmounted(() => {
           <Button size="sm" variant="ghost" @click="showLoginModal = true" class="text-[#6b7280]">
             登录
           </Button>
-          <Button 
-            size="sm"
-            @click="showLoginModal = true"
-            class="bg-[#111827] text-white hover:bg-black rounded-[20px] px-4 py-2 text-sm font-medium"
-          >
+          <Button size="sm" @click="showLoginModal = true"
+            class="bg-[#111827] text-white hover:bg-black rounded-[20px] px-4 py-2 text-sm font-medium">
             注册
           </Button>
         </template>
@@ -163,30 +163,23 @@ onUnmounted(() => {
               {{ creditsBalance.toLocaleString() }}
             </span>
           </div>
-          
-          <Button 
-            size="sm"
-            class="bg-[#111827] text-white hover:bg-black rounded-[20px] px-4 py-2 text-sm font-medium"
-          >
+
+          <Button size="sm" class="bg-[#111827] text-white hover:bg-black rounded-[20px] px-4 py-2 text-sm font-medium">
             升级
           </Button>
 
           <!-- User menu -->
           <div ref="userMenuRef" class="relative">
-            <button
-              @click="showUserMenu = !showUserMenu"
-              class="w-9 h-9 rounded-full bg-[#111827] border-2 border-[#e5e7eb] cursor-pointer flex items-center justify-center text-base font-semibold text-white"
-            >
-              {{ userInitial }}
+            <button :title="userInitial" @click="showUserMenu = !showUserMenu"
+              class="w-9 h-9 rounded-full bg-[#111827] border-2 border-[#e5e7eb] cursor-pointer flex items-center justify-center text-base font-semibold text-white">
+              {{ String(userInitial || '我').toUpperCase().slice(0, 1) }}
             </button>
 
             <!-- Dropdown menu -->
             <div v-if="showUserMenu"
               class="absolute right-0 mt-2 min-w-[160px] bg-white border border-[#e5e7eb] rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.12)] overflow-hidden z-[1000]">
-              <button 
-                @click="handleLogout"
-                class="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-[#dc2626] hover:bg-[#fef2f2] transition-colors"
-              >
+              <button @click="handleLogout"
+                class="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-[#dc2626] hover:bg-[#fef2f2] transition-colors">
                 <span>🚪</span>
                 <span>退出</span>
               </button>

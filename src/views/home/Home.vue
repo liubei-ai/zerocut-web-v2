@@ -5,7 +5,9 @@ import MainLayout from '@/components/layout/MainLayout.vue';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import ProjectGrid from '@/views/project/ProjectGrid.vue';
+import { useAuthStore } from '@/stores/authStore';
 
+const authStore = useAuthStore();
 const router = useRouter();
 
 const videoPrompt = ref('');
@@ -49,9 +51,20 @@ const quickTemplates = [
 const handleSubmit = () => {
   if (videoPrompt.value.trim()) {
     console.log('Submitting prompt:', videoPrompt.value);
-    // Generate a project ID and navigate to workspace
-    const projectId = `project-${Date.now()}`;
-    router.push(`/workspace/${projectId}`);
+    
+    let chatMessage = '';
+    
+    if (selectedMode.value === 'one_click' || selectedMode.value === 'free_creation') {
+      chatMessage = `请为我创作视频，比例为${aspectRatio.value}，风格为${videoType.value}，主题内容为：${videoPrompt.value}`;
+    } else if (selectedMode.value === 'storyboard') {
+      chatMessage = `请为我创建一个分镜，比例为${aspectRatio.value}，风格为${videoType.value}，内容为：${videoPrompt.value}`;
+    }
+    
+    // Navigate to workspace/new and pass chatMessage via router state
+    router.push({
+      path: '/workspace/new',
+      state: { chatMessage }
+    });
   }
 };
 
@@ -68,11 +81,11 @@ const selectStyle = (style: string) => {
 
 <template>
   <MainLayout>
-    <div class="min-h-[calc(100vh-200px)] bg-[#fafafa] py-20 px-10">
+    <div class="bg-[#fafafa] py-20 px-10">
       <div class="max-w-[1000px] mx-auto">
         <!-- Promo Banner & Title Section -->
         <div class="flex flex-col items-center mb-14">
-          <div class="inline-flex items-center gap-2 bg-[#fef3c7] px-5 py-2 rounded-[20px] border border-[#fde68a] mb-6">
+          <div v-if="!authStore.isAuthenticated" class="inline-flex items-center gap-2 bg-[#fef3c7] px-5 py-2 rounded-[20px] border border-[#fde68a] mb-6">
             <span class="text-base">🎁</span>
             <span class="text-sm text-[#92400e]">新用户注册送500积分～</span>
           </div>
@@ -207,6 +220,6 @@ const selectStyle = (style: string) => {
     </div>
 
     <!-- Project Grid Section -->
-    <ProjectGrid :is-in-home-page="true" />
+    <ProjectGrid :is-in-home-page="true" v-if="authStore.isAuthenticated" />
   </MainLayout>
 </template>

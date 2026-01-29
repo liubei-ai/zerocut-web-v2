@@ -12,6 +12,11 @@ const routes = [
     component: () => import('@/views/project/Projects.vue'),
   },
   {
+    path: '/workspace/new',
+    name: 'WorkspaceNew',
+    component: () => import('@/views/workspace/Workspace.vue'),
+  },
+  {
     path: '/workspace/:projectId',
     name: 'Workspace',
     component: () => import('@/views/workspace/Workspace.vue'),

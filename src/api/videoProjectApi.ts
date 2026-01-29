@@ -1,4 +1,5 @@
 import apiClient from './client';
+import { type ChatMessage } from '@/types/workspace';
 
 export interface VideoProject {
   id: string;
@@ -31,6 +32,25 @@ export interface VideoProjectListParams {
   pageSize?: number;
 }
 
+export interface CreateVideoProjectRequest {
+  project_name?: string;
+  prompt?: string;
+}
+
+export interface CreateVideoProjectResponse {
+  id: number;
+  uid: number;
+  project_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Create video project
+export async function createVideoProject(data: CreateVideoProjectRequest) {
+  const response = await apiClient.post<CreateVideoProjectResponse>('/video-project/prompt', data);
+  return response.data;
+}
+
 // Get user's video projects
 export async function getUserVideoProjects(params: VideoProjectListParams = {}) {
   const { page = 1, pageSize = 12 } = params;
@@ -45,5 +65,129 @@ export async function getUserVideoProjects(params: VideoProjectListParams = {}) 
 // Delete video project
 export async function deleteVideoProject(projectId: string) {
   const response = await apiClient.delete(`/video-project/${projectId}`);
+  return response.data;
+}
+
+// Create video for a project
+export interface CreateVideoRequest {
+  projectId: number | string;
+  prompt: string;
+}
+
+export interface CreateVideoResponse {
+  projectId: number;
+  prompt: string;
+  taskId: string;
+  status: string;
+  message: string;
+}
+
+export async function createVideo(data: CreateVideoRequest) {
+  const response = await apiClient.post<CreateVideoResponse>('/video-creation/create', data);
+  return response.data;
+}
+
+// Get project details by ID
+export interface ProjectDetailsResponse {
+  id: number;
+  uid: number;
+  project_name: string;
+  storyboard?: {
+    scenes?: Array<{
+      seed?: number;
+      start_frame?: string;
+      camera_count?: number;
+      video_prompt?: string;
+      video_duration?: number;
+      use_video_model?: string;
+    }>;
+    bgm_prompt?: string;
+    video_type?: string;
+    voice_type?: string;
+    orientation?: string;
+    outline_sheet?: string;
+  };
+  draft_content?: any;
+  oss_mapping?: Array<{
+    ossKey: string;
+    ossUrl: string;
+    fileSize: number;
+    fileType: string;
+    localFile: string;
+    uploadTime: string;
+  }>;
+  llm_chat_all?: {
+    messages: Array<{
+      id: number;
+      role: 'user' | 'assistant';
+      content: string;
+      timestamp: string;
+    }>;
+    timestamp: string;
+    totalMessages: number;
+  };
+  llm_chat_tool?: {
+    messages: Array<{
+      id: number;
+      json?: any;
+      role: string;
+      tool?: string;
+      type?: string;
+      content: string;
+      timestamp: string;
+    }>;
+    timestamp: string;
+    totalMessages: number;
+  };
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getProjectDetails(projectId: string | number) {
+  const response = await apiClient.get<ProjectDetailsResponse>(`/video-project/${projectId}`);
+  return response.data;
+}
+
+// Abort video creation task
+export interface AbortTaskRequest {
+  projectId: number | string;
+}
+
+export async function abortVideoCreation(data: AbortTaskRequest) {
+  const response = await apiClient.post('/video-creation/abort', data);
+  return response.data;
+}
+
+export interface ChatHistoryResponse {
+  projectId: number;
+  type: string;
+  chatHistory: ChatMessage[];
+  count: number;
+}
+
+export async function getChatHistory(projectId: string | number, type: 'all' | 'tool' = 'all') {
+  const response = await apiClient.get<ChatHistoryResponse>(`/video-creation/chat-history/${projectId}?type=${type}`);
+  return response.data;
+}
+
+// Get OSS mapping for a project
+export interface OssMapping {
+  ossKey: string;
+  ossUrl: string;
+  fileSize: number;
+  fileType: string;
+  localFile: string;
+  uploadTime: string;
+}
+
+export interface OssMappingResponse {
+  projectId: number;
+  ossMapping: OssMapping[];
+  exists: boolean;
+}
+
+export async function getOssMapping(projectId: string | number) {
+  const response = await apiClient.get<OssMappingResponse>(`/video-creation/oss-mapping/${projectId}`);
   return response.data;
 }
