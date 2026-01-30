@@ -91,16 +91,13 @@ const loadChatHistory = async () => {
   try {
     const chatData = await getChatHistory(projectId.value, 'all');
 
-    // Convert chat history to message list
-    if (chatData.chatHistory && Array.isArray(chatData.chatHistory)) {
+    const chatHistory = chatData.chatHistory;
+    // SKip empty history
+    if (Array.isArray(chatHistory) && chatHistory.length > 0) {
       messages.value = chatData.chatHistory;
     }
   } catch (error) {
     console.error('❌ 加载聊天记录失败:', error);
-    // If chat history fails to load, keep existing messages or set empty array
-    if (!messages.value.length) {
-      messages.value = [];
-    }
   }
 };
 

@@ -29,18 +29,21 @@ const processedMessages = computed(() => {
 
     if (message.role === 'assistant') {
       try {
-        const parsed = JSON.parse(message.content);
+        const parsed = message.content;
         if (Array.isArray(parsed)) {
           // Extract userResponse content from different message types
+          console.log('parsed:', parsed)
+
           const userResponses: string[] = [];
 
           parsed.forEach(item => {
+            console.log('item', item)
             if (item.type === 'toolCall' && item.toolCall?.userResponse) {
               userResponses.push(item.toolCall.userResponse);
             } else if (item.type === 'toolCallResponse' && item.toolCallResponse?.userResponse) {
               userResponses.push(item.toolCallResponse.userResponse);
-            } else if (item.type === 'chat' && item.chatContent) {
-              userResponses.push(item.chatContent);
+            } else if (item.type === 'text' && item.userResponse) {
+              userResponses.push(item.userResponse);
             }
           });
 
@@ -50,6 +53,8 @@ const processedMessages = computed(() => {
           } else {
             processed.displayContent = message.content || message.chatContent;
           }
+
+          console.log('userResponses:', userResponses)
           processed.shouldDisplay = true;
         } else {
           // If it's not an array, don't display this assistant message
@@ -78,10 +83,11 @@ watch(() => props.initialMessage, (newMessage) => {
   }
 }, { immediate: true });
 
+// todo if user scrolled manualy while running,then stop auto scroll.
 const scrollToBottom = () => {
-  /* nextTick(() => {
+  nextTick(() => {
     messagesEndRef.value?.scrollIntoView({ behavior: 'smooth' });
-  }); */
+  });
 };
 
 watch(() => processedMessages.value, scrollToBottom, { deep: true });
@@ -160,7 +166,7 @@ const buttonDisabled = computed(() => {
       <template v-else>
         <div v-for="message in processedMessages" :key="message.id">
 
-          <!-- System message,these kind of messages are generated in the brower,only use to show a system tip,not by the server Agent,so it will be coverd while loaded the server's messages -->
+          <!-- System message,these kind of messages are generated in the browser,only use to show a system tip,not by the server Agent,so it will be coverd while loaded the server's messages -->
           <template v-if="message.role === 'system'">
             <!-- Thinking message -->
             <div v-if="message.message_type === 'thinking'" class="flex gap-3 items-start">
@@ -199,7 +205,7 @@ const buttonDisabled = computed(() => {
                   {{ message.role === 'user' ? '你' : 'AI 助手' }}
                 </span>
                 <span class="text-[11px] text-gray-400">
-                  {{ formatTime(message.created_at) }}
+                  {{ formatTime(message.timestamp) }}
                 </span>
               </div>
 
@@ -226,37 +232,53 @@ const buttonDisabled = computed(() => {
                     class="p-3 bg-white rounded-lg border border-gray-200 shadow-sm">
                     <div class="flex items-start gap-2">
                       <div class="w-2 h-2 rounded-full bg-blue-500 mt-2 flex-shrink-0"></div>
-                      <div class="whitespace-pre-wrap break-words">{{ response }}</div>
+                      <div class="whitespace-pre-wrap break-words break-all">{{ response }}</div>
+
                     </div>
+
+                  </div>
+
+                  <div
+                    class="mt-3 px-4 py-3.5 bg-gray-50 rounded-2xl rounded-tl-sm text-sm shadow-sm flex items-center gap-1.5">
+                    <div class="w-2 h-2 rounded-full bg-gray-500 animate-pulse"></div>
+                    <div class="w-2 h-2 rounded-full bg-gray-500 animate-pulse" style="animation-delay: 0.2s;"></div>
+                    <div class="w-2 h-2 rounded-full bg-gray-500 animate-pulse" style="animation-delay: 0.4s;"></div>
                   </div>
                 </div>
+
+
                 <!-- Display regular content for other cases -->
-                <div v-else class="whitespace-pre-wrap break-words">
+                <div v-else class="whitespace-pre-wrap break-words break-all">
                   {{ message.displayContent }}
                 </div>
+
+
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Loading indicator -->
-        <div v-if="isRuning" class="flex gap-3 items-start">
-          <div
-            class="w-9 h-9 rounded-full bg-gray-900 flex items-center justify-center text-base font-semibold text-white flex-shrink-0">
-            🤖
-          </div>
-
-          <div class="flex-1 flex flex-col gap-1.5 max-w-[75%]">
-            <div class="flex items-center gap-2">
-              <span class="text-xs font-semibold text-gray-900">AI 助手</span>
+          <!-- Loading indicator -->
+          <div v-if="isRuning" class="flex gap-3 items-start">
+            <div
+              class="w-9 h-9 rounded-full bg-gray-900 flex items-center justify-center text-base font-semibold text-white flex-shrink-0">
+              🤖
             </div>
 
-            <div class="px-4 py-3.5 bg-gray-50 rounded-2xl rounded-tl-sm text-sm shadow-sm flex items-center gap-1.5">
-              <div class="w-2 h-2 rounded-full bg-gray-500 animate-pulse"></div>
-              <div class="w-2 h-2 rounded-full bg-gray-500 animate-pulse" style="animation-delay: 0.2s;"></div>
-              <div class="w-2 h-2 rounded-full bg-gray-500 animate-pulse" style="animation-delay: 0.4s;"></div>
+            <div class="flex-1 flex flex-col gap-1.5 max-w-[75%]">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-semibold text-gray-900">AI 助手</span>
+              </div>
+
+              <div class="px-4 py-3.5 bg-gray-50 rounded-2xl rounded-tl-sm text-sm shadow-sm flex items-center gap-1.5">
+                <div class="w-2 h-2 rounded-full bg-gray-500 animate-pulse"></div>
+                <div class="w-2 h-2 rounded-full bg-gray-500 animate-pulse" style="animation-delay: 0.2s;"></div>
+                <div class="w-2 h-2 rounded-full bg-gray-500 animate-pulse" style="animation-delay: 0.4s;"></div>
+              </div>
             </div>
           </div>
+
+
+
         </div>
       </template>
 
