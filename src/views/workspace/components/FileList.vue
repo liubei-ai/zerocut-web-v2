@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 
 interface WorkspaceFile {
   id: string;
@@ -34,6 +34,11 @@ const isEditingTitle = ref(false);
 const editedTitle = ref(props.projectTitle);
 const filterType = ref<string>('all');
 const fileInputRef = ref<HTMLInputElement>();
+
+// Watch for changes in props.projectTitle and update editedTitle
+watch(() => props.projectTitle, (newTitle) => {
+  editedTitle.value = newTitle;
+});
 
 const getFileIcon = (fileType: string) => {
   const icons: Record<string, string> = {
@@ -149,14 +154,14 @@ const handleKeyDown = (e: KeyboardEvent) => {
       </div>
 
       <div class="flex gap-1.5">
-        <button
+        <!-- <button
           @click="handleFileUploadClick"
           class="flex-1 px-3 py-2 border border-gray-200 rounded-lg bg-gray-900 text-white text-xs font-medium cursor-pointer transition-all flex items-center justify-center gap-1.5 hover:bg-black"
         >
           <span>📤</span>
           <span>上传</span>
-        </button>
-        <button
+        </button> -->
+        <!-- <button
           @click="$emit('download-all')"
           :disabled="files.length === 0"
           :class="[
@@ -168,7 +173,7 @@ const handleKeyDown = (e: KeyboardEvent) => {
           title="下载全部"
         >
           <span>⬇️</span>
-        </button>
+        </button> -->
       </div>
 
       <input

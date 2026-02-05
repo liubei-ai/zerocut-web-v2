@@ -1,9 +1,10 @@
-import type { ApiError, User } from '@/types/api';
+import type { ApiError as IApiError, User } from '@/types/api';
 import { useGuard, type User as AuthingUser } from '@authing/guard-vue3';
 import { defineStore } from 'pinia';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { requestLogout, syncUserProfile } from '@/api/authApi';
 import apiClient from '@/api/client';
+import { useToast } from '@/composables/useToast';
 
 export const useAuthStore = defineStore(
   'auth',
@@ -14,9 +15,12 @@ export const useAuthStore = defineStore(
     const isLoggedIn = ref(false);
     const user = ref<User | null>(null);
     const currentWorkspaceId = ref<string | null>(null);
+    const showLoginModal = ref(false);
+    const token = ref<string | null>(null);
 
-    // Initialize guard
+    // Initialize guard and toast
     const guard = useGuard();
+    const { toast } = useToast();
 
     // Computed
     const isAuthenticated = computed(() => isLoggedIn.value && !!user.value);
@@ -53,12 +57,16 @@ export const useAuthStore = defineStore(
 
         console.log('User synced:', response);
 
-        user.value = response.data as User;
+        user.value = response.data;
+        //token.value = response.data.token;
         isLoggedIn.value = true;
         error.value = null;
 
         console.log('Authing user logged in:', user.value);
-        
+
+        // Show success toast
+        //toast.success(`Welcome back, ${user.value.username || user.value.email}!`, 'Login Successful');
+
         // Fetch workspace ID after login
         await fetchAndSetWorkspaceId();
       } catch (err) {
@@ -80,6 +88,9 @@ export const useAuthStore = defineStore(
         // Then call backend and Authing logout
         await requestLogout();
         await guard.logout();
+
+        // Show success toast
+        toast.success('You have been logged out successfully.', 'Logout Successful');
       } catch (err) {
         console.error('Logout failed:', err);
         // Even if remote logout fails, local state is cleared
@@ -96,6 +107,7 @@ export const useAuthStore = defineStore(
     const clearAuthState = () => {
       isLoggedIn.value = false;
       user.value = null;
+      token.value = null;
       error.value = null;
       currentWorkspaceId.value = null;
     };
@@ -103,10 +115,12 @@ export const useAuthStore = defineStore(
     /**
      * Handle authentication errors
      */
-    const handleAuthError = (apiError: ApiError) => {
+    const handleAuthError = (apiError: IApiError) => {
       if (apiError.code === 401) {
         error.value = 'Invalid username or password';
         clearAuthState();
+        console.log('openLoginModal', openLoginModal)
+        openLoginModal(); // Show login modal on auth error
       } else if (apiError.code === 403) {
         error.value = 'Access denied';
       } else if (apiError.code === 0) {
@@ -114,6 +128,20 @@ export const useAuthStore = defineStore(
       } else {
         error.value = apiError.message || 'Login failed. Please try again.';
       }
+    };
+
+    /**
+     * Show login modal
+     */
+    const openLoginModal = () => {
+      showLoginModal.value = true;
+    };
+
+    /**
+     * Hide login modal
+     */
+    const closeLoginModal = () => {
+      showLoginModal.value = false;
     };
 
     /**
@@ -130,6 +158,8 @@ export const useAuthStore = defineStore(
       isLoggedIn,
       user,
       currentWorkspaceId,
+      showLoginModal,
+      token,
 
       // Computed
       isAuthenticated,
@@ -141,10 +171,14 @@ export const useAuthStore = defineStore(
       logout,
       clearAuthState,
       handleAuthError,
+      openLoginModal,
+      closeLoginModal,
       clearError,
     };
   },
   {
-    persist: true,
+    persist: {
+      pick: ['isLoggedIn', 'currentWorkspaceId', 'user'],
+    },
   }
 );

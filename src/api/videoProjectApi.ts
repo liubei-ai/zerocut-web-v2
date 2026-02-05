@@ -47,24 +47,42 @@ export interface CreateVideoProjectResponse {
 
 // Create video project
 export async function createVideoProject(data: CreateVideoProjectRequest) {
-  const response = await apiClient.post<CreateVideoProjectResponse>('/video-project/prompt', data);
+  const response = await apiClient.post<CreateVideoProjectRequest, CreateVideoProjectResponse>('/video-project/prompt', data);
   return response.data;
 }
 
 // Get user's video projects
 export async function getUserVideoProjects(params: VideoProjectListParams = {}) {
   const { page = 1, pageSize = 12 } = params;
-  
+
   const response = await apiClient.get<VideoProjectListResponse>(
     `/video-project/user?page=${page}&pageSize=${pageSize}`
   );
-  
+
   return response.data;
 }
 
 // Delete video project
 export async function deleteVideoProject(projectId: string) {
   const response = await apiClient.delete(`/video-project/${projectId}`);
+  return response.data;
+}
+
+// Update video project
+export interface UpdateVideoProjectRequest {
+  project_name: string;
+}
+
+export interface UpdateVideoProjectResponse {
+  id: number;
+  uid: number;
+  project_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function updateVideoProject(projectId: string | number, data: UpdateVideoProjectRequest) {
+  const response = await apiClient.put<UpdateVideoProjectRequest, UpdateVideoProjectResponse>(`/video-project/${projectId}`, data);
   return response.data;
 }
 
@@ -83,7 +101,7 @@ export interface CreateVideoResponse {
 }
 
 export async function createVideo(data: CreateVideoRequest) {
-  const response = await apiClient.post<CreateVideoResponse>('/video-creation/create', data);
+  const response = await apiClient.post<CreateVideoRequest, CreateVideoResponse>('/video-creation/create', data);
   return response.data;
 }
 

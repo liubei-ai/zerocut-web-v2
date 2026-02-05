@@ -1,3 +1,4 @@
+import { normalize } from 'path';
 import apiClient from './client';
 
 export interface WalletInfo {
@@ -22,9 +23,13 @@ export const getWalletInfo = async (
 ): Promise<WalletInfo> => {
   try {
     const response = await apiClient.get<WalletInfoResponse>(
-      `/wallet/info?workspaceId=${workspaceId}`
+      `wallet/info/?workspaceId=${workspaceId}`
+      , null,
+      {
+        noErrorAlert: true
+      }
     );
-    
+
     return {
       availableCredits: response.data.availableCredits || 0,
       totalCredits: response.data.totalCredits,
@@ -35,11 +40,11 @@ export const getWalletInfo = async (
     if (error.code === 503 && retryCount < maxRetries) {
       const delay = 500 * (retryCount + 1);
       console.log(`Wallet API 503, retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
-      
+
       await new Promise(resolve => setTimeout(resolve, delay));
       return getWalletInfo(workspaceId, retryCount + 1, maxRetries);
     }
-    
+
     throw error;
   }
 };

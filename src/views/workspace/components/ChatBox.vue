@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { ref, nextTick, watch, computed } from 'vue';
+import { ref, nextTick, watch, computed, onUnmounted } from 'vue';
 import { abortVideoCreation } from '@/api/videoProjectApi';
-import { type ChatMessage } from '@/types/workspace';
-
+import { type ChatMessage, type AssistantMessage } from '@/types/workspace';
 
 interface Props {
   messages: ChatMessage[];
-  isRuning?: boolean;
-  initialMessage?: string;
+  isRunning?: boolean;
+  initialInput?: string;
   projectId?: string | number;
 }
 
@@ -21,86 +20,98 @@ const emit = defineEmits<Emits>();
 
 const input = ref('');
 const messagesEndRef = ref<HTMLDivElement>();
+const messagesContainer = ref<HTMLDivElement>();
+const isUserScrolling = ref(false);
+const scrollTimeout = ref<NodeJS.Timeout>();
 
-// Pre-process messages to add displayContent and shouldDisplay
-const processedMessages = computed(() => {
-  return props.messages.map(message => {
-    const processed = { ...message };
-
-    if (message.role === 'assistant') {
-      try {
-        const parsed = message.content;
-        if (Array.isArray(parsed)) {
-          // Extract userResponse content from different message types
-          console.log('parsed:', parsed)
-
-          const userResponses: string[] = [];
-
-          parsed.forEach(item => {
-            console.log('item', item)
-            if (item.type === 'toolCall' && item.toolCall?.userResponse) {
-              userResponses.push(item.toolCall.userResponse);
-            } else if (item.type === 'toolCallResponse' && item.toolCallResponse?.userResponse) {
-              userResponses.push(item.toolCallResponse.userResponse);
-            } else if (item.type === 'text' && item.userResponse) {
-              userResponses.push(item.userResponse);
-            }
-          });
-
-          if (userResponses.length > 0) {
-            processed.userResponses = userResponses;
-            processed.displayContent = undefined; // Don't use displayContent for arrays
-          } else {
-            processed.displayContent = message.content || message.chatContent;
-          }
-
-          console.log('userResponses:', userResponses)
-          processed.shouldDisplay = true;
-        } else {
-          // If it's not an array, don't display this assistant message
-          processed.shouldDisplay = true;
-        }
-      } catch (e) {
-        processed.displayContent = message.content || message.chatContent;
-
-        // If JSON parsing fails, don't display this assistant message
-        //processed.shouldDisplay = false;
-      }
-    } else {
-      // For user messages, always display original content
-      processed.displayContent = message.content || message.chatContent || message.toolCall?.reasoning || message.toolCall?.userResponse || message.toolCallResponse?.userResponse;
-      processed.shouldDisplay = true;
-    }
-
-    return processed;
-  });
-});
-
-// Set initial message when prop changes
-watch(() => props.initialMessage, (newMessage) => {
-  if (newMessage && !input.value) {
-    input.value = newMessage;
+const getUserResponseOfAssistant = (assistantMessage: AssistantMessage) => {
+  if (assistantMessage.type === 'toolCall' && assistantMessage.toolCall?.userResponse) {
+    return assistantMessage.toolCall.userResponse;
+  } else if (assistantMessage.type === 'toolCallResponse' && assistantMessage.toolCallResponse?.userResponse) {
+    return assistantMessage.toolCallResponse.userResponse;
+  } else if (assistantMessage.type === 'text' && assistantMessage.userResponse) {
+    return assistantMessage.userResponse;
   }
-}, { immediate: true });
+  return '';
+};
+// Set initial message when prop changes
+watch(
+  () => props.initialInput,
+  newMessage => {
+    if (newMessage && !input.value) {
+      input.value = newMessage;
+    }
+  },
+  { immediate: true },
+);
 
-// todo if user scrolled manualy while running,then stop auto scroll.
-const scrollToBottom = () => {
-  nextTick(() => {
-    messagesEndRef.value?.scrollIntoView({ behavior: 'smooth' });
-  });
+// Reset user scrolling state when task starts running
+watch(
+  () => props.isRunning,
+  (newIsRunning, oldIsRunning) => {
+    if (newIsRunning && !oldIsRunning) {
+      // Task just started, reset user scrolling state to allow auto-scroll
+      isUserScrolling.value = false;
+      if (scrollTimeout.value) {
+        clearTimeout(scrollTimeout.value);
+        scrollTimeout.value = undefined;
+      }
+    }
+  },
+);
+
+// Auto-scroll management with user scroll detection
+const isNearBottom = () => {
+  if (!messagesContainer.value) return false;
+  const { scrollTop, scrollHeight, clientHeight } = messagesContainer.value;
+  return scrollHeight - scrollTop - clientHeight < 100; // 100px threshold
 };
 
-watch(() => processedMessages.value, scrollToBottom, { deep: true });
+const handleScroll = () => {
+  if (!messagesContainer.value) return;
+
+  // Clear existing timeout
+  if (scrollTimeout.value) {
+    clearTimeout(scrollTimeout.value);
+  }
+
+  // Set user scrolling flag
+  isUserScrolling.value = true;
+
+  // Reset flag 5 minutes later after user stops scrolling
+  scrollTimeout.value = setTimeout(
+    () => {
+      isUserScrolling.value = false;
+    },
+    5 * 60 * 1000,
+  );
+
+  // If user scrolled near bottom, allow auto-scroll again
+  if (isNearBottom()) {
+    isUserScrolling.value = false;
+  }
+};
+
+const scrollToBottom = () => {
+  // Only auto-scroll if user hasn't manually scrolled or is near bottom
+  if (!isUserScrolling.value || isNearBottom()) {
+    nextTick(() => {
+      messagesEndRef.value?.scrollIntoView({ behavior: 'smooth' });
+    });
+  }
+};
+
+watch(() => props.messages, scrollToBottom, { deep: true });
 
 const handleSubmit = () => {
-  if (input.value.trim() && !props.isRuning) {
+  if (input.value.trim() && !props.isRunning) {
     emit('send-message', input.value);
     input.value = '';
   }
 };
 
 const handleCancel = async () => {
-  if (props.isRuning && props.projectId) {
+  if (props.isRunning && props.projectId) {
     try {
       await abortVideoCreation({ projectId: props.projectId });
       emit('cancel-task');
@@ -111,7 +122,7 @@ const handleCancel = async () => {
 };
 
 const handleButtonClick = () => {
-  if (props.isRuning) {
+  if (props.isRunning) {
     handleCancel();
   } else {
     handleSubmit();
@@ -119,7 +130,7 @@ const handleButtonClick = () => {
 };
 
 const handleKeyDown = (e: KeyboardEvent) => {
-  if (e.key === 'Enter' && !e.shiftKey && !props.isRuning) {
+  if (e.key === 'Enter' && !e.shiftKey && !props.isRunning) {
     e.preventDefault();
     handleSubmit();
   }
@@ -128,35 +139,44 @@ const handleKeyDown = (e: KeyboardEvent) => {
 const formatTime = (dateString: string) => {
   return new Date(dateString).toLocaleTimeString('zh-CN', {
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
   });
 };
 
+// Cleanup timeout on unmount
+onUnmounted(() => {
+  if (scrollTimeout.value) {
+    clearTimeout(scrollTimeout.value);
+  }
+});
+
 const buttonDisabled = computed(() => {
-  return (!input.value.trim() && !props.isRuning) || (props.isRuning && !props.projectId);
+  return (!input.value.trim() && !props.isRunning) || (props.isRunning && !props.projectId);
 });
 </script>
 
 <template>
-  <div class="w-[480px] h-full bg-white border-l border-gray-200 flex flex-col overflow-hidden">
-    <div class="flex-1 overflow-y-auto p-5 flex flex-col gap-5 bg-gray-50">
+  <div class="flex h-full w-[480px] flex-col overflow-hidden border-l border-gray-200 bg-white">
+    <div
+      ref="messagesContainer"
+      @scroll="handleScroll"
+      class="flex flex-1 flex-col gap-5 overflow-y-auto bg-gray-50 p-5"
+    >
       <!-- Empty state -->
-      <div v-if="processedMessages.length === 0"
-        class="flex flex-col items-center justify-center h-full px-5 py-10 gap-6">
-        <div class="w-20 h-20 rounded-full bg-gray-50 flex items-center justify-center text-4xl">
-          🤖
+      <div
+        v-if="messages.length === 0"
+        class="flex h-full flex-col items-center justify-center gap-6 px-5 py-10"
+      >
+        <div class="flex h-20 w-20 items-center justify-center rounded-full bg-gray-50 text-4xl">🤖</div>
+        <div class="flex flex-col gap-2 text-center">
+          <h3 class="m-0 text-lg font-semibold text-gray-900">开始创作</h3>
+          <p class="m-0 text-sm leading-relaxed text-gray-500">描述你的想法，AI 助手将帮你实现</p>
         </div>
-        <div class="text-center flex flex-col gap-2">
-          <h3 class="text-lg font-semibold text-gray-900 m-0">开始创作</h3>
-          <p class="text-sm text-gray-500 m-0 leading-relaxed">
-            描述你的想法，AI 助手将帮你实现
-          </p>
-        </div>
-        <div class="flex flex-col gap-2 w-full max-w-[320px]">
-          <div class="px-4 py-3 bg-gray-50 rounded-xl text-xs text-gray-500 border border-gray-200">
+        <div class="flex w-full max-w-[320px] flex-col gap-2">
+          <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-500">
             💡 尝试：制作一个城市日落的视频
           </div>
-          <div class="px-4 py-3 bg-gray-50 rounded-xl text-xs text-gray-500 border border-gray-200">
+          <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-500">
             🎨 尝试：创建一个产品展示动画
           </div>
         </div>
@@ -164,42 +184,40 @@ const buttonDisabled = computed(() => {
 
       <!-- Messages -->
       <template v-else>
-        <div v-for="message in processedMessages" :key="message.id">
-
+        <div v-for="(message, messageIndex) in messages" :key="message.id">
           <!-- System message,these kind of messages are generated in the browser,only use to show a system tip,not by the server Agent,so it will be coverd while loaded the server's messages -->
-          <template v-if="message.role === 'system'">
-            <!-- Thinking message -->
-            <div v-if="message.message_type === 'thinking'" class="flex gap-3 items-start">
-              <div class="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center text-base flex-shrink-0">
+          <!-- <template v-if="message.role === 'system'">
+            <div v-if="message.message_type === 'thinking'" class="flex items-start gap-3">
+              <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-yellow-100 text-base">
                 🤔
               </div>
-              <div class="flex-1 px-4 py-3 bg-yellow-100 rounded-2xl text-xs text-yellow-800 italic">
+              <div class="flex-1 rounded-2xl bg-yellow-100 px-4 py-3 text-xs text-yellow-800 italic">
                 {{ message.content }}
               </div>
             </div>
 
-            <!-- Error message -->
-            <div v-else-if="message.message_type === 'error'" class="flex gap-3 items-start">
-              <div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-base flex-shrink-0">
+            <div v-else-if="message.message_type === 'error'" class="flex items-start gap-3">
+              <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-red-100 text-base">
                 ⚠️
               </div>
-              <div class="flex-1 px-4 py-3 bg-red-100 rounded-2xl text-xs text-red-800">
+              <div class="flex-1 rounded-2xl bg-red-100 px-4 py-3 text-xs text-red-800">
                 {{ message.content }}
               </div>
             </div>
-          </template>
-
+          </template> -->
 
           <!-- Regular message -->
-          <div v-else :class="['flex gap-3 items-start', message.role === 'user' ? 'flex-row-reverse' : '']">
-            <div :class="[
-              'w-9 h-9 rounded-full flex items-center justify-center text-base font-semibold text-white flex-shrink-0',
-              message.role === 'user' ? 'bg-blue-500' : 'bg-gray-900'
-            ]">
+          <div :class="['flex items-start gap-3', message.role === 'user' ? 'flex-row-reverse' : '']">
+            <div
+              :class="[
+                'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-base font-semibold text-white',
+                message.role === 'user' ? 'bg-blue-500' : 'bg-gray-900',
+              ]"
+            >
               {{ message.role === 'user' ? '👤' : '🤖' }}
             </div>
 
-            <div :class="['flex-1 flex flex-col gap-1.5 max-w-[75%]']">
+            <div :class="['flex max-w-[75%] flex-1 flex-col gap-1.5']">
               <div :class="['flex items-center gap-2', message.role === 'user' ? 'flex-row-reverse' : '']">
                 <span class="text-xs font-semibold text-gray-900">
                   {{ message.role === 'user' ? '你' : 'AI 助手' }}
@@ -209,56 +227,50 @@ const buttonDisabled = computed(() => {
                 </span>
               </div>
 
-              <!-- File references -->
-              <div v-if="message.file_references && message.file_references.length > 0"
-                :class="['flex flex-wrap gap-1.5', message.role === 'user' ? 'justify-end' : 'justify-start']">
-                <div v-for="file in message.file_references" :key="file.id"
-                  class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600">
-                  <span class="text-sm">📄</span>
-                  <span class="font-medium">{{ file.file_name }}</span>
-                </div>
-              </div>
-
               <!-- Message content -->
-              <div :class="[
-                'px-4 py-3.5 text-sm leading-relaxed shadow-sm',
-                message.role === 'user'
-                  ? 'bg-blue-500 text-white rounded-2xl rounded-tr-sm'
-                  : 'bg-gray-50 text-gray-900 rounded-2xl rounded-tl-sm'
-              ]">
+              <div
+                :class="[
+                  'px-4 py-3.5 text-sm leading-relaxed shadow-sm',
+                  message.role === 'user'
+                    ? 'rounded-2xl rounded-tr-sm bg-blue-500 text-white'
+                    : 'rounded-2xl rounded-tl-sm bg-gray-50 text-gray-900',
+                ]"
+              >
                 <!-- Display userResponses as styled list for assistant messages -->
-                <div v-if="message.userResponses && message.userResponses.length > 0" class="space-y-3">
-                  <div v-for="(response, index) in message.userResponses" :key="index"
-                    class="p-3 bg-white rounded-lg border border-gray-200 shadow-sm">
+                <div v-if="message.role === 'assistant'" class="space-y-3">
+                  <div
+                    v-for="(content, index) in message.content"
+                    :key="index"
+                    class="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+                  >
                     <div class="flex items-start gap-2">
-                      <div class="w-2 h-2 rounded-full bg-blue-500 mt-2 flex-shrink-0"></div>
-                      <div class="whitespace-pre-wrap break-words break-all">{{ response }}</div>
-
+                      <div class="mt-2 h-2 w-2 flex-shrink-0 rounded-full bg-blue-500"></div>
+                      <div class="break-words break-all whitespace-pre-wrap">
+                        {{ getUserResponseOfAssistant(content) }}
+                      </div>
                     </div>
-
                   </div>
 
                   <div
-                    class="mt-3 px-4 py-3.5 bg-gray-50 rounded-2xl rounded-tl-sm text-sm shadow-sm flex items-center gap-1.5">
-                    <div class="w-2 h-2 rounded-full bg-gray-500 animate-pulse"></div>
-                    <div class="w-2 h-2 rounded-full bg-gray-500 animate-pulse" style="animation-delay: 0.2s;"></div>
-                    <div class="w-2 h-2 rounded-full bg-gray-500 animate-pulse" style="animation-delay: 0.4s;"></div>
+                    v-if="isRunning && messageIndex === messages.length - 1"
+                    class="mt-3 flex items-center gap-1.5 rounded-2xl rounded-tl-sm bg-gray-50 px-4 py-3.5 text-sm shadow-sm"
+                  >
+                    <div class="h-2 w-2 animate-pulse rounded-full bg-gray-500"></div>
+                    <div class="h-2 w-2 animate-pulse rounded-full bg-gray-500" style="animation-delay: 0.2s"></div>
+                    <div class="h-2 w-2 animate-pulse rounded-full bg-gray-500" style="animation-delay: 0.4s"></div>
                   </div>
                 </div>
 
-
                 <!-- Display regular content for other cases -->
-                <div v-else class="whitespace-pre-wrap break-words break-all">
-                  {{ message.displayContent }}
+                <div v-else class="break-words break-all whitespace-pre-wrap">
+                  {{ message.content }}
                 </div>
-
-
               </div>
             </div>
           </div>
 
           <!-- Loading indicator -->
-          <div v-if="isRuning" class="flex gap-3 items-start">
+          <!-- <div v-if="isRunning" class="flex gap-3 items-start">
             <div
               class="w-9 h-9 rounded-full bg-gray-900 flex items-center justify-center text-base font-semibold text-white flex-shrink-0">
               🤖
@@ -275,10 +287,7 @@ const buttonDisabled = computed(() => {
                 <div class="w-2 h-2 rounded-full bg-gray-500 animate-pulse" style="animation-delay: 0.4s;"></div>
               </div>
             </div>
-          </div>
-
-
-
+          </div> -->
         </div>
       </template>
 
@@ -286,16 +295,22 @@ const buttonDisabled = computed(() => {
     </div>
 
     <!-- Input area -->
-    <div class="p-4 border-t border-gray-200">
+    <div class="border-t border-gray-200 p-4">
       <div class="relative">
-        <textarea v-model="input" @keydown="handleKeyDown" placeholder="请输入你的设计需求..." :disabled="isRuning" :class="[
-          'w-full min-h-[120px] max-h-[200px] px-3 py-3 pb-12 text-sm border border-gray-200 rounded-xl resize-y outline-none leading-relaxed',
-          isRuning ? 'bg-gray-50' : 'bg-white focus:border-gray-900'
-        ]" />
+        <textarea
+          v-model="input"
+          @keydown="handleKeyDown"
+          placeholder="请输入你的设计需求..."
+          :disabled="isRunning"
+          :class="[
+            'max-h-[200px] min-h-[120px] w-full resize-y rounded-xl border border-gray-200 px-3 py-3 pb-12 text-sm leading-relaxed outline-none',
+            isRunning ? 'bg-gray-50' : 'bg-white focus:border-gray-900',
+          ]"
+        />
 
-        <div class="absolute bottom-2.5 left-3 right-3 flex items-center justify-between">
+        <div class="absolute right-3 bottom-2.5 left-3 flex items-center justify-between">
           <div class="flex gap-1">
-            <button
+            <!-- <button
               class="w-7 h-7 rounded-md border-none bg-transparent cursor-pointer flex items-center justify-center text-base text-gray-500 transition-all hover:bg-gray-50"
               title="上传附件">
               📎
@@ -314,17 +329,23 @@ const buttonDisabled = computed(() => {
               class="w-7 h-7 rounded-md border-none bg-transparent cursor-pointer flex items-center justify-center text-base text-gray-500 transition-all hover:bg-gray-50"
               title="运镜">
               🎥
-            </button>
+            </button> -->
           </div>
 
-          <button @click="handleButtonClick" :disabled="buttonDisabled" :class="[
-            'w-8 h-8 rounded-lg border-none cursor-pointer flex items-center justify-center text-base transition-all flex-shrink-0',
-            buttonDisabled ? 'bg-gray-200 cursor-not-allowed' :
-              isRuning
-                ? 'bg-red-500 hover:bg-red-600'
-                : 'bg-gray-900 hover:bg-black'
-          ]" :title="isRuning ? '取消任务' : '发送消息'">
-            <span class="text-white">{{ isRuning ? '✕' : '↑' }}</span>
+          <button
+            @click="handleButtonClick"
+            :disabled="buttonDisabled"
+            :class="[
+              'flex h-8 w-8 flex-shrink-0 cursor-pointer items-center justify-center rounded-lg border-none text-base transition-all',
+              buttonDisabled
+                ? 'cursor-not-allowed bg-gray-200'
+                : isRunning
+                  ? 'bg-red-500 hover:bg-red-600'
+                  : 'bg-gray-900 hover:bg-black',
+            ]"
+            :title="isRunning ? '取消任务' : '发送消息'"
+          >
+            <span class="text-white">{{ isRunning ? '✕' : '↑' }}</span>
           </button>
         </div>
       </div>

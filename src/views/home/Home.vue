@@ -39,14 +39,32 @@ const styles = [
   { id: 'minimal', label: '极简', icon: '⚪' },
 ];
 
-const quickTemplates = [
-  '制作一个产品宣传视频',
-  '创建旅行Vlog剪辑',
-  '生成教学演示视频',
-  '制作婚礼回忆短片',
-  '创建企业介绍视频',
-  '生成音乐MV'
-];
+const suggestionsByMode: Record<string, string[]> = {
+  one_click: [
+    '制作一个产品宣传视频',
+    '创建旅行Vlog剪辑',
+    '生成教学演示视频',
+    '制作婚礼回忆短片',
+    '创建企业介绍视频',
+    '生成音乐MV',
+  ],
+  free_creation: [
+    '生成一张未来科技风格的插画',
+    '创作一个悬疑短片的剧本大纲',
+    '制作一段产品介绍视频',
+    '设计一组社交媒体配图',
+    '编写一个广告文案脚本',
+    '生成品牌宣传海报',
+  ],
+  storyboard: [
+    '一个咖啡店的温馨日常故事',
+    '科幻题材的短片分镜',
+    '产品发布会开场视频脚本',
+    '旅行纪录片的叙事结构',
+    '品牌故事微电影分镜',
+    '教育类短视频脚本',
+  ],
+};
 
 const handleSubmit = () => {
   if (videoPrompt.value.trim()) {
@@ -54,10 +72,12 @@ const handleSubmit = () => {
     
     let chatMessage = '';
     
-    if (selectedMode.value === 'one_click' || selectedMode.value === 'free_creation') {
+    if (selectedMode.value === 'one_click') {
       chatMessage = `请为我创作视频，比例为${aspectRatio.value}，风格为${videoType.value}，主题内容为：${videoPrompt.value}`;
+    } else if (selectedMode.value === 'free_creation') {
+      chatMessage = `请为我创作视频，主题内容为：${videoPrompt.value}`;
     } else if (selectedMode.value === 'storyboard') {
-      chatMessage = `请为我创建一个分镜，比例为${aspectRatio.value}，风格为${videoType.value}，内容为：${videoPrompt.value}`;
+      chatMessage = `请为我创建一个分镜，内容为：${videoPrompt.value}`;
     }
     
     // Navigate to workspace/new and pass chatMessage via router state
@@ -113,7 +133,7 @@ const selectStyle = (style: string) => {
             />
 
             <div class="flex justify-between items-center pt-2 border-t border-[#f3f4f6]">
-              <div class="flex gap-2">
+              <div v-if="selectedMode === 'one_click'" class="flex gap-2">
                 <!-- Aspect Ratio Selector -->
                 <div class="relative">
                   <Button
@@ -168,6 +188,7 @@ const selectStyle = (style: string) => {
                   </div>
                 </div>
               </div>
+              <div v-else></div>
 
               <!-- Submit Button -->
               <Button
@@ -207,7 +228,7 @@ const selectStyle = (style: string) => {
           <!-- Quick Templates -->
           <div class="grid grid-cols-3 gap-3">
             <button
-              v-for="template in quickTemplates"
+              v-for="template in suggestionsByMode[selectedMode]"
               :key="template"
               @click="videoPrompt = template"
               class="p-4 border border-[#e5e7eb] rounded-xl bg-white cursor-pointer transition-all text-left text-sm text-[#6b7280] hover:border-[#d1d5db] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:-translate-y-0.5"

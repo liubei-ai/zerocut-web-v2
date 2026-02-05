@@ -51,6 +51,11 @@
   --animate-collapsible-down: collapsible-down 0.2s ease-in-out;
   --animate-collapsible-up: collapsible-up 0.2s ease-in-out;
   --animate-press-down: press-down 1s 1;
+  
+  /* Toast animations */
+  --animate-toast-in: toast-in 0.15s ease-out;
+  --animate-toast-out: toast-out 0.15s ease-in;
+  --animate-toast-swipe-out: toast-swipe-out 0.2s ease-out;
 }
 
 @layer base {
@@ -138,4 +143,32 @@ body,
 ::-webkit-scrollbar-thumb {
   background: #453882a0;
   border-radius: 25px;
+}
+
+/* Toast animations */
+@keyframes toast-in {
+  from {
+    transform: translateX(calc(100% + 1rem));
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes toast-out {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(100% + 1rem));
+  }
+}
+
+@keyframes toast-swipe-out {
+  from {
+    transform: translateX(var(--reka-toast-swipe-end-x));
+  }
+  to {
+    transform: translateX(calc(100% + 1rem));
+  }
 }

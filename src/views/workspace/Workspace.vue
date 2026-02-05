@@ -5,8 +5,16 @@ import MainLayout from '@/components/layout/MainLayout.vue';
 import FileList from './components/FileList.vue';
 import PreviewArea from './components/PreviewArea.vue';
 import ChatBox from './components/ChatBox.vue';
-import { createVideoProject, createVideo, getProjectDetails, getChatHistory, getOssMapping, abortVideoCreation } from '@/api/videoProjectApi';
-import { type ChatMessage } from '@/types/workspace';
+import {
+  createVideoProject,
+  createVideo,
+  getProjectDetails,
+  getOssMapping,
+  abortVideoCreation,
+  updateVideoProject,
+} from '@/api/videoProjectApi';
+import { useChatMessages } from '@/composables';
+import { useToast } from '@/composables/useToast';
 
 interface WorkspaceFile {
   id: string;
@@ -21,12 +29,16 @@ interface WorkspaceFile {
 const route = useRoute();
 const router = useRouter();
 
+// Use chat messages composable
+const { messages, initMessages, addUserMessage, removeMessage, addAssistantMessage, loadChatHistory } =
+  useChatMessages();
+const { toast } = useToast();
+
 const files = ref<WorkspaceFile[]>([]);
-const messages = ref<ChatMessage[]>([]);
 const selectedFileId = ref<string>();
-const isRuning = ref(false);
-const projectTitle = ref('音乐节海报设计');
-const initialChatMessage = ref<string>();
+const isRunning = ref(false);
+const projectTitle = ref('');
+const initialUserInput = ref<string>();
 const isNewProject = ref(false);
 const projectCreated = ref(false);
 const pollingTimer = ref<NodeJS.Timeout | null>(null);
@@ -44,7 +56,7 @@ onMounted(() => {
   // Handle new workspace creation
   if (projectId.value === 'new' || route.path === '/workspace/new') {
     isNewProject.value = true;
-    initialChatMessage.value = history.state?.chatMessage as string;
+    initialUserInput.value = history.state?.chatMessage as string;
     loadProject();
     return;
   }
@@ -65,7 +77,7 @@ onUnmounted(() => {
 const loadProject = async () => {
   // For new workspace, start with empty data
   if (isNewProject.value) {
-    messages.value = [];
+    initMessages();
     files.value = [];
     selectedFileId.value = undefined;
     projectTitle.value = '新项目';
@@ -80,22 +92,15 @@ const loadProject = async () => {
 
     // Start polling for project updates every 5 seconds
     startPolling();
-
   } catch (error) {
     console.error('❌ 加载项目失败:', error);
   }
 };
 
 // Load chat history independently
-const loadChatHistory = async () => {
+const loadChatHistoryData = async () => {
   try {
-    const chatData = await getChatHistory(projectId.value, 'all');
-
-    const chatHistory = chatData.chatHistory;
-    // SKip empty history
-    if (Array.isArray(chatHistory) && chatHistory.length > 0) {
-      messages.value = chatData.chatHistory;
-    }
+    await loadChatHistory(projectId.value);
   } catch (error) {
     console.error('❌ 加载聊天记录失败:', error);
   }
@@ -133,14 +138,11 @@ const loadOssMapping = async () => {
 };
 
 const loadOssAndMessages = async () => {
-  return Promise.all([
-    loadOssMapping(),
-    loadChatHistory()
-  ]);
-}
+  return Promise.all([loadOssMapping(), loadChatHistoryData()]);
+};
 
-const refreshWorkspaceData = async (isLastRefresh = false) => {
-  console.log('refreshWorkspaceData projectId', projectId.value)
+const refreshWorkspaceData = async () => {
+  console.log('refreshWorkspaceData projectId', projectId.value);
   try {
     const projectData = await getProjectDetails(projectId.value);
 
@@ -149,18 +151,16 @@ const refreshWorkspaceData = async (isLastRefresh = false) => {
 
     // TODO: use Enum here
     if (currentStatus === 'RUNNING') {
-      isRuning.value = true;
+      isRunning.value = true;
     }
 
-    // Update project title, unnessary now：we've already set the title in the createProject logic
-    /* projectTitle.value = projectData.project_name; */
-
+    projectTitle.value = projectData.project_name;
 
     // Check if task has ended
     if (currentStatus && currentStatus !== 'RUNNING') {
       console.log('任务结束:', currentStatus);
       // 任务结束
-      isRuning.value = false;
+      isRunning.value = false;
       stopPolling();
 
       /* // Find the latest assistant message and update its status
@@ -178,14 +178,10 @@ const refreshWorkspaceData = async (isLastRefresh = false) => {
           latestAssistantMsg.message_type = 'text';
         }
       } */
-
-
     }
 
-
-    // nomatter what's the project's status,load Oss and Messages
+    // no matter what's the project's status,load Oss and Messages
     await loadOssAndMessages();
-
   } catch (error) {
     console.error('❌ 刷新工作区数据失败:', error);
   }
@@ -246,41 +242,22 @@ const getFileTypeFromExtension = (filename: string): string => {
 };
 
 const handleSendMessage = async (content: string) => {
-
   // If this is a new project and we haven't created it yet, create it first
   const needCreateProject = !projectCreated.value && isNewProject.value;
 
-  isRuning.value = true;
-
+  isRunning.value = true;
 
   // Create a new user message and add it to the chat,after we loaded this message from the server,this message will be coverd.
-  const userMessage: ChatMessage = {
-    id: `user-${Date.now()}`,
-    role: 'user',
-    content,
-    message_type: 'text',
-    created_at: new Date().toISOString(),
-  };
-  messages.value.push(userMessage);
-
+  addUserMessage(content);
 
   if (needCreateProject) {
     try {
-
       // Add a creating message
-      const creatingMessage: ChatMessage = {
-        id: `creating-${Date.now()}`,
-        role: 'system',
-        content: '正在创建项目，请稍后...',
-        message_type: 'thinking',
-        created_at: new Date().toISOString(),
-      };
-      messages.value.push(creatingMessage);
-
+      const createProjectMessage = addAssistantMessage('正在创建项目，请稍后...');
 
       // Create the project using the first message as prompt
       const projectData = await createVideoProject({
-        prompt: content
+        prompt: content,
       });
 
       // Update the URL to use the new project ID
@@ -297,83 +274,77 @@ const handleSendMessage = async (content: string) => {
       projectCreated.value = true;
       isNewProject.value = false;
 
+      removeMessage(createProjectMessage.id);
+
       console.log('✅ 项目创建成功:', projectData);
-
-
     } catch (error) {
       console.error('❌ 创建项目失败:', error);
 
       // Add error message to chat
-      const errorMessage: ChatMessage = {
-        id: `error-${Date.now()}`,
-        role: 'assistant',
-        content: '抱歉，创建项目时出现错误，请稍后重试。',
-        message_type: 'error',
-        created_at: new Date().toISOString(),
-      };
-
-      messages.value.push(errorMessage);
-      isRuning.value = false;
+      addAssistantMessage('抱歉，创建项目时出现错误，请稍后重试。');
+      isRunning.value = false;
       return;
     }
   }
 
+  // The server can not generate assistant message immediately,
+  // so we add a placeholder message to show the user that we're processing
+  addAssistantMessage('正在分析您的任务类型...');
 
   // Create video (common logic for both new and existing projects)
   try {
     const videoCreationResult = await createVideo({
       projectId: projectId.value,
-      prompt: content
+      prompt: content,
     });
 
     console.log('✅ 视频创建任务已启动:', videoCreationResult);
 
-
-    /* // Add success message to chat
-    const successMessage: ChatMessage = {
-      id: `success-${Date.now()}`,
-      role: 'assistant',
-      content: `视频创建任务已启动，任务ID: ${videoCreationResult.taskId}。正在为您生成视频内容...`,
-      message_type: 'thinking',
-      created_at: new Date().toISOString(),
-    };
-
-    messages.value.push(successMessage); */
-
     // Start polling for updates
-    startPolling();
-
+    setTimeout(() => {
+      startPolling();
+    }, 3000);
   } catch (videoError) {
-    isRuning.value = false;
+    isRunning.value = false;
 
     console.error('❌ 创建视频失败:', videoError);
 
     // Add video creation error message to chat
-    const videoErrorMessage: ChatMessage = {
-      id: `video-error-${Date.now()}`,
-      role: 'assistant',
-      content: '启动视频创建时出现错误。请稍后重试。',
-      message_type: 'error',
-      created_at: new Date().toISOString(),
-    };
-
-    messages.value.push(videoErrorMessage);
+    addAssistantMessage('启动视频创建时出现错误。请稍后重试。');
   }
-
 };
 
 const handleFileSelect = (fileId: string) => {
   selectedFileId.value = fileId;
 };
 
-const handleProjectTitleChange = (newTitle: string) => {
-  projectTitle.value = newTitle;
+const handleProjectTitleChange = async (newTitle: string) => {
+  if (!projectId.value || !newTitle.trim()) {
+    return;
+  }
+
+  try {
+    await updateVideoProject(projectId.value, {
+      project_name: newTitle.trim(),
+    });
+
+    projectTitle.value = newTitle;
+    toast.success('项目标题更新成功');
+    console.log('✅ 项目标题更新成功:', newTitle);
+  } catch (error) {
+    console.error('❌ 更新项目标题失败:', error);
+    toast.error('更新项目标题失败，请稍后重试');
+    // Note: The UI should handle reverting the title change if needed
+  }
 };
 
 const handleFileUpload = (file: File) => {
-  const fileType = file.type.startsWith('image/') ? 'image'
-    : file.type.startsWith('video/') ? 'video'
-      : file.type.startsWith('audio/') ? 'audio'
+  const fileType = file.type.startsWith('image/')
+    ? 'image'
+    : file.type.startsWith('video/')
+      ? 'video'
+      : file.type.startsWith('audio/')
+        ? 'audio'
         : 'document';
 
   const newFile: WorkspaceFile = {
@@ -416,7 +387,6 @@ const handleShowPrompt = () => {
 const handleAbortTask = async () => {
   if (!projectId.value || isAborting.value) return;
 
-
   try {
     isAborting.value = true;
 
@@ -426,7 +396,6 @@ const handleAbortTask = async () => {
     console.log('任务中断请求已发送');
 
     // The polling will handle the status change to CANCELLED
-
   } catch (error) {
     console.error('❌ 中断任务失败:', error);
     isAborting.value = false;
@@ -437,16 +406,34 @@ const handleAbortTask = async () => {
 <template>
   <MainLayout :show-footer="false" :show-sidebar="false">
     <div class="flex h-[calc(100vh-64px)] overflow-hidden bg-white">
-      <FileList :files="files" :selected-file-id="selectedFileId" :project-title="projectTitle"
-        @file-select="handleFileSelect" @project-title-change="handleProjectTitleChange" @file-upload="handleFileUpload"
-        @download-all="handleDownloadAll" />
+      <FileList
+        :files="files"
+        :selected-file-id="selectedFileId"
+        :project-title="projectTitle"
+        @file-select="handleFileSelect"
+        @project-title-change="handleProjectTitleChange"
+        @file-upload="handleFileUpload"
+        @download-all="handleDownloadAll"
+      />
 
-      <PreviewArea :file-url="selectedFile?.file_url" :file-type="selectedFile?.file_type"
-        :file-name="selectedFile?.file_name" @regenerate="handleRegenerate" @download="handleDownload"
-        @modify="handleModify" @show-prompt="handleShowPrompt" />
+      <PreviewArea
+        :file-url="selectedFile?.file_url"
+        :file-type="selectedFile?.file_type"
+        :file-name="selectedFile?.file_name"
+        @regenerate="handleRegenerate"
+        @download="handleDownload"
+        @modify="handleModify"
+        @show-prompt="handleShowPrompt"
+      />
 
-      <ChatBox :messages="messages" :project-id="projectId" :is-runing="isRuning" :initial-message="initialChatMessage"
-        @send-message="handleSendMessage" @abort-task="handleAbortTask" />
+      <ChatBox
+        :messages="messages"
+        :project-id="projectId"
+        :is-running="isRunning"
+        :initial-input="initialUserInput"
+        @send-message="handleSendMessage"
+        @abort-task="handleAbortTask"
+      />
     </div>
   </MainLayout>
 </template>

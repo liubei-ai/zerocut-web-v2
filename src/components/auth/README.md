@@ -1,39 +1,96 @@
-# Authentication Setup
+# Authentication System
 
-This authentication system uses Authing Guard for user login/registration.
+## Overview
 
-## Configuration
+The authentication system is now centralized through the `authStore` with the following key features:
 
-1. Add your Authing App ID to the environment files:
-   - `.env` - Production
-   - `.env.development` - Development
-
-```env
-VITE_AUTHING_APP_ID=your_authing_app_id_here
-```
-
-2. The auth store (`src/stores/authStore.ts`) handles:
-   - User authentication state
-   - Login/logout operations
-   - User profile syncing with backend
-   - Persistent storage (localStorage)
+- **Centralized Login Modal Control**: The login modal is controlled by the `authStore.showLoginModal` state
+- **Automatic Modal Display**: When API calls detect unauthenticated users (401 errors), the login modal is automatically shown
+- **No Page Redirects**: Instead of redirecting to a login page, the modal is displayed over the current page
 
 ## Usage
 
-The Header component automatically shows:
-- Login/Register buttons when user is not authenticated
-- User menu with logout option when authenticated
+### Showing the Login Modal
 
-## API Endpoints
+```typescript
+import { useAuthStore } from '@/stores/authStore';
 
-The following endpoints are expected on the backend:
+const authStore = useAuthStore();
 
-- `POST /auth/sync` - Sync user profile from Authing
-- `POST /auth/logout` - Logout user
-- `GET /auth/me` - Validate token and get current user
+// Show the login modal
+authStore.openLoginModal();
 
-## Components
+// Hide the login modal
+authStore.closeLoginModal();
 
-- `LoginModal.vue` - Modal dialog with Authing Guard
-- `Header.vue` - Main header with login/user menu
-- `authStore.ts` - Pinia store for auth state management
+// Check if modal is open
+console.log(authStore.showLoginModal);
+```
+
+### API Client Integration
+
+The API client (`src/api/client.ts`) automatically:
+
+1. **Adds Authorization Headers**: Uses `authStore.token` for authenticated requests
+2. **Handles 401 Errors**: Automatically shows the login modal when authentication fails
+3. **Clears Auth State**: Clears user data when authentication expires
+
+### Example API Call
+
+```typescript
+import { request } from '@/api/client';
+
+try {
+  const response = await request.get('/protected-endpoint');
+  // Handle success
+} catch (error) {
+  // If this is a 401 error, the login modal will automatically be shown
+  // No need to manually handle authentication errors
+}
+```
+
+### Components
+
+#### Header Component
+- Uses `authStore.showLoginModal` to control the modal
+- Login/Register buttons call `authStore.openLoginModal()`
+
+#### LoginModal Component
+- Controlled by `authStore.showLoginModal` prop
+- Automatically closes via `authStore.closeLoginModal()` on successful login
+- Uses Authing Guard for authentication
+
+## Store State
+
+```typescript
+interface AuthStore {
+  // State
+  loading: boolean;
+  error: string | null;
+  isLoggedIn: boolean;
+  user: User | null;
+  currentWorkspaceId: string | null;
+  showLoginModal: boolean;  // NEW: Controls modal visibility
+  token: string | null;     // NEW: Stores auth token
+
+  // Computed
+  isAuthenticated: boolean;
+  userName: string;
+
+  // Methods
+  openLoginModal(): void;   // NEW: Show login modal
+  closeLoginModal(): void;  // NEW: Hide login modal
+  setAuthingUser(user: AuthingUser): Promise<void>;
+  logout(): Promise<void>;
+  clearAuthState(): void;
+  handleAuthError(error: ApiError): void;
+  clearError(): void;
+}
+```
+
+## Benefits
+
+1. **Better UX**: No page redirects, users stay in context
+2. **Centralized Control**: All login modal logic in one place
+3. **Automatic Handling**: API errors automatically trigger login modal
+4. **Consistent Behavior**: Same login flow across the entire app

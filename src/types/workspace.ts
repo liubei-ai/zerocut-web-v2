@@ -1,17 +1,41 @@
-export interface ChatMessage {
+export type ChatMessage = {
   id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  chatContent?: string;
-  message_type: 'text' | 'thinking' | 'file' | 'error';
-  file_references?: Array<{
-    id: string;
-    file_name: string;
-    thumbnail_url?: string;
-    file_type: string;
-  }>;
-  created_at: string;
-  displayContent?: string;
-  userResponses?: string[];
-  shouldDisplay?: boolean;
+  timestamp: string;
+} & (
+    | {
+      role: 'user';
+      content: string;
+    }
+    | {
+      role: 'assistant';
+      content: Array<AssistantMessage>;
+    }
+  );
+
+export interface TextAssistantMessage {
+  type: 'text';
+  reasoning?: string;
+  text?: string;
+  userResponse: string;
 }
+
+interface ToolCallAssistantMessage {
+  type: 'toolCall';
+  toolCall: {
+    action: string;
+    reasoning: string;
+    userResponse: string;
+  }
+}
+
+interface ToolCallResponseAssistantMessage {
+  type: 'toolCallResponse';
+  toolCallResponse: {
+    action: string;
+    reasoning: string;
+    userResponse: string;
+  }
+}
+
+export type AssistantMessage = ToolCallAssistantMessage |
+  TextAssistantMessage | ToolCallResponseAssistantMessage;

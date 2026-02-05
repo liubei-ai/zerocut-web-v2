@@ -27,7 +27,7 @@ guard.on('login', async (authingUser: User) => {
       console.log('Login successful, user info:', authingUser);
       await authStore.setAuthingUser(authingUser);
       // Close modal after successful login
-      emit('update:open', false);
+      authStore.closeLoginModal();
     }
   } catch (err) {
     console.error('Login failed:', err);
@@ -45,6 +45,7 @@ guard.on('login-error', (err: any) => {
 
 // Start guard when modal opens
 watch(() => props.open, (isOpen) => {
+  console.log('isoepn',isOpen)
   if (isOpen) {
     setTimeout(() => {
       guard.start('#authing-guard-container');
@@ -64,12 +65,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="emit('update:open', false)">
+  <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="authStore.closeLoginModal()">
     <div class="relative w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-slate-900">
       <!-- Close button -->
       <button
         class="absolute right-4 top-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-        @click="emit('update:open', false)"
+        @click="authStore.closeLoginModal()"
       >
         <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
