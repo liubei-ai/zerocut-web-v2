@@ -23,7 +23,7 @@ export const getWalletInfo = async (
 ): Promise<WalletInfo> => {
   try {
     const response = await apiClient.get<WalletInfoResponse>(
-      `wallet/info/?workspaceId=${workspaceId}`
+      `/wallet/info/?workspaceId=${workspaceId}`
       , null,
       {
         noErrorAlert: true
