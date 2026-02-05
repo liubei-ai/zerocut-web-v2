@@ -1,0 +1,52 @@
+name: Deploy to HUOSHAN ECS
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          version: 10.12.1
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build project
+        run: pnpm build
+
+      - name: Deploy with rsync
+        uses: burnett01/rsync-deployments@7.0.2
+        with:
+          switches: -avzr --delete
+          path: dist/
+          remote_path: ${{ secrets.NGINX_DEPLOY_PATH }}/
+          remote_host: ${{ secrets.HUOSHAN_ECS_IP }}
+          remote_user: ${{ secrets.HUOSHAN_SSH_USER }}
+          remote_key: ${{ secrets.HUOSHAN_SSH_PRIVATE_KEY }}
+          remote_port: 22
+
+      - name: Verify deployment
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HUOSHAN_ECS_IP }}
+          username: ${{ secrets.HUOSHAN_SSH_USER }}
+          key: ${{ secrets.HUOSHAN_SSH_PRIVATE_KEY }}
+          script: |
+            ls -lht ${{ secrets.NGINX_DEPLOY_PATH }} | head -n 5
+            du -sh ${{ secrets.NGINX_DEPLOY_PATH }}
