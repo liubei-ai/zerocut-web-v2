@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import MainLayout from '@/components/layout/MainLayout.vue';
 import { Button } from '@/components/ui/button';
@@ -66,6 +66,14 @@ const suggestionsByMode: Record<string, string[]> = {
   ],
 };
 
+const placeholderByMode: Record<string, string> = {
+  one_click: '输入视频创意主题、剧本或分镜，快速生成完整视频',
+  free_creation: '输入创作需求，自由生成图片、视频等内容',
+  storyboard: '输入剧本，智能生成专业分镜脚本',
+};
+
+const currentPlaceholder = computed(() => placeholderByMode[selectedMode.value]);
+
 const handleSubmit = () => {
   if (videoPrompt.value.trim()) {
     console.log('Submitting prompt:', videoPrompt.value);
@@ -77,7 +85,7 @@ const handleSubmit = () => {
     } else if (selectedMode.value === 'free_creation') {
       chatMessage = `${videoPrompt.value}`;
     } else if (selectedMode.value === 'storyboard') {
-      chatMessage = `请为我创建一个分镜，内容为：${videoPrompt.value}`;
+      chatMessage = `请根据内容撰写分镜脚本，内容为：${videoPrompt.value}`;
     }
     
     // Navigate to workspace/new and pass chatMessage via router state
@@ -128,7 +136,7 @@ const selectStyle = (style: string) => {
           <div class="relative w-full bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08)] border border-[#e5e7eb] p-5 mb-5">
             <Textarea
               v-model="videoPrompt"
-              placeholder="让 ZeroCut 帮你一键创作视频..."
+              :placeholder="currentPlaceholder"
               class="min-h-[100px] resize-none border-0 text-base focus-visible:ring-0 p-0 leading-[1.6] text-[#111827]"
             />
 
