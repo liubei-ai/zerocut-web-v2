@@ -34,6 +34,22 @@ const getUserResponseOfAssistant = (assistantMessage: AssistantMessage) => {
   }
   return '';
 };
+
+// Filter out empty content from assistant messages and transform to strings
+const processedMessages = computed(() => {
+  return props.messages.map(message => {
+    if (message.role === 'assistant' && Array.isArray(message.content)) {
+      return {
+        ...message,
+        content: message.content
+          .map(content => getUserResponseOfAssistant(content))
+          .filter(text => text.trim() !== ''),
+      };
+    }
+    return message;
+  });
+});
+
 // Set initial message when prop changes
 watch(
   () => props.initialInput,
@@ -101,7 +117,7 @@ const scrollToBottom = () => {
   }
 };
 
-watch(() => props.messages, scrollToBottom, { deep: true });
+watch(() => processedMessages.value, scrollToBottom, { deep: true });
 
 const handleSubmit = () => {
   if (input.value.trim() && !props.isRunning) {
@@ -164,7 +180,7 @@ const buttonDisabled = computed(() => {
     >
       <!-- Empty state -->
       <div
-        v-if="messages.length === 0"
+        v-if="processedMessages.length === 0"
         class="flex h-full flex-col items-center justify-center gap-6 px-5 py-10"
       >
         <div class="flex h-20 w-20 items-center justify-center rounded-full bg-gray-50 text-4xl">🤖</div>
@@ -184,7 +200,7 @@ const buttonDisabled = computed(() => {
 
       <!-- Messages -->
       <template v-else>
-        <div v-for="(message, messageIndex) in messages" :key="message.id">
+        <div v-for="(message, messageIndex) in processedMessages" :key="message.id">
           <!-- System message,these kind of messages are generated in the browser,only use to show a system tip,not by the server Agent,so it will be coverd while loaded the server's messages -->
           <!-- <template v-if="message.role === 'system'">
             <div v-if="message.message_type === 'thinking'" class="flex items-start gap-3">
@@ -246,13 +262,13 @@ const buttonDisabled = computed(() => {
                     <div class="flex items-start gap-2">
                       <div class="mt-2 h-2 w-2 flex-shrink-0 rounded-full bg-blue-500"></div>
                       <div class="break-words break-all whitespace-pre-wrap">
-                        {{ getUserResponseOfAssistant(content) }}
+                        {{ content }}
                       </div>
                     </div>
                   </div>
 
                   <div
-                    v-if="isRunning && messageIndex === messages.length - 1"
+                    v-if="isRunning && messageIndex === processedMessages.length - 1"
                     class="mt-3 flex items-center gap-1.5 rounded-2xl rounded-tl-sm bg-gray-50 px-4 py-3.5 text-sm shadow-sm"
                   >
                     <div class="h-2 w-2 animate-pulse rounded-full bg-gray-500"></div>

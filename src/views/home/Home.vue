@@ -75,7 +75,7 @@ const handleSubmit = () => {
     if (selectedMode.value === 'one_click') {
       chatMessage = `请为我创作视频，比例为${aspectRatio.value}，风格为${videoType.value}，主题内容为：${videoPrompt.value}`;
     } else if (selectedMode.value === 'free_creation') {
-      chatMessage = `请为我创作视频，主题内容为：${videoPrompt.value}`;
+      chatMessage = `${videoPrompt.value}`;
     } else if (selectedMode.value === 'storyboard') {
       chatMessage = `请为我创建一个分镜，内容为：${videoPrompt.value}`;
     }
@@ -101,7 +101,7 @@ const selectStyle = (style: string) => {
 
 <template>
   <MainLayout>
-    <div class="bg-[#fafafa] py-20 px-10">
+    <div class="bg-[#fafafa] py-20 px-20">
       <div class="max-w-[1000px] mx-auto">
         <!-- Promo Banner & Title Section -->
         <div class="flex flex-col items-center mb-14">

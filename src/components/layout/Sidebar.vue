@@ -20,7 +20,7 @@ const navigateToProjects = () => {
 </script>
 
 <template>
-  <aside class="fixed left-6 top-1/2 -translate-y-1/2 z-[1000]">
+  <aside class="hidden md:fixed md:left-2 md:top-1/2 md:-translate-y-1/2 md:block z-[1000]">
     <div class="flex flex-col gap-1 bg-white rounded-[50px] p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
       <button @click="navigateToHome" :class="[
         'w-12 h-12 flex items-center justify-center rounded-full text-xl transition-colors',
