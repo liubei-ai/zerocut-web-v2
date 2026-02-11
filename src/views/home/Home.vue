@@ -81,7 +81,7 @@ const handleSubmit = () => {
     let chatMessage = '';
     
     if (selectedMode.value === 'one_click') {
-      chatMessage = `请为我创作视频，比例为${aspectRatio.value}，风格为${videoType.value}，主题内容为：${videoPrompt.value}`;
+      chatMessage = `请使用一键成片技能为我创作视频，比例为${aspectRatio.value}，风格为${videoType.value}，主题内容为：${videoPrompt.value}`;
     } else if (selectedMode.value === 'free_creation') {
       chatMessage = `${videoPrompt.value}`;
     } else if (selectedMode.value === 'storyboard') {

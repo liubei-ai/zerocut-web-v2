@@ -209,3 +209,50 @@ export async function getOssMapping(projectId: string | number) {
   const response = await apiClient.get<OssMappingResponse>(`/video-creation/oss-mapping/${projectId}`);
   return response.data;
 }
+
+export async function getStoryBoard(projectId: string | number) {
+  const response = await apiClient.get<any>(`/video-creation/storyboard/'${projectId}`);
+  return response.data;
+}
+
+// Export project files
+export async function exportProject(projectId: string | number) {
+  // Use a direct axios call for blob response since the client wrapper doesn't handle it well
+  const baseUrl = import.meta.env.VITE_API_AGENT_URL;
+  const url = `${baseUrl}/video-creation/export/${projectId}`;
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/zip, application/octet-stream',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Export failed: ${response.statusText}`);
+  }
+
+  return response.blob();
+}
+
+// Upload material to project
+export interface UploadMaterialResponse {
+  projectId: number;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number;
+  fileType: string;
+  uploadTime: string;
+}
+
+export async function uploadMaterial(projectId: string | number, file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await apiClient.upload<UploadMaterialResponse>(
+    `/video-creation/upload/${projectId}`,
+    formData
+  );
+  return response.data;
+}

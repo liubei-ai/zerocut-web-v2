@@ -4,7 +4,7 @@
     @mouseenter="pauseTimer"
     @mouseleave="resumeTimer"
   >
-    <div class="flex items-start gap-3">
+    <div class="flex items-start gap-3 w-full">
       <!-- Icon based on variant -->
       <div class="flex-shrink-0 mt-0.5">
         <svg
@@ -68,7 +68,7 @@
       
       <button
         @click="closeToast"
-        class="flex-shrink-0 ml-4 p-1 rounded-full hover:bg-black/10 transition-colors duration-200"
+        class="flex-shrink-0 ml-4 p-1 rounded-full hover:bg-black/10 transition-colors duration-200 self-start"
       >
         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
           <path

@@ -10,13 +10,14 @@ import {
   createVideo,
   getProjectDetails,
   getOssMapping,
+  getStoryBoard,
   abortVideoCreation,
   updateVideoProject,
 } from '@/api/videoProjectApi';
 import { useChatMessages } from '@/composables';
 import { useToast } from '@/composables/useToast';
 
-interface WorkspaceFile {
+export interface WorkspaceFile {
   id: string;
   file_name: string;
   file_type: string;
@@ -360,10 +361,9 @@ const handleFileUpload = (file: File) => {
   selectedFileId.value = newFile.id;
 };
 
-const handleDownloadAll = () => {
-  files.value.forEach(file => {
-    window.open(file.file_url, '_blank');
-  });
+const handleFileUploaded = async () => {
+  // Refresh OSS mapping to get the newly uploaded file
+  await loadOssMapping();
 };
 
 const handleDownload = () => {
@@ -410,10 +410,10 @@ const handleAbortTask = async () => {
         :files="files"
         :selected-file-id="selectedFileId"
         :project-title="projectTitle"
+        :project-id="projectId"
         @file-select="handleFileSelect"
         @project-title-change="handleProjectTitleChange"
-        @file-upload="handleFileUpload"
-        @download-all="handleDownloadAll"
+        @file-uploaded="handleFileUploaded"
       />
 
       <PreviewArea
@@ -427,6 +427,7 @@ const handleAbortTask = async () => {
       />
 
       <ChatBox
+        :files="files"
         :messages="messages"
         :project-id="projectId"
         :is-running="isRunning"

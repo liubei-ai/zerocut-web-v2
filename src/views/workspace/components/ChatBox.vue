@@ -2,12 +2,23 @@
 import { ref, nextTick, watch, computed, onUnmounted } from 'vue';
 import { abortVideoCreation } from '@/api/videoProjectApi';
 import { type ChatMessage, type AssistantMessage } from '@/types/workspace';
+import {
+  DropdownMenuRoot,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuPortal,
+} from 'reka-ui';
 
 interface Props {
   messages: ChatMessage[];
   isRunning?: boolean;
   initialInput?: string;
   projectId?: string | number;
+  files?: Array<{ id: string; file_name: string }>;
 }
 
 interface Emits {
@@ -23,6 +34,16 @@ const messagesEndRef = ref<HTMLDivElement>();
 const messagesContainer = ref<HTMLDivElement>();
 const isUserScrolling = ref(false);
 const scrollTimeout = ref<NodeJS.Timeout>();
+const textareaRef = ref<HTMLTextAreaElement>();
+const dropdownOpen = ref(false);
+
+// Available models
+const models = [
+  { id: 'vidu2', name: 'Vidu2' },
+  { id: 'seeddance', name: 'SeedDance' },
+  { id: 'sora2', name: 'Sora2' },
+  { id: 'jimeng', name: 'Jimeng' },
+];
 
 const getUserResponseOfAssistant = (assistantMessage: AssistantMessage) => {
   if (assistantMessage.type === 'toolCall' && assistantMessage.toolCall?.userResponse) {
@@ -146,10 +167,76 @@ const handleButtonClick = () => {
 };
 
 const handleKeyDown = (e: KeyboardEvent) => {
-  if (e.key === 'Enter' && !e.shiftKey && !props.isRunning) {
+  // Only handle Enter for sending messages, let reka-ui handle arrow keys
+  if (e.key === 'Enter' && !e.shiftKey && !props.isRunning && !dropdownOpen.value) {
     e.preventDefault();
     handleSubmit();
   }
+};
+
+const handleInput = (e: Event) => {
+  const target = e.target as HTMLTextAreaElement;
+  const value = target.value;
+  const position = target.selectionStart || 0;
+
+  // Check if user typed @ character
+  if (value[position - 1] === '@' && (position === 1 || value[position - 2] === ' ' || value[position - 2] === '\n')) {
+    // Trigger dropdown open
+    dropdownOpen.value = true;
+  }
+};
+
+const insertMention = (name: string) => {
+  if (!textareaRef.value) return;
+
+  const position = textareaRef.value.selectionStart || 0;
+  const textBeforeCursor = input.value.substring(0, position);
+  const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+  if (lastAtIndex !== -1) {
+    // Replace from @ to cursor (remove the @ that was typed)
+    const beforeAt = input.value.substring(0, lastAtIndex);
+    const afterCursor = input.value.substring(position);
+    input.value = beforeAt + name + ' ' + afterCursor;
+
+    nextTick(() => {
+      if (textareaRef.value) {
+        const newPosition = beforeAt.length + name.length + 1;
+        textareaRef.value.selectionStart = newPosition;
+        textareaRef.value.selectionEnd = newPosition;
+        textareaRef.value.focus();
+      }
+    });
+  } else {
+    // Just insert at cursor (no @ to replace)
+    const beforeCursor = input.value.substring(0, position);
+    const afterCursor = input.value.substring(position);
+    input.value = beforeCursor + name + ' ' + afterCursor;
+
+    nextTick(() => {
+      if (textareaRef.value) {
+        const newPosition = beforeCursor.length + name.length + 1;
+        textareaRef.value.selectionStart = newPosition;
+        textareaRef.value.selectionEnd = newPosition;
+        textareaRef.value.focus();
+      }
+    });
+  }
+
+  // Close dropdown and ensure focus returns to textarea
+  dropdownOpen.value = false;
+  
+  // Additional focus call with slight delay to ensure dropdown is fully closed
+  setTimeout(() => {
+    textareaRef.value?.focus();
+  }, 50);
+};
+
+const handleMentionButtonClick = () => {
+  if (!textareaRef.value) return;
+
+  // Just focus the textarea, don't insert @
+  textareaRef.value.focus();
 };
 
 const formatTime = (dateString: string) => {
@@ -314,8 +401,10 @@ const buttonDisabled = computed(() => {
     <div class="border-t border-gray-200 p-4">
       <div class="relative">
         <textarea
+          ref="textareaRef"
           v-model="input"
           @keydown="handleKeyDown"
+          @input="handleInput"
           placeholder="请输入你的设计需求..."
           :disabled="isRunning"
           :class="[
@@ -326,26 +415,78 @@ const buttonDisabled = computed(() => {
 
         <div class="absolute right-3 bottom-2.5 left-3 flex items-center justify-between">
           <div class="flex gap-1">
-            <!-- <button
-              class="w-7 h-7 rounded-md border-none bg-transparent cursor-pointer flex items-center justify-center text-base text-gray-500 transition-all hover:bg-gray-50"
-              title="上传附件">
-              📎
-            </button>
-            <button
-              class="w-7 h-7 rounded-md border-none bg-transparent cursor-pointer flex items-center justify-center text-sm font-semibold text-gray-500 transition-all hover:bg-gray-50"
-              title="@大模型">
-              @
-            </button>
-            <button
-              class="w-7 h-7 rounded-md border-none bg-transparent cursor-pointer flex items-center justify-center text-base text-gray-500 transition-all hover:bg-gray-50"
-              title="风格">
-              🎨
-            </button>
-            <button
-              class="w-7 h-7 rounded-md border-none bg-transparent cursor-pointer flex items-center justify-center text-base text-gray-500 transition-all hover:bg-gray-50"
-              title="运镜">
-              🎥
-            </button> -->
+            <DropdownMenuRoot v-model:open="dropdownOpen">
+              <DropdownMenuTrigger as-child>
+                <button
+                  @click="handleMentionButtonClick"
+                  class="w-7 h-7 rounded-md border-none bg-transparent cursor-pointer flex items-center justify-center text-sm font-semibold text-gray-500 transition-all hover:bg-gray-50"
+                  title="@大模型/文件">
+                  @
+                </button>
+              </DropdownMenuTrigger>
+
+              <DropdownMenuPortal>
+                <DropdownMenuContent
+                  class="min-w-[200px] max-w-[300px] max-h-[400px] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none z-[9999]"
+                  :side-offset="5"
+                  :collision-padding="10"
+                >
+                  <!-- Files submenu -->
+                  <DropdownMenuSub v-if="files && files.length > 0">
+                    <DropdownMenuSubTrigger
+                      class="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[state=open]:bg-gray-100 data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
+                    >
+                      <span>📁 文件</span>
+                      <span class="ml-auto text-xs text-gray-400">▶</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuPortal>
+                      <DropdownMenuSubContent
+                        class="min-w-[200px] max-w-[300px] max-h-[400px] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
+                        :side-offset="8"
+                        :collision-padding="10"
+                      >
+                        <DropdownMenuItem
+                          v-for="file in files"
+                          :key="file.id"
+                          @select="insertMention(file.file_name)"
+                          class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
+                        >
+                          <div class="truncate" :title="file.file_name">
+                            {{ file.file_name }}
+                          </div>
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuPortal>
+                  </DropdownMenuSub>
+
+                  <!-- Models submenu -->
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger
+                      class="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[state=open]:bg-gray-100 data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
+                    >
+                      <span>🤖 模型</span>
+                      <span class="ml-auto text-xs text-gray-400">▶</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuPortal>
+                      <DropdownMenuSubContent
+                        class="min-w-[200px] rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
+                        :side-offset="8"
+                        :collision-padding="10"
+                      >
+                        <DropdownMenuItem
+                          v-for="model in models"
+                          :key="model.id"
+                          @select="insertMention(model.name)"
+                          class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
+                        >
+                          {{ model.name }}
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuPortal>
+                  </DropdownMenuSub>
+                </DropdownMenuContent>
+              </DropdownMenuPortal>
+            </DropdownMenuRoot>
           </div>
 
           <button

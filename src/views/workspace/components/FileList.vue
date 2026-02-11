@@ -1,44 +1,43 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-
-interface WorkspaceFile {
-  id: string;
-  file_name: string;
-  file_type: string;
-  file_url: string;
-  thumbnail_url?: string;
-  file_size?: number;
-  created_at: string;
-}
+import { exportProject, uploadMaterial } from '@/api/videoProjectApi';
+import { useToast } from '@/composables/useToast';
+import { type WorkspaceFile } from '../Workspace.vue';
 
 interface Props {
   files: WorkspaceFile[];
   selectedFileId?: string;
   projectTitle?: string;
+  projectId?: string | number;
 }
 
 interface Emits {
   (e: 'file-select', fileId: string): void;
   (e: 'project-title-change', newTitle: string): void;
-  (e: 'file-upload', file: File): void;
-  (e: 'download-all'): void;
+  (e: 'file-uploaded'): void; // Notify parent to refresh file list
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  projectTitle: '未命名项目'
+  projectTitle: '未命名项目',
 });
 
 const emit = defineEmits<Emits>();
+const { toast, removeToast } = useToast();
 
 const isEditingTitle = ref(false);
 const editedTitle = ref(props.projectTitle);
 const filterType = ref<string>('all');
 const fileInputRef = ref<HTMLInputElement>();
+const isDownloading = ref(false);
+const isUploading = ref(false);
 
 // Watch for changes in props.projectTitle and update editedTitle
-watch(() => props.projectTitle, (newTitle) => {
-  editedTitle.value = newTitle;
-});
+watch(
+  () => props.projectTitle,
+  newTitle => {
+    editedTitle.value = newTitle;
+  },
+);
 
 const getFileIcon = (fileType: string) => {
   const icons: Record<string, string> = {
@@ -65,21 +64,58 @@ const handleTitleSave = () => {
 };
 
 const handleFileUploadClick = () => {
+  if (!props.projectId || isUploading.value) {
+    if (!props.projectId) {
+      toast({
+        title: '无法上传',
+        description: '请先创建项目',
+        variant: 'destructive',
+      });
+    }
+    return;
+  }
   fileInputRef.value?.click();
 };
 
-const handleFileChange = (e: Event) => {
+const handleFileChange = async (e: Event) => {
   const target = e.target as HTMLInputElement;
   const file = target.files?.[0];
-  if (file) {
-    emit('file-upload', file);
+
+  if (!file || !props.projectId) {
+    return;
+  }
+
+  try {
+    isUploading.value = true;
+
+    const result = await uploadMaterial(props.projectId, file);
+
+    toast({
+      title: '上传成功',
+      description: `文件 ${file.name} 已上传`,
+    });
+
+    // Notify parent to refresh the file list
+    emit('file-uploaded');
+
+    // Clear the input so the same file can be uploaded again if needed
+    if (target) {
+      target.value = '';
+    }
+  } catch (error: any) {
+    console.error('Upload failed:', error);
+    toast({
+      title: '上传失败',
+      description: error.message || '上传文件时出错',
+      variant: 'destructive',
+    });
+  } finally {
+    isUploading.value = false;
   }
 };
 
 const filteredFiles = computed(() => {
-  return filterType.value === 'all'
-    ? props.files
-    : props.files.filter(f => f.file_type === filterType.value);
+  return filterType.value === 'all' ? props.files : props.files.filter(f => f.file_type === filterType.value);
 });
 
 const handleKeyDown = (e: KeyboardEvent) => {
@@ -90,36 +126,85 @@ const handleKeyDown = (e: KeyboardEvent) => {
     isEditingTitle.value = false;
   }
 };
+
+const handleDownloadAll = async () => {
+  if (!props.projectId || props.files.length === 0 || isDownloading.value) {
+    return;
+  }
+
+  let loadingToastId: string | undefined;
+
+  try {
+    isDownloading.value = true;
+    loadingToastId = toast({
+      title: '正在导出...',
+      description: '正在打包项目文件，请稍候',
+      duration: 10000,
+    });
+
+    const blob = await exportProject(props.projectId);
+
+    // Create a blob URL and trigger download
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `project_${props.projectId}_export.zip`;
+    document.body.appendChild(link);
+    link.click();
+
+    // Cleanup
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    toast({
+      title: '导出成功',
+      description: '项目文件已下载',
+    });
+  } catch (error: any) {
+    console.error('Export failed:', error);
+    toast({
+      title: '导出失败',
+      description: error.message || '下载项目文件时出错',
+      variant: 'destructive',
+    });
+  } finally {
+    // Close the loading toast
+    if (loadingToastId) {
+      removeToast(loadingToastId);
+    }
+    isDownloading.value = false;
+  }
+};
 </script>
 
 <template>
-  <div class="w-[280px] h-full bg-white border-r border-gray-200 flex flex-col overflow-hidden">
-    <div class="p-5 border-b border-gray-200">
+  <div class="flex h-full w-[280px] flex-col overflow-hidden border-r border-gray-200 bg-white">
+    <div class="border-b border-gray-200 p-5">
       <div class="mb-4">
         <input
           v-if="isEditingTitle"
           v-model="editedTitle"
           @blur="handleTitleSave"
           @keydown="handleKeyDown"
-          class="w-full text-base font-semibold text-gray-900 px-2 py-1 border border-blue-500 rounded-md outline-none"
+          class="w-full rounded-md border border-blue-500 px-2 py-1 text-base font-semibold text-gray-900 outline-none"
           autofocus
         />
         <div
           v-else
           @click="isEditingTitle = true"
-          class="text-base font-semibold text-gray-900 px-2 py-1 cursor-pointer rounded-md transition-all hover:bg-gray-50"
+          class="cursor-pointer rounded-md px-2 py-1 text-base font-semibold text-gray-900 transition-all hover:bg-gray-50"
           title="点击编辑项目名称"
         >
           {{ projectTitle }}
         </div>
       </div>
 
-      <div class="flex gap-1.5 mb-3 overflow-x-auto">
+      <div class="mb-3 flex gap-1.5 overflow-x-auto">
         <button
           @click="filterType = 'all'"
           :class="[
-            'px-3 py-1.5 border border-gray-200 rounded-md text-xs font-medium cursor-pointer transition-all whitespace-nowrap',
-            filterType === 'all' ? 'bg-gray-900 text-white' : 'bg-white text-gray-500'
+            'cursor-pointer rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all',
+            filterType === 'all' ? 'bg-gray-900 text-white' : 'bg-white text-gray-500',
           ]"
         >
           全部
@@ -127,8 +212,8 @@ const handleKeyDown = (e: KeyboardEvent) => {
         <button
           @click="filterType = 'image'"
           :class="[
-            'px-3 py-1.5 border border-gray-200 rounded-md text-xs font-medium cursor-pointer transition-all whitespace-nowrap',
-            filterType === 'image' ? 'bg-gray-900 text-white' : 'bg-white text-gray-500'
+            'cursor-pointer rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all',
+            filterType === 'image' ? 'bg-gray-900 text-white' : 'bg-white text-gray-500',
           ]"
         >
           图片
@@ -136,8 +221,8 @@ const handleKeyDown = (e: KeyboardEvent) => {
         <button
           @click="filterType = 'video'"
           :class="[
-            'px-3 py-1.5 border border-gray-200 rounded-md text-xs font-medium cursor-pointer transition-all whitespace-nowrap',
-            filterType === 'video' ? 'bg-gray-900 text-white' : 'bg-white text-gray-500'
+            'cursor-pointer rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all',
+            filterType === 'video' ? 'bg-gray-900 text-white' : 'bg-white text-gray-500',
           ]"
         >
           视频
@@ -145,8 +230,8 @@ const handleKeyDown = (e: KeyboardEvent) => {
         <button
           @click="filterType = 'audio'"
           :class="[
-            'px-3 py-1.5 border border-gray-200 rounded-md text-xs font-medium cursor-pointer transition-all whitespace-nowrap',
-            filterType === 'audio' ? 'bg-gray-900 text-white' : 'bg-white text-gray-500'
+            'cursor-pointer rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all',
+            filterType === 'audio' ? 'bg-gray-900 text-white' : 'bg-white text-gray-500',
           ]"
         >
           音频
@@ -154,26 +239,34 @@ const handleKeyDown = (e: KeyboardEvent) => {
       </div>
 
       <div class="flex gap-1.5">
-        <!-- <button
+        <button
           @click="handleFileUploadClick"
-          class="flex-1 px-3 py-2 border border-gray-200 rounded-lg bg-gray-900 text-white text-xs font-medium cursor-pointer transition-all flex items-center justify-center gap-1.5 hover:bg-black"
-        >
-          <span>📤</span>
-          <span>上传</span>
-        </button> -->
-        <!-- <button
-          @click="$emit('download-all')"
-          :disabled="files.length === 0"
+          :disabled="!projectId || isUploading"
           :class="[
-            'px-3 py-2 border border-gray-200 rounded-lg text-xs font-medium transition-all flex items-center gap-1',
-            files.length > 0 
-              ? 'bg-white text-gray-500 cursor-pointer hover:bg-gray-50' 
-              : 'bg-gray-50 text-gray-300 cursor-not-allowed'
+            'flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium transition-all',
+            projectId && !isUploading
+              ? 'bg-gray-900 text-white hover:bg-black'
+              : 'cursor-not-allowed bg-gray-300 text-gray-500',
+          ]"
+        >
+          <span v-if="!isUploading">📤</span>
+          <span v-else class="animate-spin">⏳</span>
+          <span>{{ isUploading ? '上传中...' : '上传' }}</span>
+        </button>
+        <button
+          @click="handleDownloadAll"
+          :disabled="files.length === 0 || isDownloading"
+          :class="[
+            'flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium transition-all',
+            files.length > 0 && !isDownloading
+              ? 'cursor-pointer bg-white text-gray-500 hover:bg-gray-50'
+              : 'cursor-not-allowed bg-gray-50 text-gray-300',
           ]"
           title="下载全部"
         >
-          <span>⬇️</span>
-        </button> -->
+          <span v-if="!isDownloading">⬇️</span>
+          <span v-else class="animate-spin">⏳</span>
+        </button>
       </div>
 
       <input
@@ -186,40 +279,39 @@ const handleKeyDown = (e: KeyboardEvent) => {
     </div>
 
     <div class="flex-1 overflow-y-auto p-2">
-      <div v-if="filteredFiles.length === 0" class="text-center py-10">
-        <div class="text-3xl mb-3">📁</div>
-        <p class="text-xs text-gray-400 m-0 leading-relaxed">
-          {{ filterType === 'all' ? '暂无文件' : `暂无${filterType === 'image' ? '图片' : filterType === 'video' ? '视频' : '音频'}文件` }}
+      <div v-if="filteredFiles.length === 0" class="py-10 text-center">
+        <div class="mb-3 text-3xl">📁</div>
+        <p class="m-0 text-xs leading-relaxed text-gray-400">
+          {{
+            filterType === 'all'
+              ? '暂无文件'
+              : `暂无${filterType === 'image' ? '图片' : filterType === 'video' ? '视频' : '音频'}文件`
+          }}
         </p>
       </div>
-      
+
       <div v-else class="flex flex-col gap-1">
         <div
           v-for="file in filteredFiles"
           :key="file.id"
           @click="$emit('file-select', file.id)"
           :class="[
-            'p-2.5 rounded-lg cursor-pointer transition-all border flex items-start gap-2.5',
-            selectedFileId === file.id 
-              ? 'bg-gray-50 border-gray-200' 
-              : 'border-transparent hover:bg-gray-50'
+            'flex cursor-pointer items-start gap-2.5 rounded-lg border p-2.5 transition-all',
+            selectedFileId === file.id ? 'border-gray-200 bg-gray-50' : 'border-transparent hover:bg-gray-50',
           ]"
         >
           <img
-            v-if="file.thumbnail_url"
-            :src="file.thumbnail_url"
+            v-if="file.file_type === 'image'"
+            :src="`${file.file_url}?x-tos-process=image/resize,w_100`"
             :alt="file.file_name"
-            class="w-10 h-10 rounded-md object-cover flex-shrink-0"
+            class="h-10 w-10 flex-shrink-0 rounded-md object-cover"
           />
-          <div
-            v-else
-            class="w-10 h-10 rounded-md bg-gray-50 flex items-center justify-center text-xl flex-shrink-0"
-          >
+          <div v-else class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-gray-50 text-xl">
             {{ getFileIcon(file.file_type) }}
           </div>
-          
-          <div class="flex-1 min-w-0">
-            <div class="text-xs font-medium text-gray-900 mb-0.5 overflow-hidden text-ellipsis whitespace-nowrap">
+
+          <div class="min-w-0 flex-1">
+            <div class="mb-0.5 overflow-hidden text-xs font-medium text-ellipsis whitespace-nowrap text-gray-900">
               {{ file.file_name }}
             </div>
             <div class="text-[11px] text-gray-400">
