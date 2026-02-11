@@ -20,8 +20,8 @@ const showStyleMenu = ref(false);
 const modes = [
   { id: 'one_click', label: '一键成片', icon: '⚡' },
   { id: 'free_creation', label: '自由创作', icon: '🎨' },
-  { id: 'storyboard', label: '分镜脚本', icon: '📋' },
-];
+/*   { id: 'storyboard', label: '分镜脚本', icon: '📋' },
+ */];
 
 const aspectRatios = [
   { id: '16:9', label: '16:9', description: '横屏' },

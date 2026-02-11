@@ -36,6 +36,14 @@ const isUserScrolling = ref(false);
 const scrollTimeout = ref<NodeJS.Timeout>();
 const textareaRef = ref<HTMLTextAreaElement>();
 const dropdownOpen = ref(false);
+const cursorPosition = ref({ top: 0, left: 0 });
+const dropdownTriggerRef = ref<HTMLDivElement>();
+
+// Computed style for trigger positioning
+const triggerStyle = computed(() => ({
+  top: `${cursorPosition.value.top}px`,
+  left: `${cursorPosition.value.left}px`,
+}));
 
 // Available models
 const models = [
@@ -62,9 +70,7 @@ const processedMessages = computed(() => {
     if (message.role === 'assistant' && Array.isArray(message.content)) {
       return {
         ...message,
-        content: message.content
-          .map(content => getUserResponseOfAssistant(content))
-          .filter(text => text.trim() !== ''),
+        content: message.content.map(content => getUserResponseOfAssistant(content)).filter(text => text.trim() !== ''),
       };
     }
     return message;
@@ -174,6 +180,79 @@ const handleKeyDown = (e: KeyboardEvent) => {
   }
 };
 
+const getCursorCoordinates = (textarea: HTMLTextAreaElement, position: number) => {
+  // Create a mirror div to calculate cursor position
+  const div = document.createElement('div');
+  const style = window.getComputedStyle(textarea);
+
+  // Copy all relevant textarea styles to mirror div
+  const properties = [
+    'fontFamily',
+    'fontSize',
+    'fontWeight',
+    'lineHeight',
+    'letterSpacing',
+    'paddingTop',
+    'paddingRight',
+    'paddingBottom',
+    'paddingLeft',
+    'borderTopWidth',
+    'borderRightWidth',
+    'borderBottomWidth',
+    'borderLeftWidth',
+    'boxSizing',
+    'whiteSpace',
+    'wordWrap',
+    'wordBreak',
+    'overflowWrap',
+  ];
+
+  properties.forEach(prop => {
+    div.style[prop as any] = style[prop as any];
+  });
+
+  div.style.position = 'absolute';
+  div.style.visibility = 'hidden';
+  div.style.top = '0';
+  div.style.left = '0';
+  div.style.width = `${textarea.clientWidth}px`;
+  div.style.height = 'auto';
+  div.style.overflow = 'auto';
+  div.style.whiteSpace = 'pre-wrap';
+  div.style.wordWrap = 'break-word';
+
+  document.body.appendChild(div);
+
+  // Get text before cursor (not including the character at cursor position)
+  const textBeforeCursor = textarea.value.substring(0, position);
+
+  // Split into text nodes to measure
+  const textNode = document.createTextNode(textBeforeCursor);
+  div.appendChild(textNode);
+
+  // Create a span for the cursor position marker
+  const span = document.createElement('span');
+  span.textContent = '\u200B'; // Zero-width space for accurate positioning
+  div.appendChild(span);
+
+  // Get the span's position
+  const spanRect = span.getBoundingClientRect();
+  const divRect = div.getBoundingClientRect();
+
+  // Calculate position relative to the div
+  let top = spanRect.top - divRect.top;
+  let left = spanRect.left - divRect.left;
+
+  // Account for textarea scroll
+  top -= textarea.scrollTop;
+  left -= textarea.scrollLeft;
+
+  document.body.removeChild(div);
+
+  // Return position (already includes padding from copied styles)
+  return { top, left };
+};
+
 const handleInput = (e: Event) => {
   const target = e.target as HTMLTextAreaElement;
   const value = target.value;
@@ -181,8 +260,14 @@ const handleInput = (e: Event) => {
 
   // Check if user typed @ character
   if (value[position - 1] === '@' && (position === 1 || value[position - 2] === ' ' || value[position - 2] === '\n')) {
-    // Trigger dropdown open
-    dropdownOpen.value = true;
+    // Calculate cursor position
+    const coords = getCursorCoordinates(target, position);
+    cursorPosition.value = coords;
+
+    // Trigger dropdown open after positioning
+    nextTick(() => {
+      dropdownOpen.value = true;
+    });
   }
 };
 
@@ -225,7 +310,7 @@ const insertMention = (name: string) => {
 
   // Close dropdown and ensure focus returns to textarea
   dropdownOpen.value = false;
-  
+
   // Additional focus call with slight delay to ensure dropdown is fully closed
   setTimeout(() => {
     textareaRef.value?.focus();
@@ -235,7 +320,19 @@ const insertMention = (name: string) => {
 const handleMentionButtonClick = () => {
   if (!textareaRef.value) return;
 
-  // Just focus the textarea, don't insert @
+  // Get current cursor position
+  const position = textareaRef.value.selectionStart || 0;
+
+  // Calculate cursor coordinates
+  const coords = getCursorCoordinates(textareaRef.value, position);
+  cursorPosition.value = coords;
+
+  // Open dropdown after positioning
+  nextTick(() => {
+    dropdownOpen.value = true;
+  });
+
+  // Focus the textarea
   textareaRef.value.focus();
 };
 
@@ -399,7 +496,7 @@ const buttonDisabled = computed(() => {
 
     <!-- Input area -->
     <div class="border-t border-gray-200 p-4">
-      <div class="relative">
+      <div class="relative rounded-xl border border-gray-200 bg-white p-3">
         <textarea
           ref="textareaRef"
           v-model="input"
@@ -408,85 +505,99 @@ const buttonDisabled = computed(() => {
           placeholder="请输入你的设计需求..."
           :disabled="isRunning"
           :class="[
-            'max-h-[200px] min-h-[120px] w-full resize-y rounded-xl border border-gray-200 px-3 py-3 pb-12 text-sm leading-relaxed outline-none',
-            isRunning ? 'bg-gray-50' : 'bg-white focus:border-gray-900',
+            'max-h-[70px] min-h-[70px] w-full resize-none border-none text-sm leading-relaxed outline-none',
+            isRunning ? 'bg-gray-50' : 'bg-white',
           ]"
         />
 
-        <div class="absolute right-3 bottom-2.5 left-3 flex items-center justify-between">
+        <!-- Invisible positioned container for dropdown trigger at cursor -->
+        <div class="pointer-events-none absolute top-0 left-0 h-full w-full overflow-hidden">
+          <DropdownMenuRoot v-model:open="dropdownOpen">
+            <DropdownMenuTrigger as-child>
+              <div
+                ref="dropdownTriggerRef"
+                :style="triggerStyle"
+                class="pointer-events-auto absolute h-5 w-0.5 opacity-0"
+              />
+            </DropdownMenuTrigger>
+
+            <DropdownMenuPortal>
+              <DropdownMenuContent
+                class="z-[9999] max-h-[400px] max-w-[300px] min-w-[200px] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
+                :side="'right'"
+                :align="'start'"
+                :side-offset="5"
+                :align-offset="0"
+                :collision-padding="10"
+              >
+                <!-- Files submenu -->
+                <DropdownMenuSub v-if="files && files.length > 0">
+                  <DropdownMenuSubTrigger
+                    class="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[state=open]:bg-gray-100"
+                  >
+                    <span>📁 文件</span>
+                    <span class="ml-auto text-xs text-gray-400">▶</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuPortal>
+                    <DropdownMenuSubContent
+                      class="max-h-[400px] max-w-[300px] min-w-[200px] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
+                      :side-offset="8"
+                      :collision-padding="10"
+                    >
+                      <DropdownMenuItem
+                        v-for="file in files"
+                        :key="file.id"
+                        @select="insertMention(file.file_name)"
+                        class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
+                      >
+                        <div class="truncate" :title="file.file_name">
+                          {{ file.file_name }}
+                        </div>
+                      </DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuPortal>
+                </DropdownMenuSub>
+
+                <!-- Models submenu -->
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger
+                    class="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[state=open]:bg-gray-100"
+                  >
+                    <span>🤖 模型</span>
+                    <span class="ml-auto text-xs text-gray-400">▶</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuPortal>
+                    <DropdownMenuSubContent
+                      class="min-w-[200px] rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
+                      :side-offset="8"
+                      :collision-padding="10"
+                    >
+                      <DropdownMenuItem
+                        v-for="model in models"
+                        :key="model.id"
+                        @select="insertMention(model.name)"
+                        class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
+                      >
+                        {{ model.name }}
+                      </DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuPortal>
+                </DropdownMenuSub>
+              </DropdownMenuContent>
+            </DropdownMenuPortal>
+          </DropdownMenuRoot>
+        </div>
+
+        <!-- Button bar inside the border -->
+        <div class="flex items-center justify-between">
           <div class="flex gap-1">
-            <DropdownMenuRoot v-model:open="dropdownOpen">
-              <DropdownMenuTrigger as-child>
-                <button
-                  @click="handleMentionButtonClick"
-                  class="w-7 h-7 rounded-md border-none bg-transparent cursor-pointer flex items-center justify-center text-sm font-semibold text-gray-500 transition-all hover:bg-gray-50"
-                  title="@大模型/文件">
-                  @
-                </button>
-              </DropdownMenuTrigger>
-
-              <DropdownMenuPortal>
-                <DropdownMenuContent
-                  class="min-w-[200px] max-w-[300px] max-h-[400px] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none z-[9999]"
-                  :side-offset="5"
-                  :collision-padding="10"
-                >
-                  <!-- Files submenu -->
-                  <DropdownMenuSub v-if="files && files.length > 0">
-                    <DropdownMenuSubTrigger
-                      class="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[state=open]:bg-gray-100 data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
-                    >
-                      <span>📁 文件</span>
-                      <span class="ml-auto text-xs text-gray-400">▶</span>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuPortal>
-                      <DropdownMenuSubContent
-                        class="min-w-[200px] max-w-[300px] max-h-[400px] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
-                        :side-offset="8"
-                        :collision-padding="10"
-                      >
-                        <DropdownMenuItem
-                          v-for="file in files"
-                          :key="file.id"
-                          @select="insertMention(file.file_name)"
-                          class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
-                        >
-                          <div class="truncate" :title="file.file_name">
-                            {{ file.file_name }}
-                          </div>
-                        </DropdownMenuItem>
-                      </DropdownMenuSubContent>
-                    </DropdownMenuPortal>
-                  </DropdownMenuSub>
-
-                  <!-- Models submenu -->
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger
-                      class="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[state=open]:bg-gray-100 data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
-                    >
-                      <span>🤖 模型</span>
-                      <span class="ml-auto text-xs text-gray-400">▶</span>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuPortal>
-                      <DropdownMenuSubContent
-                        class="min-w-[200px] rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
-                        :side-offset="8"
-                        :collision-padding="10"
-                      >
-                        <DropdownMenuItem
-                          v-for="model in models"
-                          :key="model.id"
-                          @select="insertMention(model.name)"
-                          class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
-                        >
-                          {{ model.name }}
-                        </DropdownMenuItem>
-                      </DropdownMenuSubContent>
-                    </DropdownMenuPortal>
-                  </DropdownMenuSub>
-                </DropdownMenuContent>
-              </DropdownMenuPortal>
-            </DropdownMenuRoot>
+            <button
+              @click="handleMentionButtonClick"
+              class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-sm font-semibold text-gray-500 transition-all hover:bg-gray-50"
+              title="@大模型/文件"
+            >
+              @
+            </button>
           </div>
 
           <button
