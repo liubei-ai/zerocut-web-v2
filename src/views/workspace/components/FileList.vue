@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import { exportProject, uploadMaterial } from '@/api/videoProjectApi';
+import { ref, computed, watch, toRef } from 'vue';
+import { exportProject } from '@/api/videoProjectApi';
 import { useToast } from '@/composables/useToast';
+import { useFileUpload } from '@/composables/useFileUpload';
 import { type WorkspaceFile } from '../Workspace.vue';
 
 interface Props {
@@ -9,27 +10,35 @@ interface Props {
   selectedFileId?: string;
   projectTitle?: string;
   projectId?: string | number;
+  isUploading?: boolean;
 }
 
 interface Emits {
   (e: 'file-select', fileId: string): void;
   (e: 'project-title-change', newTitle: string): void;
-  (e: 'file-uploaded'): void; // Notify parent to refresh file list
+  (e: 'file-uploaded'): void;
+  (e: 'upload-start'): void;
+  (e: 'upload-end'): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   projectTitle: '未命名项目',
+  isUploading: false,
 });
 
 const emit = defineEmits<Emits>();
 const { toast, removeToast } = useToast();
+const isUploadingRef = toRef(props, 'isUploading');
+const { fileInputRef, handleFileUploadClick, handleFileChange } = useFileUpload(
+  isUploadingRef,
+  () => emit('upload-start'),
+  () => emit('upload-end')
+);
 
 const isEditingTitle = ref(false);
 const editedTitle = ref(props.projectTitle);
 const filterType = ref<string>('all');
-const fileInputRef = ref<HTMLInputElement>();
 const isDownloading = ref(false);
-const isUploading = ref(false);
 
 // Watch for changes in props.projectTitle and update editedTitle
 watch(
@@ -63,55 +72,17 @@ const handleTitleSave = () => {
   isEditingTitle.value = false;
 };
 
-const handleFileUploadClick = () => {
-  if (!props.projectId || isUploading.value) {
-    if (!props.projectId) {
-      toast({
-        title: '无法上传',
-        description: '请先创建项目',
-        variant: 'destructive',
-      });
-    }
-    return;
-  }
-  fileInputRef.value?.click();
+const handleFileUpload = () => {
+  handleFileUploadClick(props.projectId);
 };
 
-const handleFileChange = async (e: Event) => {
-  const target = e.target as HTMLInputElement;
-  const file = target.files?.[0];
-
-  if (!file || !props.projectId) {
-    return;
-  }
-
-  try {
-    isUploading.value = true;
-
-    const result = await uploadMaterial(props.projectId, file);
-
-    toast({
-      title: '上传成功',
-      description: `文件 ${file.name} 已上传`,
-    });
-
+const onFileChange = (e: Event) => {
+  if (!props.projectId) return;
+  
+  handleFileChange(e, props.projectId, () => {
     // Notify parent to refresh the file list
     emit('file-uploaded');
-
-    // Clear the input so the same file can be uploaded again if needed
-    if (target) {
-      target.value = '';
-    }
-  } catch (error: any) {
-    console.error('Upload failed:', error);
-    toast({
-      title: '上传失败',
-      description: error.message || '上传文件时出错',
-      variant: 'destructive',
-    });
-  } finally {
-    isUploading.value = false;
-  }
+  });
 };
 
 const filteredFiles = computed(() => {
@@ -240,18 +211,18 @@ const handleDownloadAll = async () => {
 
       <div class="flex gap-1.5">
         <button
-          @click="handleFileUploadClick"
-          :disabled="!projectId || isUploading"
+          @click="handleFileUpload"
+          :disabled="!projectId || props.isUploading"
           :class="[
             'flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium transition-all',
-            projectId && !isUploading
+            projectId && !props.isUploading
               ? 'bg-gray-900 text-white hover:bg-black'
               : 'cursor-not-allowed bg-gray-300 text-gray-500',
           ]"
         >
-          <span v-if="!isUploading">📤</span>
+          <span v-if="!props.isUploading">📤</span>
           <span v-else class="animate-spin">⏳</span>
-          <span>{{ isUploading ? '上传中...' : '上传' }}</span>
+          <span>{{ props.isUploading ? '上传中...' : '上传' }}</span>
         </button>
         <button
           @click="handleDownloadAll"
@@ -272,7 +243,7 @@ const handleDownloadAll = async () => {
       <input
         ref="fileInputRef"
         type="file"
-        @change="handleFileChange"
+        @change="onFileChange"
         class="hidden"
         accept="image/*,video/*,audio/*"
       />

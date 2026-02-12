@@ -220,7 +220,7 @@ export async function exportProject(projectId: string | number) {
   // Use a direct axios call for blob response since the client wrapper doesn't handle it well
   const baseUrl = import.meta.env.VITE_API_AGENT_URL;
   const url = `${baseUrl}/video-creation/export/${projectId}`;
-  
+
   const response = await fetch(url, {
     method: 'GET',
     credentials: 'include',
@@ -252,7 +252,7 @@ export async function uploadMaterial(projectId: string | number, file: File) {
 
   const response = await apiClient.upload<UploadMaterialResponse>(
     `/video-creation/upload/${projectId}`,
-    formData
+    formData, { noErrorAlert: true }
   );
   return response.data;
 }

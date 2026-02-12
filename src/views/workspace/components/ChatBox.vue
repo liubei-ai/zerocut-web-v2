@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, nextTick, watch, computed, onUnmounted } from 'vue';
+import { ref, nextTick, watch, computed, onUnmounted, toRef } from 'vue';
 import { abortVideoCreation } from '@/api/videoProjectApi';
+import { useFileUpload } from '@/composables/useFileUpload';
 import { type ChatMessage, type AssistantMessage } from '@/types/workspace';
 import {
   DropdownMenuRoot,
@@ -16,18 +17,28 @@ import {
 interface Props {
   messages: ChatMessage[];
   isRunning?: boolean;
+  isUploading?: boolean;
   initialInput?: string;
   projectId?: string | number;
-  files?: Array<{ id: string; file_name: string }>;
+  files?: Array<{ id: string; file_name: string; file_type?: string; file_url?: string }>;
 }
 
 interface Emits {
   (e: 'send-message', message: string): void;
   (e: 'cancel-task'): void;
+  (e: 'file-uploaded'): void;
+  (e: 'upload-start'): void;
+  (e: 'upload-end'): void;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
+const isUploadingRef = toRef(props, 'isUploading');
+const { fileInputRef, handleFileUploadClick, handleFileChange } = useFileUpload(
+  isUploadingRef,
+  () => emit('upload-start'),
+  () => emit('upload-end')
+);
 
 const input = ref('');
 const messagesEndRef = ref<HTMLDivElement>();
@@ -47,10 +58,11 @@ const triggerStyle = computed(() => ({
 
 // Available models
 const models = [
-  { id: 'vidu2', name: 'Vidu2' },
-  { id: 'seeddance', name: 'SeedDance' },
-  { id: 'sora2', name: 'Sora2' },
-  { id: 'jimeng', name: 'Jimeng' },
+  { id: 'pro', name: 'pro' },
+  { id: 'vidu', name: 'vidu' },
+  { id: 'kling', name: 'kling' },
+  { id: 'hailuo', name: 'hailuo' },
+  { id: 'sora', name: 'sora' },
 ];
 
 const getUserResponseOfAssistant = (assistantMessage: AssistantMessage) => {
@@ -259,7 +271,7 @@ const handleInput = (e: Event) => {
   const position = target.selectionStart || 0;
 
   // Check if user typed @ character
-  if (value[position - 1] === '@' && (position === 1 || value[position - 2] === ' ' || value[position - 2] === '\n')) {
+  if (value[position - 1] === '@') {
     // Calculate cursor position
     const coords = getCursorCoordinates(target, position);
     cursorPosition.value = coords;
@@ -353,6 +365,30 @@ onUnmounted(() => {
 const buttonDisabled = computed(() => {
   return (!input.value.trim() && !props.isRunning) || (props.isRunning && !props.projectId);
 });
+
+const getFileIcon = (fileType?: string) => {
+  if (!fileType) return '📁';
+  const icons: Record<string, string> = {
+    image: '🖼️',
+    video: '🎬',
+    audio: '🎵',
+    document: '📄',
+  };
+  return icons[fileType] || '📁';
+};
+
+const handleFileUpload = () => {
+  handleFileUploadClick(props.projectId);
+};
+
+const onFileChange = (e: Event) => {
+  if (!props.projectId) return;
+  
+  handleFileChange(e, props.projectId, () => {
+    // Notify parent to refresh the file list
+    emit('file-uploaded');
+  });
+};
 </script>
 
 <template>
@@ -523,7 +559,7 @@ const buttonDisabled = computed(() => {
 
             <DropdownMenuPortal>
               <DropdownMenuContent
-                class="z-[9999] max-h-[400px] max-w-[300px] min-w-[200px] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
+                class="z-[9999] max-h-[400px] max-w-[200px] min-w-[120px] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
                 :side="'right'"
                 :align="'start'"
                 :side-offset="5"
@@ -533,14 +569,14 @@ const buttonDisabled = computed(() => {
                 <!-- Files submenu -->
                 <DropdownMenuSub v-if="files && files.length > 0">
                   <DropdownMenuSubTrigger
-                    class="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[state=open]:bg-gray-100"
+                    class="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-gray-100 data-[state=open]:bg-gray-100 data-[state=selected]:bg-gray-100"
                   >
                     <span>📁 文件</span>
                     <span class="ml-auto text-xs text-gray-400">▶</span>
                   </DropdownMenuSubTrigger>
                   <DropdownMenuPortal>
                     <DropdownMenuSubContent
-                      class="max-h-[400px] max-w-[300px] min-w-[200px] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
+                      class="max-h-[400px] max-w-[200px] min-w-[150px] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
                       :side-offset="8"
                       :collision-padding="10"
                     >
@@ -550,8 +586,22 @@ const buttonDisabled = computed(() => {
                         @select="insertMention(file.file_name)"
                         class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
                       >
-                        <div class="truncate" :title="file.file_name">
-                          {{ file.file_name }}
+                        <div class="flex items-center gap-2">
+                          <img
+                            v-if="file.file_type === 'image' && file.file_url"
+                            :src="`${file.file_url}?x-tos-process=image/resize,w_100`"
+                            :alt="file.file_name"
+                            class="h-6 w-6 flex-shrink-0 rounded object-cover"
+                          />
+                          <div
+                            v-else
+                            class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-gray-100 text-sm"
+                          >
+                            {{ getFileIcon(file.file_type) }}
+                          </div>
+                          <div class="truncate" :title="file.file_name">
+                            {{ file.file_name }}
+                          </div>
                         </div>
                       </DropdownMenuItem>
                     </DropdownMenuSubContent>
@@ -561,7 +611,7 @@ const buttonDisabled = computed(() => {
                 <!-- Models submenu -->
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger
-                    class="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[state=open]:bg-gray-100"
+                    class="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-gray-100 data-[state=open]:bg-gray-100 data-[state=selected]:bg-gray-100"
                   >
                     <span>🤖 模型</span>
                     <span class="ml-auto text-xs text-gray-400">▶</span>
@@ -598,6 +648,35 @@ const buttonDisabled = computed(() => {
             >
               @
             </button>
+            <button
+              @click="handleFileUpload"
+              :disabled="!projectId || props.isUploading"
+              :class="[
+                'flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-base transition-all',
+                projectId && !props.isUploading
+                  ? 'text-gray-500 hover:bg-gray-50'
+                  : 'cursor-not-allowed text-gray-300',
+              ]"
+              :title="props.isUploading ? '上传中...' : '上传附件'"
+            >
+              <span v-if="!props.isUploading">📎</span>
+              <span v-else class="animate-spin" style="font-size: 0.65rem;">⏳</span>
+            </button>
+            <!-- <button
+              class="w-7 h-7 rounded-md border-none bg-transparent cursor-pointer flex items-center justify-center text-sm font-semibold text-gray-500 transition-all hover:bg-gray-50"
+              title="@大模型">
+              @
+            </button>
+            <button
+              class="w-7 h-7 rounded-md border-none bg-transparent cursor-pointer flex items-center justify-center text-base text-gray-500 transition-all hover:bg-gray-50"
+              title="风格">
+              🎨
+            </button>
+            <button
+              class="w-7 h-7 rounded-md border-none bg-transparent cursor-pointer flex items-center justify-center text-base text-gray-500 transition-all hover:bg-gray-50"
+              title="运镜">
+              🎥
+            </button> -->
           </div>
 
           <button
@@ -617,6 +696,15 @@ const buttonDisabled = computed(() => {
           </button>
         </div>
       </div>
+
+      <!-- Hidden file input -->
+      <input
+        ref="fileInputRef"
+        type="file"
+        @change="onFileChange"
+        class="hidden"
+        accept="image/*,video/*,audio/*"
+      />
     </div>
   </div>
 </template>

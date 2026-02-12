@@ -9,7 +9,7 @@ const authStore = useAuthStore();
 const showUserMenu = ref(false);
 const userMenuRef = ref<HTMLElement | null>(null);
 
-const workspanceUrl = import.meta.env.VITE_WORKSPACE_URL
+const workspaceUrl = import.meta.env.VITE_WORKSPACE_URL
 
 // Wallet balance state
 const creditsBalance = ref(0);
@@ -157,7 +157,7 @@ onUnmounted(() => {
 
         <!-- Show user info when logged in -->
         <template v-else>
-          <a :href="workspanceUrl + 'wallet'" target="_blank"
+          <a title="剩余积分" :href="workspaceUrl + 'wallet'" target="_blank"
             class="flex items-center gap-2 bg-[#f9fafb] px-4 py-2 rounded-[20px] border border-[#e5e7eb]">
             <span class="text-base">💎</span>
             <span class="text-sm font-semibold text-[#111827]">

@@ -38,6 +38,7 @@ const { toast } = useToast();
 const files = ref<WorkspaceFile[]>([]);
 const selectedFileId = ref<string>();
 const isRunning = ref(false);
+const isUploading = ref(false);
 const projectTitle = ref('');
 const initialUserInput = ref<string>();
 const isNewProject = ref(false);
@@ -366,6 +367,14 @@ const handleFileUploaded = async () => {
   await loadOssMapping();
 };
 
+const handleUploadStart = () => {
+  isUploading.value = true;
+};
+
+const handleUploadEnd = () => {
+  isUploading.value = false;
+};
+
 const handleDownload = () => {
   if (selectedFile.value) {
     window.open(selectedFile.value.file_url, '_blank');
@@ -411,9 +420,12 @@ const handleAbortTask = async () => {
         :selected-file-id="selectedFileId"
         :project-title="projectTitle"
         :project-id="projectId"
+        :is-uploading="isUploading"
         @file-select="handleFileSelect"
         @project-title-change="handleProjectTitleChange"
         @file-uploaded="handleFileUploaded"
+        @upload-start="handleUploadStart"
+        @upload-end="handleUploadEnd"
       />
 
       <PreviewArea
@@ -431,9 +443,13 @@ const handleAbortTask = async () => {
         :messages="messages"
         :project-id="projectId"
         :is-running="isRunning"
+        :is-uploading="isUploading"
         :initial-input="initialUserInput"
         @send-message="handleSendMessage"
         @abort-task="handleAbortTask"
+        @file-uploaded="handleFileUploaded"
+        @upload-start="handleUploadStart"
+        @upload-end="handleUploadEnd"
       />
     </div>
   </MainLayout>
