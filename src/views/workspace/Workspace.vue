@@ -27,6 +27,14 @@ export interface WorkspaceFile {
   created_at: string;
 }
 
+interface FilePreview {
+  id: string;
+  name: string;
+  type: string;
+  url: string;
+  file: File;
+}
+
 const route = useRoute();
 const router = useRouter();
 
@@ -41,6 +49,7 @@ const isRunning = ref(false);
 const isUploading = ref(false);
 const projectTitle = ref('');
 const initialUserInput = ref<string>();
+const initialFiles = ref<FilePreview[]>([]);
 const isNewProject = ref(false);
 const projectCreated = ref(false);
 const pollingTimer = ref<NodeJS.Timeout | null>(null);
@@ -52,14 +61,37 @@ const selectedFile = computed(() => {
   return files.value.find(f => f.id === selectedFileId.value);
 });
 
-onMounted(() => {
+onMounted(async () => {
   projectId.value = route.params.projectId as string;
 
   // Handle new workspace creation
   if (projectId.value === 'new' || route.path === '/workspace/new') {
     isNewProject.value = true;
     initialUserInput.value = history.state?.chatMessage as string;
-    loadProject();
+    
+    // Retrieve files from sessionStorage and window object
+    if (history.state?.hasFiles) {
+      const fileMetadata = JSON.parse(sessionStorage.getItem('pendingFiles') || '[]');
+      const files = (window as any).__pendingFiles || [];
+      
+      if (fileMetadata.length > 0 && files.length > 0) {
+        initialFiles.value = fileMetadata.map((meta: any, index: number) => ({
+          ...meta,
+          file: files[index]
+        }));
+      }
+      
+      // Clean up
+      sessionStorage.removeItem('pendingFiles');
+      delete (window as any).__pendingFiles;
+    }
+    
+    await loadProject();
+    
+    // Auto-send initial message if it exists
+    if (initialUserInput.value && initialUserInput.value.trim()) {
+      await handleSendMessage(initialUserInput.value);
+    }
     return;
   }
 
@@ -279,6 +311,37 @@ const handleSendMessage = async (content: string) => {
       removeMessage(createProjectMessage.id);
 
       console.log('✅ 项目创建成功:', projectData);
+
+      // Upload files if any
+      if (initialFiles.value.length > 0) {
+        const uploadMessage = addAssistantMessage('正在上传文件...');
+        isUploading.value = true;
+
+        try {
+          // Import the upload function
+          const { uploadMaterial } = await import('@/api/videoProjectApi');
+
+          // Upload each file
+          for (const filePreview of initialFiles.value) {
+            await uploadMaterial(projectId.value, filePreview.file);
+          }
+
+          // Refresh file list
+          await loadOssMapping();
+
+          removeMessage(uploadMessage.id);
+          console.log('✅ 文件上传成功');
+          
+          // Clear initial files after upload
+          initialFiles.value = [];
+        } catch (uploadError) {
+          console.error('❌ 文件上传失败:', uploadError);
+          removeMessage(uploadMessage.id);
+          addAssistantMessage('文件上传失败，但项目已创建。您可以稍后手动上传文件。');
+        } finally {
+          isUploading.value = false;
+        }
+      }
     } catch (error) {
       console.error('❌ 创建项目失败:', error);
 
@@ -444,7 +507,6 @@ const handleAbortTask = async () => {
         :project-id="projectId"
         :is-running="isRunning"
         :is-uploading="isUploading"
-        :initial-input="initialUserInput"
         @send-message="handleSendMessage"
         @abort-task="handleAbortTask"
         @file-uploaded="handleFileUploaded"

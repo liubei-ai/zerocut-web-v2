@@ -3,22 +3,12 @@ import { ref, nextTick, watch, computed, onUnmounted, toRef } from 'vue';
 import { abortVideoCreation } from '@/api/videoProjectApi';
 import { useFileUpload } from '@/composables/useFileUpload';
 import { type ChatMessage, type AssistantMessage } from '@/types/workspace';
-import {
-  DropdownMenuRoot,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
-  DropdownMenuPortal,
-} from 'reka-ui';
+import FileReferenceInput from '@/components/workspace/FileReferenceInput.vue';
 
 interface Props {
   messages: ChatMessage[];
   isRunning?: boolean;
   isUploading?: boolean;
-  initialInput?: string;
   projectId?: string | number;
   files?: Array<{ id: string; file_name: string; file_type?: string; file_url?: string }>;
 }
@@ -45,25 +35,7 @@ const messagesEndRef = ref<HTMLDivElement>();
 const messagesContainer = ref<HTMLDivElement>();
 const isUserScrolling = ref(false);
 const scrollTimeout = ref<NodeJS.Timeout>();
-const textareaRef = ref<HTMLTextAreaElement>();
-const dropdownOpen = ref(false);
-const cursorPosition = ref({ top: 0, left: 0 });
-const dropdownTriggerRef = ref<HTMLDivElement>();
-
-// Computed style for trigger positioning
-const triggerStyle = computed(() => ({
-  top: `${cursorPosition.value.top}px`,
-  left: `${cursorPosition.value.left}px`,
-}));
-
-// Available models
-const models = [
-  { id: 'pro', name: 'pro' },
-  { id: 'vidu', name: 'vidu' },
-  { id: 'kling', name: 'kling' },
-  { id: 'hailuo', name: 'hailuo' },
-  { id: 'sora', name: 'sora' },
-];
+const fileReferenceInputRef = ref<InstanceType<typeof FileReferenceInput>>();
 
 const getUserResponseOfAssistant = (assistantMessage: AssistantMessage) => {
   if (assistantMessage.type === 'toolCall' && assistantMessage.toolCall?.userResponse) {
@@ -88,17 +60,6 @@ const processedMessages = computed(() => {
     return message;
   });
 });
-
-// Set initial message when prop changes
-watch(
-  () => props.initialInput,
-  newMessage => {
-    if (newMessage && !input.value) {
-      input.value = newMessage;
-    }
-  },
-  { immediate: true },
-);
 
 // Reset user scrolling state when task starts running
 watch(
@@ -165,6 +126,37 @@ const handleSubmit = () => {
   }
 };
 
+const formatTime = (dateString: string) => {
+  return new Date(dateString).toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+// Cleanup timeout on unmount
+onUnmounted(() => {
+  if (scrollTimeout.value) {
+    clearTimeout(scrollTimeout.value);
+  }
+});
+
+const buttonDisabled = computed(() => {
+  return (!input.value.trim() && !props.isRunning) || (props.isRunning && !props.projectId);
+});
+
+const handleFileUpload = () => {
+  handleFileUploadClick(props.projectId);
+};
+
+const onFileChange = (e: Event) => {
+  if (!props.projectId) return;
+  
+  handleFileChange(e, props.projectId, () => {
+    // Notify parent to refresh the file list
+    emit('file-uploaded');
+  });
+};
+
 const handleCancel = async () => {
   if (props.isRunning && props.projectId) {
     try {
@@ -185,209 +177,10 @@ const handleButtonClick = () => {
 };
 
 const handleKeyDown = (e: KeyboardEvent) => {
-  // Only handle Enter for sending messages, let reka-ui handle arrow keys
-  if (e.key === 'Enter' && !e.shiftKey && !props.isRunning && !dropdownOpen.value) {
+  if (e.key === 'Enter' && !e.shiftKey && !props.isRunning) {
     e.preventDefault();
     handleSubmit();
   }
-};
-
-const getCursorCoordinates = (textarea: HTMLTextAreaElement, position: number) => {
-  // Create a mirror div to calculate cursor position
-  const div = document.createElement('div');
-  const style = window.getComputedStyle(textarea);
-
-  // Copy all relevant textarea styles to mirror div
-  const properties = [
-    'fontFamily',
-    'fontSize',
-    'fontWeight',
-    'lineHeight',
-    'letterSpacing',
-    'paddingTop',
-    'paddingRight',
-    'paddingBottom',
-    'paddingLeft',
-    'borderTopWidth',
-    'borderRightWidth',
-    'borderBottomWidth',
-    'borderLeftWidth',
-    'boxSizing',
-    'whiteSpace',
-    'wordWrap',
-    'wordBreak',
-    'overflowWrap',
-  ];
-
-  properties.forEach(prop => {
-    div.style[prop as any] = style[prop as any];
-  });
-
-  div.style.position = 'absolute';
-  div.style.visibility = 'hidden';
-  div.style.top = '0';
-  div.style.left = '0';
-  div.style.width = `${textarea.clientWidth}px`;
-  div.style.height = 'auto';
-  div.style.overflow = 'auto';
-  div.style.whiteSpace = 'pre-wrap';
-  div.style.wordWrap = 'break-word';
-
-  document.body.appendChild(div);
-
-  // Get text before cursor (not including the character at cursor position)
-  const textBeforeCursor = textarea.value.substring(0, position);
-
-  // Split into text nodes to measure
-  const textNode = document.createTextNode(textBeforeCursor);
-  div.appendChild(textNode);
-
-  // Create a span for the cursor position marker
-  const span = document.createElement('span');
-  span.textContent = '\u200B'; // Zero-width space for accurate positioning
-  div.appendChild(span);
-
-  // Get the span's position
-  const spanRect = span.getBoundingClientRect();
-  const divRect = div.getBoundingClientRect();
-
-  // Calculate position relative to the div
-  let top = spanRect.top - divRect.top;
-  let left = spanRect.left - divRect.left;
-
-  // Account for textarea scroll
-  top -= textarea.scrollTop;
-  left -= textarea.scrollLeft;
-
-  document.body.removeChild(div);
-
-  // Return position (already includes padding from copied styles)
-  return { top, left };
-};
-
-const handleInput = (e: Event) => {
-  const target = e.target as HTMLTextAreaElement;
-  const value = target.value;
-  const position = target.selectionStart || 0;
-
-  // Check if user typed @ character
-  if (value[position - 1] === '@') {
-    // Calculate cursor position
-    const coords = getCursorCoordinates(target, position);
-    cursorPosition.value = coords;
-
-    // Trigger dropdown open after positioning
-    nextTick(() => {
-      dropdownOpen.value = true;
-    });
-  }
-};
-
-const insertMention = (name: string) => {
-  if (!textareaRef.value) return;
-
-  const position = textareaRef.value.selectionStart || 0;
-  const textBeforeCursor = input.value.substring(0, position);
-  const lastAtIndex = textBeforeCursor.lastIndexOf('@');
-
-  if (lastAtIndex !== -1) {
-    // Replace from @ to cursor (remove the @ that was typed)
-    const beforeAt = input.value.substring(0, lastAtIndex);
-    const afterCursor = input.value.substring(position);
-    input.value = beforeAt + name + ' ' + afterCursor;
-
-    nextTick(() => {
-      if (textareaRef.value) {
-        const newPosition = beforeAt.length + name.length + 1;
-        textareaRef.value.selectionStart = newPosition;
-        textareaRef.value.selectionEnd = newPosition;
-        textareaRef.value.focus();
-      }
-    });
-  } else {
-    // Just insert at cursor (no @ to replace)
-    const beforeCursor = input.value.substring(0, position);
-    const afterCursor = input.value.substring(position);
-    input.value = beforeCursor + name + ' ' + afterCursor;
-
-    nextTick(() => {
-      if (textareaRef.value) {
-        const newPosition = beforeCursor.length + name.length + 1;
-        textareaRef.value.selectionStart = newPosition;
-        textareaRef.value.selectionEnd = newPosition;
-        textareaRef.value.focus();
-      }
-    });
-  }
-
-  // Close dropdown and ensure focus returns to textarea
-  dropdownOpen.value = false;
-
-  // Additional focus call with slight delay to ensure dropdown is fully closed
-  setTimeout(() => {
-    textareaRef.value?.focus();
-  }, 50);
-};
-
-const handleMentionButtonClick = () => {
-  if (!textareaRef.value) return;
-
-  // Get current cursor position
-  const position = textareaRef.value.selectionStart || 0;
-
-  // Calculate cursor coordinates
-  const coords = getCursorCoordinates(textareaRef.value, position);
-  cursorPosition.value = coords;
-
-  // Open dropdown after positioning
-  nextTick(() => {
-    dropdownOpen.value = true;
-  });
-
-  // Focus the textarea
-  textareaRef.value.focus();
-};
-
-const formatTime = (dateString: string) => {
-  return new Date(dateString).toLocaleTimeString('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
-
-// Cleanup timeout on unmount
-onUnmounted(() => {
-  if (scrollTimeout.value) {
-    clearTimeout(scrollTimeout.value);
-  }
-});
-
-const buttonDisabled = computed(() => {
-  return (!input.value.trim() && !props.isRunning) || (props.isRunning && !props.projectId);
-});
-
-const getFileIcon = (fileType?: string) => {
-  if (!fileType) return '📁';
-  const icons: Record<string, string> = {
-    image: '🖼️',
-    video: '🎬',
-    audio: '🎵',
-    document: '📄',
-  };
-  return icons[fileType] || '📁';
-};
-
-const handleFileUpload = () => {
-  handleFileUploadClick(props.projectId);
-};
-
-const onFileChange = (e: Event) => {
-  if (!props.projectId) return;
-  
-  handleFileChange(e, props.projectId, () => {
-    // Notify parent to refresh the file list
-    emit('file-uploaded');
-  });
 };
 </script>
 
@@ -533,168 +326,60 @@ const onFileChange = (e: Event) => {
     <!-- Input area -->
     <div class="border-t border-gray-200 p-4">
       <div class="relative rounded-xl border border-gray-200 bg-white p-3">
-        <textarea
-          ref="textareaRef"
+        <FileReferenceInput
+          ref="fileReferenceInputRef"
           v-model="input"
-          @keydown="handleKeyDown"
-          @input="handleInput"
           placeholder="请输入你的设计需求..."
           :disabled="isRunning"
-          :class="[
-            'max-h-[70px] min-h-[70px] w-full resize-none border-none text-sm leading-relaxed outline-none',
-            isRunning ? 'bg-gray-50' : 'bg-white',
-          ]"
-        />
+          :project-files="files"
+          textarea-class="max-h-[70px] min-h-[70px] w-full resize-none border-none text-sm leading-relaxed outline-none"
+          @keydown="handleKeyDown"
+        >
+          <template #actions="{ onMentionClick, textareaRef }">
+            <!-- Button bar inside the border -->
+            <div class="flex items-center justify-between">
+              <div class="flex gap-1">
+                <button
+                  @click="onMentionClick"
+                  class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-sm font-semibold text-gray-500 transition-all hover:bg-gray-50"
+                  title="@大模型/文件"
+                >
+                  @
+                </button>
+                <button
+                  @click="handleFileUpload"
+                  :disabled="!projectId || props.isUploading"
+                  :class="[
+                    'flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-base transition-all',
+                    projectId && !props.isUploading
+                      ? 'text-gray-500 hover:bg-gray-50'
+                      : 'cursor-not-allowed text-gray-300',
+                  ]"
+                  :title="props.isUploading ? '上传中...' : '上传附件'"
+                >
+                  <span v-if="!props.isUploading">📎</span>
+                  <span v-else class="animate-spin" style="font-size: 0.65rem;">⏳</span>
+                </button>
+              </div>
 
-        <!-- Invisible positioned container for dropdown trigger at cursor -->
-        <div class="pointer-events-none absolute top-0 left-0 h-full w-full overflow-hidden">
-          <DropdownMenuRoot v-model:open="dropdownOpen">
-            <DropdownMenuTrigger as-child>
-              <div
-                ref="dropdownTriggerRef"
-                :style="triggerStyle"
-                class="pointer-events-auto absolute h-5 w-0.5 opacity-0"
-              />
-            </DropdownMenuTrigger>
-
-            <DropdownMenuPortal>
-              <DropdownMenuContent
-                class="z-[9999] max-h-[400px] max-w-[200px] min-w-[120px] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
-                :side="'right'"
-                :align="'start'"
-                :side-offset="5"
-                :align-offset="0"
-                :collision-padding="10"
+              <button
+                @click="handleButtonClick"
+                :disabled="buttonDisabled"
+                :class="[
+                  'flex h-8 w-8 flex-shrink-0 cursor-pointer items-center justify-center rounded-lg border-none text-base transition-all',
+                  buttonDisabled
+                    ? 'cursor-not-allowed bg-gray-200'
+                    : isRunning
+                      ? 'bg-red-500 hover:bg-red-600'
+                      : 'bg-gray-900 hover:bg-black',
+                ]"
+                :title="isRunning ? '取消任务' : '发送消息'"
               >
-                <!-- Files submenu -->
-                <DropdownMenuSub v-if="files && files.length > 0">
-                  <DropdownMenuSubTrigger
-                    class="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-gray-100 data-[state=open]:bg-gray-100 data-[state=selected]:bg-gray-100"
-                  >
-                    <span>📁 文件</span>
-                    <span class="ml-auto text-xs text-gray-400">▶</span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuPortal>
-                    <DropdownMenuSubContent
-                      class="max-h-[400px] max-w-[200px] min-w-[150px] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
-                      :side-offset="8"
-                      :collision-padding="10"
-                    >
-                      <DropdownMenuItem
-                        v-for="file in files"
-                        :key="file.id"
-                        @select="insertMention(file.file_name)"
-                        class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
-                      >
-                        <div class="flex items-center gap-2">
-                          <img
-                            v-if="file.file_type === 'image' && file.file_url"
-                            :src="`${file.file_url}?x-tos-process=image/resize,w_100`"
-                            :alt="file.file_name"
-                            class="h-6 w-6 flex-shrink-0 rounded object-cover"
-                          />
-                          <div
-                            v-else
-                            class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-gray-100 text-sm"
-                          >
-                            {{ getFileIcon(file.file_type) }}
-                          </div>
-                          <div class="truncate" :title="file.file_name">
-                            {{ file.file_name }}
-                          </div>
-                        </div>
-                      </DropdownMenuItem>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuPortal>
-                </DropdownMenuSub>
-
-                <!-- Models submenu -->
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger
-                    class="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-gray-100 data-[state=open]:bg-gray-100 data-[state=selected]:bg-gray-100"
-                  >
-                    <span>🤖 模型</span>
-                    <span class="ml-auto text-xs text-gray-400">▶</span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuPortal>
-                    <DropdownMenuSubContent
-                      class="min-w-[200px] rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
-                      :side-offset="8"
-                      :collision-padding="10"
-                    >
-                      <DropdownMenuItem
-                        v-for="model in models"
-                        :key="model.id"
-                        @select="insertMention(model.name)"
-                        class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
-                      >
-                        {{ model.name }}
-                      </DropdownMenuItem>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuPortal>
-                </DropdownMenuSub>
-              </DropdownMenuContent>
-            </DropdownMenuPortal>
-          </DropdownMenuRoot>
-        </div>
-
-        <!-- Button bar inside the border -->
-        <div class="flex items-center justify-between">
-          <div class="flex gap-1">
-            <button
-              @click="handleMentionButtonClick"
-              class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-sm font-semibold text-gray-500 transition-all hover:bg-gray-50"
-              title="@大模型/文件"
-            >
-              @
-            </button>
-            <button
-              @click="handleFileUpload"
-              :disabled="!projectId || props.isUploading"
-              :class="[
-                'flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-base transition-all',
-                projectId && !props.isUploading
-                  ? 'text-gray-500 hover:bg-gray-50'
-                  : 'cursor-not-allowed text-gray-300',
-              ]"
-              :title="props.isUploading ? '上传中...' : '上传附件'"
-            >
-              <span v-if="!props.isUploading">📎</span>
-              <span v-else class="animate-spin" style="font-size: 0.65rem;">⏳</span>
-            </button>
-            <!-- <button
-              class="w-7 h-7 rounded-md border-none bg-transparent cursor-pointer flex items-center justify-center text-sm font-semibold text-gray-500 transition-all hover:bg-gray-50"
-              title="@大模型">
-              @
-            </button>
-            <button
-              class="w-7 h-7 rounded-md border-none bg-transparent cursor-pointer flex items-center justify-center text-base text-gray-500 transition-all hover:bg-gray-50"
-              title="风格">
-              🎨
-            </button>
-            <button
-              class="w-7 h-7 rounded-md border-none bg-transparent cursor-pointer flex items-center justify-center text-base text-gray-500 transition-all hover:bg-gray-50"
-              title="运镜">
-              🎥
-            </button> -->
-          </div>
-
-          <button
-            @click="handleButtonClick"
-            :disabled="buttonDisabled"
-            :class="[
-              'flex h-8 w-8 flex-shrink-0 cursor-pointer items-center justify-center rounded-lg border-none text-base transition-all',
-              buttonDisabled
-                ? 'cursor-not-allowed bg-gray-200'
-                : isRunning
-                  ? 'bg-red-500 hover:bg-red-600'
-                  : 'bg-gray-900 hover:bg-black',
-            ]"
-            :title="isRunning ? '取消任务' : '发送消息'"
-          >
-            <span class="text-white">{{ isRunning ? '✕' : '↑' }}</span>
-          </button>
-        </div>
+                <span class="text-white">{{ isRunning ? '✕' : '↑' }}</span>
+              </button>
+            </div>
+          </template>
+        </FileReferenceInput>
       </div>
 
       <!-- Hidden file input -->

@@ -3,9 +3,17 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import MainLayout from '@/components/layout/MainLayout.vue';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import FileReferenceInput from '@/components/workspace/FileReferenceInput.vue';
 import ProjectGrid from '@/views/project/ProjectGrid.vue';
 import { useAuthStore } from '@/stores/authStore';
+
+interface FilePreview {
+  id: string;
+  name: string;
+  type: string;
+  url: string;
+  file: File;
+}
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -16,6 +24,7 @@ const aspectRatio = ref('16:9');
 const videoType = ref('国漫');
 const showAspectRatioMenu = ref(false);
 const showStyleMenu = ref(false);
+const selectedFiles = ref<FilePreview[]>([]);
 
 const aspectRatioMenuRef = ref<HTMLElement | null>(null);
 const styleMenuRef = ref<HTMLElement | null>(null);
@@ -23,8 +32,9 @@ const styleMenuRef = ref<HTMLElement | null>(null);
 const modes = [
   { id: 'one_click', label: '一键成片', icon: '⚡' },
   { id: 'free_creation', label: '自由创作', icon: '🎨' },
-/*   { id: 'storyboard', label: '分镜脚本', icon: '📋' },
- */];
+  /*   { id: 'storyboard', label: '分镜脚本', icon: '📋' },
+   */
+];
 
 const aspectRatios = [
   { id: '16:9', label: '16:9', description: '横屏' },
@@ -78,12 +88,17 @@ const placeholderByMode: Record<string, string> = {
 
 const currentPlaceholder = computed(() => placeholderByMode[selectedMode.value]);
 
+const handleFilesChange = (files: FilePreview[]) => {
+  selectedFiles.value = files;
+};
+
 const handleSubmit = () => {
   if (videoPrompt.value.trim()) {
     console.log('Submitting prompt:', videoPrompt.value);
-    
+    console.log('Selected files:', selectedFiles.value);
+
     let chatMessage = '';
-    
+
     if (selectedMode.value === 'one_click') {
       chatMessage = `请使用一键成片技能为我创作视频，比例为${aspectRatio.value}，风格为${videoType.value}，主题内容为：${videoPrompt.value}`;
     } else if (selectedMode.value === 'free_creation') {
@@ -91,11 +106,29 @@ const handleSubmit = () => {
     } else if (selectedMode.value === 'storyboard') {
       chatMessage = `请根据内容撰写分镜脚本，内容为：${videoPrompt.value}`;
     }
-    
+
+    // Store files in sessionStorage since we can't pass File objects through router state
+    if (selectedFiles.value.length > 0) {
+      // Store file metadata (without the actual File object)
+      const fileMetadata = selectedFiles.value.map(f => ({
+        id: f.id,
+        name: f.name,
+        type: f.type,
+        url: f.url,
+      }));
+      sessionStorage.setItem('pendingFiles', JSON.stringify(fileMetadata));
+
+      // Store actual files in a temporary array that we'll access in Workspace
+      (window as any).__pendingFiles = selectedFiles.value.map(f => f.file);
+    }
+
     // Navigate to workspace/new and pass chatMessage via router state
     router.push({
       path: '/workspace/new',
-      state: { chatMessage }
+      state: {
+        chatMessage,
+        hasFiles: selectedFiles.value.length > 0,
+      },
     });
   }
 };
@@ -113,11 +146,11 @@ const selectStyle = (style: string) => {
 // Handle click outside to close menus
 const handleClickOutside = (event: MouseEvent) => {
   const target = event.target as Node;
-  
+
   if (aspectRatioMenuRef.value && !aspectRatioMenuRef.value.contains(target)) {
     showAspectRatioMenu.value = false;
   }
-  
+
   if (styleMenuRef.value && !styleMenuRef.value.contains(target)) {
     showStyleMenu.value = false;
   }
@@ -134,123 +167,168 @@ onUnmounted(() => {
 
 <template>
   <MainLayout>
-    <div class="bg-[#fafafa] py-20 px-20">
-      <div class="max-w-[1000px] mx-auto">
+    <div class="bg-[#fafafa] px-20 py-20">
+      <div class="mx-auto max-w-[1000px]">
         <!-- Promo Banner & Title Section -->
-        <div class="flex flex-col items-center mb-14">
-          <div v-if="!authStore.isAuthenticated" class="inline-flex items-center gap-2 bg-[#fef3c7] px-5 py-2 rounded-[20px] border border-[#fde68a] mb-6">
+        <div class="mb-14 flex flex-col items-center">
+          <div
+            v-if="!authStore.isAuthenticated"
+            class="mb-6 inline-flex items-center gap-2 rounded-[20px] border border-[#fde68a] bg-[#fef3c7] px-5 py-2"
+          >
             <span class="text-base">🎁</span>
             <span class="text-sm text-[#92400e]">新用户注册送2000积分～</span>
           </div>
 
-          <div class="flex items-center gap-3 mb-5">
-            <div class="w-10 h-10 rounded-full bg-[#111827] flex items-center justify-center text-xl font-bold text-white">
+          <div class="mb-5 flex items-center gap-3">
+            <div
+              class="flex h-10 w-10 items-center justify-center rounded-full bg-[#111827] text-xl font-bold text-white"
+            >
               Z
             </div>
-            <h1 class="text-[42px] font-bold text-[#111827] m-0 tracking-tight">
-              ZeroCut AI
-            </h1>
+            <h1 class="m-0 text-[42px] font-bold tracking-tight text-[#111827]">ZeroCut AI</h1>
           </div>
-          <p class="text-lg text-[#6b7280] font-normal m-0 text-center">
+          <p class="m-0 text-center text-lg font-normal text-[#6b7280]">
             让视频创作更简单，用自然语言描述，一键生成专业视频
           </p>
         </div>
 
         <!-- Main Input Card -->
-        <div class="w-full mb-10">
-          <div class="relative w-full bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08)] border border-[#e5e7eb] p-5 mb-5">
-            <Textarea
+        <div class="mb-10 w-full">
+          <div
+            class="relative mb-5 w-full rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_4px_24px_rgba(0,0,0,0.08)]"
+          >
+            <FileReferenceInput
               v-model="videoPrompt"
               :placeholder="currentPlaceholder"
-              class="min-h-[100px] resize-none border-0 text-base focus-visible:ring-0 p-0 leading-[1.6] text-[#111827]"
-            />
-
-            <div class="flex justify-between items-center pt-2 border-t border-[#f3f4f6]">
-              <div v-if="selectedMode === 'one_click'" class="flex gap-2">
-                <!-- Aspect Ratio Selector -->
-                <div ref="aspectRatioMenuRef" class="relative">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    @click="showAspectRatioMenu = !showAspectRatioMenu; showStyleMenu = false"
-                    class="px-3.5 py-2 border border-[#e5e7eb] rounded-lg bg-white hover:bg-[#f9fafb] text-[#6b7280] gap-1.5 h-auto"
-                  >
-                    <span>📐</span>
-                    <span>{{ aspectRatio }}</span>
-                    <span class="text-xs">▼</span>
-                  </Button>
-
-                  <div v-if="showAspectRatioMenu" class="absolute bottom-full left-0 mb-2 bg-white border border-[#e5e7eb] rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.12)] p-2 min-w-[180px] z-[1000]">
-                    <Button
-                      v-for="ratio in aspectRatios"
-                      :key="ratio.id"
-                      variant="ghost"
-                      @click="selectAspectRatio(ratio.id)"
-                      :class="['w-full justify-between px-3 py-2.5 rounded-lg text-left h-auto', aspectRatio === ratio.id ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]']"
+              :allow-file-pick="true"
+              @files-change="handleFilesChange"
+            >
+              <template #actions="{ onMentionClick, onFilePickClick }">
+                <div class="flex items-center justify-between border-t border-[#f3f4f6] pt-2">
+                  <div class="flex items-center gap-2">
+                    <!-- @ Mention Button -->
+                    <!-- <button
+                      @click="onMentionClick"
+                      class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-sm font-semibold text-gray-500 transition-all hover:bg-gray-50"
+                      title="@大模型/文件"
                     >
-                      <span class="text-sm font-medium text-[#111827]">{{ ratio.label }}</span>
-                      <span class="text-xs text-[#9ca3af]">{{ ratio.description }}</span>
-                    </Button>
-                  </div>
-                </div>
+                      @
+                    </button> -->
 
-                <!-- Style Selector -->
-                <div ref="styleMenuRef" class="relative">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    @click="showStyleMenu = !showStyleMenu; showAspectRatioMenu = false"
-                    class="px-3.5 py-2 border border-[#e5e7eb] rounded-lg bg-white hover:bg-[#f9fafb] text-[#6b7280] gap-1.5 h-auto"
-                  >
-                    <span>{{ styles.find(s => s.label === videoType)?.icon || '🎬' }}</span>
-                    <span>{{ videoType }}</span>
-                    <span class="text-xs">▼</span>
-                  </Button>
-
-                  <div v-if="showStyleMenu" class="absolute bottom-full left-0 mb-2 bg-white border border-[#e5e7eb] rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.12)] p-2 min-w-[200px] z-[1000]">
-                    <Button
-                      v-for="style in styles"
-                      :key="style.id"
-                      variant="ghost"
-                      @click="selectStyle(style.id)"
-                      :class="['w-full justify-start gap-2.5 px-3 py-2.5 rounded-lg text-left h-auto', videoType === style.label ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]']"
+                    <!-- File Pick Button -->
+                    <!-- <button
+                      @click="onFilePickClick"
+                      class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-base text-gray-500 transition-all hover:bg-gray-50"
+                      title="选择文件"
                     >
-                      <span class="text-lg">{{ style.icon }}</span>
-                      <span class="text-sm font-medium text-[#111827]">{{ style.label }}</span>
-                    </Button>
-                  </div>
-                </div>
-              </div>
-              <div v-else></div>
+                      📎
+                    </button> -->
 
-              <!-- Submit Button -->
-              <Button
-                @click="handleSubmit"
-                :disabled="!videoPrompt.trim()"
-                :class="[
-                  'w-9 h-9 rounded-full p-0 flex-shrink-0 transition-all',
-                  videoPrompt.trim() 
-                    ? 'bg-[#111827] hover:bg-black hover:scale-105' 
-                    : 'bg-[#e5e7eb] cursor-not-allowed'
-                ]"
-              >
-                <span class="text-lg text-white">↑</span>
-              </Button>
-            </div>
+                    <div v-if="selectedMode === 'one_click'" class="ml-2 flex gap-2">
+                      <!-- Aspect Ratio Selector -->
+                      <div ref="aspectRatioMenuRef" class="relative">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          @click="
+                            showAspectRatioMenu = !showAspectRatioMenu;
+                            showStyleMenu = false;
+                          "
+                          class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
+                        >
+                          <span>📐</span>
+                          <span>{{ aspectRatio }}</span>
+                          <span class="text-xs">▼</span>
+                        </Button>
+
+                        <div
+                          v-if="showAspectRatioMenu"
+                          class="absolute bottom-full left-0 z-[1000] mb-2 min-w-[180px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                        >
+                          <Button
+                            v-for="ratio in aspectRatios"
+                            :key="ratio.id"
+                            variant="ghost"
+                            @click="selectAspectRatio(ratio.id)"
+                            :class="[
+                              'h-auto w-full justify-between rounded-lg px-3 py-2.5 text-left',
+                              aspectRatio === ratio.id ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]',
+                            ]"
+                          >
+                            <span class="text-sm font-medium text-[#111827]">{{ ratio.label }}</span>
+                            <span class="text-xs text-[#9ca3af]">{{ ratio.description }}</span>
+                          </Button>
+                        </div>
+                      </div>
+
+                      <!-- Style Selector -->
+                      <div ref="styleMenuRef" class="relative">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          @click="
+                            showStyleMenu = !showStyleMenu;
+                            showAspectRatioMenu = false;
+                          "
+                          class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
+                        >
+                          <span>{{ styles.find(s => s.label === videoType)?.icon || '🎬' }}</span>
+                          <span>{{ videoType }}</span>
+                          <span class="text-xs">▼</span>
+                        </Button>
+
+                        <div
+                          v-if="showStyleMenu"
+                          class="absolute bottom-full left-0 z-[1000] mb-2 min-w-[200px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                        >
+                          <Button
+                            v-for="style in styles"
+                            :key="style.id"
+                            variant="ghost"
+                            @click="selectStyle(style.id)"
+                            :class="[
+                              'h-auto w-full justify-start gap-2.5 rounded-lg px-3 py-1.5 text-left',
+                              videoType === style.label ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]',
+                            ]"
+                          >
+                            <span class="text-lg">{{ style.icon }}</span>
+                            <span class="text-sm font-medium text-[#111827]">{{ style.label }}</span>
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Submit Button -->
+                  <Button
+                    @click="handleSubmit"
+                    :disabled="!videoPrompt.trim()"
+                    :class="[
+                      'h-9 w-9 flex-shrink-0 rounded-full p-0 transition-all',
+                      videoPrompt.trim()
+                        ? 'bg-[#111827] hover:scale-105 hover:bg-black'
+                        : 'cursor-not-allowed bg-[#e5e7eb]',
+                    ]"
+                  >
+                    <span class="text-lg text-white">↑</span>
+                  </Button>
+                </div>
+              </template>
+            </FileReferenceInput>
           </div>
 
           <!-- Mode Selection Buttons -->
-          <div class="flex gap-3 mb-5 justify-center">
+          <div class="mb-5 flex justify-center gap-3">
             <Button
               v-for="mode in modes"
               :key="mode.id"
               @click="selectedMode = mode.id"
               :variant="selectedMode === mode.id ? 'default' : 'outline'"
               :class="[
-                'px-6 py-3 rounded-3xl gap-2 text-[15px] font-medium h-auto transition-all',
-                selectedMode === mode.id 
-                  ? 'bg-[#111827] text-white border-2 border-[#111827]' 
-                  : 'bg-white text-[#6b7280] border-2 border-[#e5e7eb] hover:border-[#d1d5db] hover:-translate-y-0.5'
+                'h-auto gap-2 rounded-3xl px-6 py-3 text-[15px] font-medium transition-all',
+                selectedMode === mode.id
+                  ? 'border-2 border-[#111827] bg-[#111827] text-white'
+                  : 'border-2 border-[#e5e7eb] bg-white text-[#6b7280] hover:-translate-y-0.5 hover:border-[#d1d5db]',
               ]"
             >
               <span>{{ mode.icon }}</span>
@@ -264,7 +342,7 @@ onUnmounted(() => {
               v-for="template in suggestionsByMode[selectedMode]"
               :key="template"
               @click="videoPrompt = template"
-              class="p-4 border border-[#e5e7eb] rounded-xl bg-white cursor-pointer transition-all text-left text-sm text-[#6b7280] hover:border-[#d1d5db] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:-translate-y-0.5"
+              class="cursor-pointer rounded-xl border border-[#e5e7eb] bg-white p-4 text-left text-sm text-[#6b7280] transition-all hover:-translate-y-0.5 hover:border-[#d1d5db] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)]"
             >
               {{ template }}
             </button>
