@@ -20,8 +20,8 @@ const router = useRouter();
 
 const videoPrompt = ref('');
 const selectedMode = ref('one_click');
-const aspectRatio = ref('16:9');
-const videoType = ref('国漫');
+const aspectRatio = ref('9:16');
+const videoType = ref('自动');
 const showAspectRatioMenu = ref(false);
 const showStyleMenu = ref(false);
 const selectedFiles = ref<FilePreview[]>([]);
@@ -42,6 +42,7 @@ const aspectRatios = [
 ];
 
 const styles = [
+  { id: 'auto', label: '自动', icon: '🤖' },
   { id: 'guoman', label: '国漫', icon: '🐉' },
   { id: 'anime', label: '二次元', icon: '✨' },
   { id: 'realistic', label: '写实', icon: '📷' },
@@ -106,7 +107,7 @@ const handleSubmit = () => {
     let chatMessage = '';
 
     if (selectedMode.value === 'one_click') {
-      chatMessage = `请使用一键成片技能为我创作视频，比例为${aspectRatio.value}，风格为${videoType.value}，主题内容为：${videoPrompt.value}`;
+      chatMessage = `请使用一键成片技能为我创作视频，比例为${aspectRatio.value}，${videoType.value === '自动' ? '' : '风格为' + videoType.value + '，'}主题内容为：${videoPrompt.value}`;
     } else if (selectedMode.value === 'free_creation') {
       chatMessage = `${videoPrompt.value}`;
     } else if (selectedMode.value === 'storyboard') {
@@ -213,22 +214,22 @@ onUnmounted(() => {
                 <div class="flex items-center justify-between border-t border-[#f3f4f6] pt-2">
                   <div class="flex items-center gap-2">
                     <!-- @ Mention Button -->
-                    <!-- <button
+                    <button
                       @click="onMentionClick"
                       class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-sm font-semibold text-gray-500 transition-all hover:bg-gray-50"
                       title="@大模型/文件"
                     >
                       @
-                    </button> -->
+                    </button>
 
                     <!-- File Pick Button -->
-                    <!-- <button
+                    <button
                       @click="onFilePickClick"
                       class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-base text-gray-500 transition-all hover:bg-gray-50"
                       title="选择文件"
                     >
                       📎
-                    </button> -->
+                    </button>
 
                     <div v-if="selectedMode === 'one_click'" class="ml-2 flex gap-2">
                       <!-- Aspect Ratio Selector -->
