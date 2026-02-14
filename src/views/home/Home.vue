@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import MainLayout from '@/components/layout/MainLayout.vue';
 import { Button } from '@/components/ui/button';
@@ -13,9 +13,12 @@ const router = useRouter();
 const videoPrompt = ref('');
 const selectedMode = ref('one_click');
 const aspectRatio = ref('16:9');
-const videoType = ref('电影感');
+const videoType = ref('国漫');
 const showAspectRatioMenu = ref(false);
 const showStyleMenu = ref(false);
+
+const aspectRatioMenuRef = ref<HTMLElement | null>(null);
+const styleMenuRef = ref<HTMLElement | null>(null);
 
 const modes = [
   { id: 'one_click', label: '一键成片', icon: '⚡' },
@@ -26,17 +29,18 @@ const modes = [
 const aspectRatios = [
   { id: '16:9', label: '16:9', description: '横屏' },
   { id: '9:16', label: '9:16', description: '竖屏' },
-  { id: '1:1', label: '1:1', description: '方形' },
-  { id: '4:3', label: '4:3', description: '标准' },
 ];
 
 const styles = [
-  { id: 'cinematic', label: '电影感', icon: '🎬' },
-  { id: 'documentary', label: '纪录片', icon: '📹' },
-  { id: 'vlog', label: 'Vlog', icon: '✨' },
-  { id: 'commercial', label: '广告片', icon: '🎯' },
-  { id: 'animation', label: '动画', icon: '🎨' },
-  { id: 'minimal', label: '极简', icon: '⚪' },
+  { id: 'guoman', label: '国漫', icon: '🐉' },
+  { id: 'anime', label: '二次元', icon: '✨' },
+  { id: 'realistic', label: '写实', icon: '📷' },
+  { id: 'japanese', label: '日漫', icon: '🍭' },
+  { id: 'american', label: '美漫', icon: '💥' },
+  { id: 'cartoon', label: '卡通', icon: '🎪' },
+  { id: 'cyberpunk', label: '赛博朋克', icon: '🌃' },
+  { id: 'sketch', label: '简笔画', icon: '✏️' },
+  { id: 'pixel', label: '像素风格', icon: '🎮' },
 ];
 
 const suggestionsByMode: Record<string, string[]> = {
@@ -105,6 +109,27 @@ const selectStyle = (style: string) => {
   videoType.value = styles.find(s => s.id === style)?.label || '电影感';
   showStyleMenu.value = false;
 };
+
+// Handle click outside to close menus
+const handleClickOutside = (event: MouseEvent) => {
+  const target = event.target as Node;
+  
+  if (aspectRatioMenuRef.value && !aspectRatioMenuRef.value.contains(target)) {
+    showAspectRatioMenu.value = false;
+  }
+  
+  if (styleMenuRef.value && !styleMenuRef.value.contains(target)) {
+    showStyleMenu.value = false;
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
+});
 </script>
 
 <template>
@@ -115,7 +140,7 @@ const selectStyle = (style: string) => {
         <div class="flex flex-col items-center mb-14">
           <div v-if="!authStore.isAuthenticated" class="inline-flex items-center gap-2 bg-[#fef3c7] px-5 py-2 rounded-[20px] border border-[#fde68a] mb-6">
             <span class="text-base">🎁</span>
-            <span class="text-sm text-[#92400e]">新用户注册送500积分～</span>
+            <span class="text-sm text-[#92400e]">新用户注册送2000积分～</span>
           </div>
 
           <div class="flex items-center gap-3 mb-5">
@@ -143,7 +168,7 @@ const selectStyle = (style: string) => {
             <div class="flex justify-between items-center pt-2 border-t border-[#f3f4f6]">
               <div v-if="selectedMode === 'one_click'" class="flex gap-2">
                 <!-- Aspect Ratio Selector -->
-                <div class="relative">
+                <div ref="aspectRatioMenuRef" class="relative">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -170,7 +195,7 @@ const selectStyle = (style: string) => {
                 </div>
 
                 <!-- Style Selector -->
-                <div class="relative">
+                <div ref="styleMenuRef" class="relative">
                   <Button
                     variant="ghost"
                     size="sm"
