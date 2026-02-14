@@ -249,7 +249,7 @@ const handleDownloadAll = async () => {
       />
     </div>
 
-    <div class="flex-1 overflow-y-auto p-2">
+    <div class="flex-1 overflow-y-auto p-2 pb-20 md:pb-2">
       <div v-if="filteredFiles.length === 0" class="py-10 text-center">
         <div class="mb-3 text-3xl">📁</div>
         <p class="m-0 text-xs leading-relaxed text-gray-400">
