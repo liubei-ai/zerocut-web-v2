@@ -93,6 +93,12 @@ const handleFilesChange = (files: FilePreview[]) => {
 };
 
 const handleSubmit = () => {
+  // Check if user is authenticated before proceeding
+  if (!authStore.isAuthenticated) {
+    authStore.openLoginModal();
+    return;
+  }
+
   if (videoPrompt.value.trim()) {
     console.log('Submitting prompt:', videoPrompt.value);
     console.log('Selected files:', selectedFiles.value);
