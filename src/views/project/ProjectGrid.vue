@@ -1,5 +1,5 @@
 <template>
-  <div class="mx-auto max-w-7xl px-4 pb-15 sm:px-15 lg:px-30">
+  <div class="mx-auto max-w-7xl px-4 pb-15 sm:px-15 lg:px-20">
     <div v-if="isInHomePage" class="mb-8 flex items-center justify-between">
       <h2 class="text-3xl font-bold text-gray-900">我的创作</h2>
       <div class="flex gap-3">

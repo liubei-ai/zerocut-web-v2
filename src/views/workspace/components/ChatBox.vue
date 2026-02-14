@@ -185,27 +185,27 @@ const handleKeyDown = (e: KeyboardEvent) => {
 </script>
 
 <template>
-  <div class="flex h-full w-[480px] flex-col overflow-hidden border-l border-gray-200 bg-white">
+  <div class="flex h-full w-full flex-col overflow-hidden border-l border-gray-200 bg-white md:w-[320px] lg:w-[400px] xl:w-[480px]">
     <div
       ref="messagesContainer"
       @scroll="handleScroll"
-      class="flex flex-1 flex-col gap-5 overflow-y-auto bg-gray-50 p-5"
+      class="flex flex-1 flex-col gap-4 overflow-y-auto bg-gray-50 p-3 md:gap-5 md:p-5"
     >
       <!-- Empty state -->
       <div
         v-if="processedMessages.length === 0"
-        class="flex h-full flex-col items-center justify-center gap-6 px-5 py-10"
+        class="flex h-full flex-col items-center justify-center gap-4 px-4 py-8 md:gap-6 md:px-5 md:py-10"
       >
-        <div class="flex h-20 w-20 items-center justify-center rounded-full bg-gray-50 text-4xl">🤖</div>
-        <div class="flex flex-col gap-2 text-center">
-          <h3 class="m-0 text-lg font-semibold text-gray-900">开始创作</h3>
-          <p class="m-0 text-sm leading-relaxed text-gray-500">描述你的想法，AI 助手将帮你实现</p>
+        <div class="flex h-16 w-16 items-center justify-center rounded-full bg-gray-50 text-3xl md:h-20 md:w-20 md:text-4xl">🤖</div>
+        <div class="flex flex-col gap-1.5 text-center md:gap-2">
+          <h3 class="m-0 text-base font-semibold text-gray-900 md:text-lg">开始创作</h3>
+          <p class="m-0 text-xs leading-relaxed text-gray-500 md:text-sm">描述你的想法，AI 助手将帮你实现</p>
         </div>
         <div class="flex w-full max-w-[320px] flex-col gap-2">
-          <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-500">
+          <div class="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-500 md:px-4 md:py-3">
             💡 尝试：制作一个城市日落的视频
           </div>
-          <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-500">
+          <div class="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-500 md:px-4 md:py-3">
             🎨 尝试：创建一个产品展示动画
           </div>
         </div>
@@ -214,44 +214,23 @@ const handleKeyDown = (e: KeyboardEvent) => {
       <!-- Messages -->
       <template v-else>
         <div v-for="(message, messageIndex) in processedMessages" :key="message.id">
-          <!-- System message,these kind of messages are generated in the browser,only use to show a system tip,not by the server Agent,so it will be coverd while loaded the server's messages -->
-          <!-- <template v-if="message.role === 'system'">
-            <div v-if="message.message_type === 'thinking'" class="flex items-start gap-3">
-              <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-yellow-100 text-base">
-                🤔
-              </div>
-              <div class="flex-1 rounded-2xl bg-yellow-100 px-4 py-3 text-xs text-yellow-800 italic">
-                {{ message.content }}
-              </div>
-            </div>
-
-            <div v-else-if="message.message_type === 'error'" class="flex items-start gap-3">
-              <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-red-100 text-base">
-                ⚠️
-              </div>
-              <div class="flex-1 rounded-2xl bg-red-100 px-4 py-3 text-xs text-red-800">
-                {{ message.content }}
-              </div>
-            </div>
-          </template> -->
-
           <!-- Regular message -->
-          <div :class="['flex items-start gap-3', message.role === 'user' ? 'flex-row-reverse' : '']">
+          <div :class="['flex items-start gap-2.5 md:gap-3', message.role === 'user' ? 'flex-row-reverse' : '']">
             <div
               :class="[
-                'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-base font-semibold text-white',
+                'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-base font-semibold text-white md:h-9 md:w-9',
                 message.role === 'user' ? 'bg-blue-500' : 'bg-gray-900',
               ]"
             >
               {{ message.role === 'user' ? '👤' : '🤖' }}
             </div>
 
-            <div :class="['flex max-w-[75%] flex-1 flex-col gap-1.5']">
-              <div :class="['flex items-center gap-2', message.role === 'user' ? 'flex-row-reverse' : '']">
+            <div :class="['flex max-w-[80%] flex-1 flex-col gap-1 md:max-w-[75%] md:gap-1.5']">
+              <div :class="['flex items-center gap-1.5 md:gap-2', message.role === 'user' ? 'flex-row-reverse' : '']">
                 <span class="text-xs font-semibold text-gray-900">
                   {{ message.role === 'user' ? '你' : 'AI 助手' }}
                 </span>
-                <span class="text-[11px] text-gray-400">
+                <span class="text-[10px] text-gray-400 md:text-[11px]">
                   {{ formatTime(message.timestamp) }}
                 </span>
               </div>
@@ -259,22 +238,22 @@ const handleKeyDown = (e: KeyboardEvent) => {
               <!-- Message content -->
               <div
                 :class="[
-                  'px-4 py-3.5 text-sm leading-relaxed shadow-sm',
+                  'px-3 py-3 text-xs leading-relaxed shadow-sm md:px-4 md:py-3.5 md:text-sm',
                   message.role === 'user'
                     ? 'rounded-2xl rounded-tr-sm bg-blue-500 text-white'
                     : 'rounded-2xl rounded-tl-sm bg-gray-50 text-gray-900',
                 ]"
               >
                 <!-- Display userResponses as styled list for assistant messages -->
-                <div v-if="message.role === 'assistant'" class="space-y-3">
+                <div v-if="message.role === 'assistant'" class="space-y-2.5 md:space-y-3">
                   <div
                     v-for="(content, index) in message.content"
                     :key="index"
-                    class="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+                    class="rounded-lg border border-gray-200 bg-white p-2.5 shadow-sm md:p-3"
                   >
-                    <div class="flex items-start gap-2">
-                      <div class="mt-2 h-2 w-2 flex-shrink-0 rounded-full bg-blue-500"></div>
-                      <div class="break-words break-all whitespace-pre-wrap">
+                    <div class="flex items-start gap-1.5 md:gap-2">
+                      <div class="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-500 md:mt-2 md:h-2 md:w-2"></div>
+                      <div class="break-words break-all whitespace-pre-wrap text-xs md:text-sm">
                         {{ content }}
                       </div>
                     </div>
@@ -282,41 +261,21 @@ const handleKeyDown = (e: KeyboardEvent) => {
 
                   <div
                     v-if="isRunning && messageIndex === processedMessages.length - 1"
-                    class="mt-3 flex items-center gap-1.5 rounded-2xl rounded-tl-sm bg-gray-50 px-4 py-3.5 text-sm shadow-sm"
+                    class="mt-2.5 flex items-center gap-1.5 rounded-2xl rounded-tl-sm bg-gray-50 px-3 py-3 text-xs shadow-sm md:mt-3 md:px-4 md:py-3.5 md:text-sm"
                   >
-                    <div class="h-2 w-2 animate-pulse rounded-full bg-gray-500"></div>
-                    <div class="h-2 w-2 animate-pulse rounded-full bg-gray-500" style="animation-delay: 0.2s"></div>
-                    <div class="h-2 w-2 animate-pulse rounded-full bg-gray-500" style="animation-delay: 0.4s"></div>
+                    <div class="h-1.5 w-1.5 animate-pulse rounded-full bg-gray-500 md:h-2 md:w-2"></div>
+                    <div class="h-1.5 w-1.5 animate-pulse rounded-full bg-gray-500 md:h-2 md:w-2" style="animation-delay: 0.2s"></div>
+                    <div class="h-1.5 w-1.5 animate-pulse rounded-full bg-gray-500 md:h-2 md:w-2" style="animation-delay: 0.4s"></div>
                   </div>
                 </div>
 
                 <!-- Display regular content for other cases -->
-                <div v-else class="break-words break-all whitespace-pre-wrap">
+                <div v-else class="break-words break-all whitespace-pre-wrap text-xs md:text-sm">
                   {{ message.content }}
                 </div>
               </div>
             </div>
           </div>
-
-          <!-- Loading indicator -->
-          <!-- <div v-if="isRunning" class="flex gap-3 items-start">
-            <div
-              class="w-9 h-9 rounded-full bg-gray-900 flex items-center justify-center text-base font-semibold text-white flex-shrink-0">
-              🤖
-            </div>
-
-            <div class="flex-1 flex flex-col gap-1.5 max-w-[75%]">
-              <div class="flex items-center gap-2">
-                <span class="text-xs font-semibold text-gray-900">AI 助手</span>
-              </div>
-
-              <div class="px-4 py-3.5 bg-gray-50 rounded-2xl rounded-tl-sm text-sm shadow-sm flex items-center gap-1.5">
-                <div class="w-2 h-2 rounded-full bg-gray-500 animate-pulse"></div>
-                <div class="w-2 h-2 rounded-full bg-gray-500 animate-pulse" style="animation-delay: 0.2s;"></div>
-                <div class="w-2 h-2 rounded-full bg-gray-500 animate-pulse" style="animation-delay: 0.4s;"></div>
-              </div>
-            </div>
-          </div> -->
         </div>
       </template>
 
@@ -324,24 +283,24 @@ const handleKeyDown = (e: KeyboardEvent) => {
     </div>
 
     <!-- Input area -->
-    <div class="border-t border-gray-200 p-4">
-      <div class="relative rounded-xl border border-gray-200 bg-white p-3">
+    <div class="border-t border-gray-200 p-3 md:p-4">
+      <div class="relative rounded-xl border border-gray-200 bg-white p-2.5 md:p-3">
         <FileReferenceInput
           ref="fileReferenceInputRef"
           v-model="input"
           placeholder="请输入你的设计需求..."
           :disabled="isRunning"
           :project-files="files"
-          textarea-class="max-h-[70px] min-h-[70px] w-full resize-none border-none text-sm leading-relaxed outline-none"
+          textarea-class="max-h-[60px] min-h-[60px] w-full resize-none border-none text-xs leading-relaxed outline-none md:max-h-[70px] md:min-h-[70px] md:text-sm"
           @keydown="handleKeyDown"
         >
           <template #actions="{ onMentionClick, textareaRef }">
             <!-- Button bar inside the border -->
             <div class="flex items-center justify-between">
-              <div class="flex gap-1">
+              <div class="flex gap-0.5 md:gap-1">
                 <button
                   @click="onMentionClick"
-                  class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-sm font-semibold text-gray-500 transition-all hover:bg-gray-50"
+                  class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-xs font-semibold text-gray-500 transition-all active:bg-gray-100 md:text-sm md:hover:bg-gray-50"
                   title="@大模型/文件"
                 >
                   @
@@ -350,9 +309,9 @@ const handleKeyDown = (e: KeyboardEvent) => {
                   @click="handleFileUpload"
                   :disabled="!projectId || props.isUploading"
                   :class="[
-                    'flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-base transition-all',
+                    'flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-sm transition-all md:text-base',
                     projectId && !props.isUploading
-                      ? 'text-gray-500 hover:bg-gray-50'
+                      ? 'text-gray-500 active:bg-gray-100 md:hover:bg-gray-50'
                       : 'cursor-not-allowed text-gray-300',
                   ]"
                   :title="props.isUploading ? '上传中...' : '上传附件'"
@@ -366,12 +325,12 @@ const handleKeyDown = (e: KeyboardEvent) => {
                 @click="handleButtonClick"
                 :disabled="buttonDisabled"
                 :class="[
-                  'flex h-8 w-8 flex-shrink-0 cursor-pointer items-center justify-center rounded-lg border-none text-base transition-all',
+                  'flex h-7 w-7 flex-shrink-0 cursor-pointer items-center justify-center rounded-lg border-none text-sm transition-all md:h-8 md:w-8 md:text-base',
                   buttonDisabled
                     ? 'cursor-not-allowed bg-gray-200'
                     : isRunning
-                      ? 'bg-red-500 hover:bg-red-600'
-                      : 'bg-gray-900 hover:bg-black',
+                      ? 'bg-red-500 active:bg-red-700 md:hover:bg-red-600'
+                      : 'bg-gray-900 active:bg-black md:hover:bg-black',
                 ]"
                 :title="isRunning ? '取消任务' : '发送消息'"
               >

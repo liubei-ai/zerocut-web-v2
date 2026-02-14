@@ -56,6 +56,13 @@ const pollingTimer = ref<NodeJS.Timeout | null>(null);
 const isAborting = ref(false);
 const isPolling = ref(false);
 const projectId = ref<string>('');
+const activeTab = ref<'files' | 'preview' | 'chat'>('chat');
+
+const tabs = [
+  { id: 'files' as const, label: '文件', icon: '📁' },
+  { id: 'preview' as const, label: '预览', icon: '👁️' },
+  { id: 'chat' as const, label: '对话', icon: '💬' },
+];
 
 const selectedFile = computed(() => {
   return files.value.find(f => f.id === selectedFileId.value);
@@ -383,6 +390,11 @@ const handleFileSelect = (fileId: string) => {
   selectedFileId.value = fileId;
 };
 
+const handleMobileFileSelect = (fileId: string) => {
+  selectedFileId.value = fileId;
+  activeTab.value = 'preview';
+};
+
 const handleProjectTitleChange = async (newTitle: string) => {
   if (!projectId.value || !newTitle.trim()) {
     return;
@@ -478,41 +490,105 @@ const handleAbortTask = async () => {
 <template>
   <MainLayout :show-footer="false" :show-sidebar="false">
     <div class="flex h-[calc(100vh-64px)] overflow-hidden bg-white">
-      <FileList
-        :files="files"
-        :selected-file-id="selectedFileId"
-        :project-title="projectTitle"
-        :project-id="projectId"
-        :is-uploading="isUploading"
-        @file-select="handleFileSelect"
-        @project-title-change="handleProjectTitleChange"
-        @file-uploaded="handleFileUploaded"
-        @upload-start="handleUploadStart"
-        @upload-end="handleUploadEnd"
-      />
+      <!-- Mobile Tab Navigation -->
+      <div class="fixed bottom-0 left-0 right-0 z-50 flex border-t border-gray-200 bg-white md:hidden">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          @click="activeTab = tab.id"
+          :class="[
+            'flex flex-1 flex-col items-center justify-center gap-1 py-3 text-xs font-medium transition-colors',
+            activeTab === tab.id ? 'text-blue-500' : 'text-gray-400'
+          ]"
+        >
+          <span class="text-lg">{{ tab.icon }}</span>
+          <span>{{ tab.label }}</span>
+        </button>
+      </div>
 
-      <PreviewArea
-        :file-url="selectedFile?.file_url"
-        :file-type="selectedFile?.file_type"
-        :file-name="selectedFile?.file_name"
-        @regenerate="handleRegenerate"
-        @download="handleDownload"
-        @modify="handleModify"
-        @show-prompt="handleShowPrompt"
-      />
+      <!-- Desktop Layout -->
+      <div class="hidden h-full w-full md:flex">
+        <FileList
+          :files="files"
+          :selected-file-id="selectedFileId"
+          :project-title="projectTitle"
+          :project-id="projectId"
+          :is-uploading="isUploading"
+          @file-select="handleFileSelect"
+          @project-title-change="handleProjectTitleChange"
+          @file-uploaded="handleFileUploaded"
+          @upload-start="handleUploadStart"
+          @upload-end="handleUploadEnd"
+        />
 
-      <ChatBox
-        :files="files"
-        :messages="messages"
-        :project-id="projectId"
-        :is-running="isRunning"
-        :is-uploading="isUploading"
-        @send-message="handleSendMessage"
-        @abort-task="handleAbortTask"
-        @file-uploaded="handleFileUploaded"
-        @upload-start="handleUploadStart"
-        @upload-end="handleUploadEnd"
-      />
+        <PreviewArea
+          :file-url="selectedFile?.file_url"
+          :file-type="selectedFile?.file_type"
+          :file-name="selectedFile?.file_name"
+          @regenerate="handleRegenerate"
+          @download="handleDownload"
+          @modify="handleModify"
+          @show-prompt="handleShowPrompt"
+        />
+
+        <ChatBox
+          :files="files"
+          :messages="messages"
+          :project-id="projectId"
+          :is-running="isRunning"
+          :is-uploading="isUploading"
+          @send-message="handleSendMessage"
+          @abort-task="handleAbortTask"
+          @file-uploaded="handleFileUploaded"
+          @upload-start="handleUploadStart"
+          @upload-end="handleUploadEnd"
+        />
+      </div>
+
+      <!-- Mobile Layout -->
+      <div class="flex h-full w-full flex-col md:hidden">
+        <div v-show="activeTab === 'files'" class="h-full overflow-hidden">
+          <FileList
+            :files="files"
+            :selected-file-id="selectedFileId"
+            :project-title="projectTitle"
+            :project-id="projectId"
+            :is-uploading="isUploading"
+            @file-select="handleMobileFileSelect"
+            @project-title-change="handleProjectTitleChange"
+            @file-uploaded="handleFileUploaded"
+            @upload-start="handleUploadStart"
+            @upload-end="handleUploadEnd"
+          />
+        </div>
+
+        <div v-show="activeTab === 'preview'" class="h-full overflow-hidden">
+          <PreviewArea
+            :file-url="selectedFile?.file_url"
+            :file-type="selectedFile?.file_type"
+            :file-name="selectedFile?.file_name"
+            @regenerate="handleRegenerate"
+            @download="handleDownload"
+            @modify="handleModify"
+            @show-prompt="handleShowPrompt"
+          />
+        </div>
+
+        <div v-show="activeTab === 'chat'" class="h-full overflow-hidden pb-16">
+          <ChatBox
+            :files="files"
+            :messages="messages"
+            :project-id="projectId"
+            :is-running="isRunning"
+            :is-uploading="isUploading"
+            @send-message="handleSendMessage"
+            @abort-task="handleAbortTask"
+            @file-uploaded="handleFileUploaded"
+            @upload-start="handleUploadStart"
+            @upload-end="handleUploadEnd"
+          />
+        </div>
+      </div>
     </div>
   </MainLayout>
 </template>

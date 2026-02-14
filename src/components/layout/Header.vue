@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import LoginModal from '@/components/auth/LoginModal.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { RouterLink } from 'vue-router';
 import { getWalletInfo } from '@/api/walletApi';
 
 const authStore = useAuthStore();
@@ -138,9 +139,9 @@ onUnmounted(() => {
   <header class="sticky top-0 z-50 w-full h-16 bg-white border-b border-[#e5e7eb]">
     <div class="flex h-full items-center justify-between px-10">
       <!-- Logo -->
-      <a href="/" class="flex items-center">
+      <RouterLink to="/" class="flex items-center">
         <img src="/src/assets/logo.png" alt="ZeroCut" class="h-8 cursor-pointer" />
-      </a>
+      </RouterLink>
 
       <!-- Right Actions -->
       <div class="flex items-center gap-4">

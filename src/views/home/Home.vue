@@ -167,7 +167,7 @@ onUnmounted(() => {
 
 <template>
   <MainLayout>
-    <div class="bg-[#fafafa] px-20 py-20">
+    <div class="bg-[#fafafa] px-2 py-20 sm:px-20">
       <div class="mx-auto max-w-[1000px]">
         <!-- Promo Banner & Title Section -->
         <div class="mb-14 flex flex-col items-center">

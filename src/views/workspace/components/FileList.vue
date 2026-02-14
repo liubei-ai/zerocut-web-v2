@@ -149,32 +149,32 @@ const handleDownloadAll = async () => {
 </script>
 
 <template>
-  <div class="flex h-full w-[280px] flex-col overflow-hidden border-r border-gray-200 bg-white">
-    <div class="border-b border-gray-200 p-5">
-      <div class="mb-4">
+  <div class="flex h-full w-full flex-col overflow-hidden border-r border-gray-200 bg-white md:w-[200px] lg:w-[240px] xl:w-[280px]">
+    <div class="border-b border-gray-200 p-4 md:p-5">
+      <div class="mb-3 md:mb-4">
         <input
           v-if="isEditingTitle"
           v-model="editedTitle"
           @blur="handleTitleSave"
           @keydown="handleKeyDown"
-          class="w-full rounded-md border border-blue-500 px-2 py-1 text-base font-semibold text-gray-900 outline-none"
+          class="w-full rounded-md border border-blue-500 px-2 py-1 text-sm font-semibold text-gray-900 outline-none md:text-base"
           autofocus
         />
         <div
           v-else
           @click="isEditingTitle = true"
-          class="cursor-pointer rounded-md px-2 py-1 text-base font-semibold text-gray-900 transition-all hover:bg-gray-50"
+          class="cursor-pointer rounded-md px-2 py-1 text-sm font-semibold text-gray-900 transition-all hover:bg-gray-50 md:text-base"
           title="点击编辑项目名称"
         >
           {{ projectTitle }}
         </div>
       </div>
 
-      <div class="mb-3 flex gap-1.5 overflow-x-auto">
+      <div class="mb-2.5 flex gap-1.5 overflow-x-auto md:mb-3">
         <button
           @click="filterType = 'all'"
           :class="[
-            'cursor-pointer rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all',
+            'cursor-pointer rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-all md:px-3',
             filterType === 'all' ? 'bg-gray-900 text-white' : 'bg-white text-gray-500',
           ]"
         >
@@ -183,7 +183,7 @@ const handleDownloadAll = async () => {
         <button
           @click="filterType = 'image'"
           :class="[
-            'cursor-pointer rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all',
+            'cursor-pointer rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-all md:px-3',
             filterType === 'image' ? 'bg-gray-900 text-white' : 'bg-white text-gray-500',
           ]"
         >
@@ -192,7 +192,7 @@ const handleDownloadAll = async () => {
         <button
           @click="filterType = 'video'"
           :class="[
-            'cursor-pointer rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all',
+            'cursor-pointer rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-all md:px-3',
             filterType === 'video' ? 'bg-gray-900 text-white' : 'bg-white text-gray-500',
           ]"
         >
@@ -201,7 +201,7 @@ const handleDownloadAll = async () => {
         <button
           @click="filterType = 'audio'"
           :class="[
-            'cursor-pointer rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all',
+            'cursor-pointer rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-all md:px-3',
             filterType === 'audio' ? 'bg-gray-900 text-white' : 'bg-white text-gray-500',
           ]"
         >
@@ -267,7 +267,7 @@ const handleDownloadAll = async () => {
           :key="file.id"
           @click="$emit('file-select', file.id)"
           :class="[
-            'flex cursor-pointer items-start gap-2.5 rounded-lg border p-2.5 transition-all',
+            'flex cursor-pointer items-start gap-2.5 rounded-lg border p-2.5 transition-all active:scale-[0.98]',
             selectedFileId === file.id ? 'border-gray-200 bg-gray-50' : 'border-transparent hover:bg-gray-50',
           ]"
         >
