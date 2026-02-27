@@ -183,7 +183,7 @@ onUnmounted(() => {
             class="mb-6 inline-flex items-center gap-2 rounded-[20px] border border-[#fde68a] bg-[#fef3c7] px-5 py-2"
           >
             <span class="text-base">🎁</span>
-            <span class="text-sm text-[#92400e]">新用户注册送2000积分～</span>
+            <span class="text-sm text-[#92400e]">新用户注册送1000积分～</span>
           </div>
 
           <div class="mb-5 flex items-center gap-3">
