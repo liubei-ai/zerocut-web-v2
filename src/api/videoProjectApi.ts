@@ -24,6 +24,7 @@ export interface VideoProjectListResponse {
     pageSize: number;
     totalPages: number;
     totalCount: number;
+    hasNext: boolean;
   };
 }
 
@@ -53,7 +54,7 @@ export async function createVideoProject(data: CreateVideoProjectRequest) {
 
 // Get user's video projects
 export async function getUserVideoProjects(params: VideoProjectListParams = {}) {
-  const { page = 1, pageSize = 12 } = params;
+  const { page = 1, pageSize = 6 } = params;
 
   const response = await apiClient.get<VideoProjectListResponse>(
     `/video-project/user?page=${page}&pageSize=${pageSize}`

@@ -87,11 +87,24 @@
         </div>
       </div>
     </div>
+
+    <!-- Loading More Indicator -->
+    <div v-if="isLoadingMore && !isInHomePage" class="flex justify-center py-8">
+      <div class="flex items-center gap-2 text-sm text-gray-500">
+        <div class="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-blue-500"></div>
+        <span>加载更多项目...</span>
+      </div>
+    </div>
+
+    <!-- No More Data Indicator -->
+    <div v-if="!isInHomePage && !hasNextPage && projects.length > 0 && !isLoading" class="flex justify-center py-8">
+      <span class="text-sm text-gray-400">已加载全部项目</span>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { Film, Trash2 } from 'lucide-vue-next';
 import dayjs from 'dayjs';
@@ -118,18 +131,62 @@ const router = useRouter();
 const projects = ref<VideoProject[]>([]);
 const isLoading = ref(false);
 const isDeleting = ref<string | null>(null);
+const isLoadingMore = ref(false);
+const currentPage = ref(1);
+const hasNextPage = ref(false);
+const totalPages = ref(0);
 
-// Load projects from API
-const loadProjects = async () => {
-  isLoading.value = true;
+// Load more projects when scrolling
+const loadMoreProjects = async () => {
+  if (isLoadingMore.value || !hasNextPage.value) return;
+  
+  const nextPage = currentPage.value + 1;
+  await loadProjects(nextPage, true);
+};
+
+// Scroll event handler for infinite scroll
+const handleScroll = () => {
+  if (props.isInHomePage) return; // Don't use infinite scroll on home page
+  
+  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+  const windowHeight = window.innerHeight;
+  const documentHeight = document.documentElement.scrollHeight;
+  
+  // Load more when user scrolls to 80% of the page
+  if (scrollTop + windowHeight >= documentHeight * 0.8) {
+    loadMoreProjects();
+  }
+};
+const loadProjects = async (page: number = 1, append: boolean = false) => {
+  if (append) {
+    isLoadingMore.value = true;
+  } else {
+    isLoading.value = true;
+  }
+  
   try {
-    const data = await getUserVideoProjects({ page: 1, pageSize: 12 });
-    projects.value = data.projects || [];
-    console.log('projects', projects);
+    const pageSize = props.isInHomePage ? 6 : 12;
+    const data = await getUserVideoProjects({ page, pageSize });
+    
+    if (append) {
+      projects.value = [...projects.value, ...(data.projects || [])];
+    } else {
+      projects.value = data.projects || [];
+    }
+    
+    // Update pagination info
+    if (data.pagination) {
+      currentPage.value = data.pagination.page;
+      hasNextPage.value = data.pagination.hasNext;
+      totalPages.value = data.pagination.totalPages;
+    }
+    
+    console.log('projects', projects.value);
   } catch (error) {
     console.error('加载项目失败:', error);
   } finally {
     isLoading.value = false;
+    isLoadingMore.value = false;
   }
 };
 
@@ -238,5 +295,17 @@ const handleImageError = (event: Event) => {
 // Load projects on mount
 onMounted(() => {
   loadProjects();
+  
+  // Add scroll listener for infinite scroll (only on non-home pages)
+  if (!props.isInHomePage) {
+    window.addEventListener('scroll', handleScroll);
+  }
+});
+
+// Clean up scroll listener
+onUnmounted(() => {
+  if (!props.isInHomePage) {
+    window.removeEventListener('scroll', handleScroll);
+  }
 });
 </script>

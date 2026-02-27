@@ -30,11 +30,17 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import MainLayout from '@/components/layout/MainLayout.vue';
 import ProjectGrid from '@/views/project/ProjectGrid.vue';
 
 const router = useRouter();
+
+// Reset scroll position when component mounts
+onMounted(() => {
+  window.scrollTo(0, 0);
+});
 
 // Methods
 const refreshProjects = () => {
