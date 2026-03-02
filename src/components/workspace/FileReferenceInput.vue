@@ -66,6 +66,7 @@ const inputValue = computed({
 
 // Available models
 const models = [
+  { id: 'zerocut3.0', name: 'zerocut3.0' },
   { id: 'pro', name: 'pro' },
   { id: 'vidu', name: 'vidu' },
   { id: 'kling', name: 'kling' },

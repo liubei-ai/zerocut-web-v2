@@ -57,6 +57,7 @@ const isAborting = ref(false);
 const isPolling = ref(false);
 const projectId = ref<string>('');
 const activeTab = ref<'files' | 'preview' | 'chat'>('chat');
+const isOwner = ref<boolean>(true);
 
 const tabs = [
   { id: 'files' as const, label: '文件', icon: '📁' },
@@ -186,6 +187,9 @@ const refreshWorkspaceData = async () => {
   console.log('refreshWorkspaceData projectId', projectId.value);
   try {
     const projectData = await getProjectDetails(projectId.value);
+
+    // Update is_owner status
+    isOwner.value = projectData.is_owner !== false;
 
     // Handle status changes
     const currentStatus = projectData.status;
@@ -514,6 +518,7 @@ const handleAbortTask = async () => {
           :project-title="projectTitle"
           :project-id="projectId"
           :is-uploading="isUploading"
+          :is-owner="isOwner"
           @file-select="handleFileSelect"
           @project-title-change="handleProjectTitleChange"
           @file-uploaded="handleFileUploaded"
@@ -537,6 +542,7 @@ const handleAbortTask = async () => {
           :project-id="projectId"
           :is-running="isRunning"
           :is-uploading="isUploading"
+          :is-owner="isOwner"
           @send-message="handleSendMessage"
           @abort-task="handleAbortTask"
           @file-uploaded="handleFileUploaded"
@@ -554,6 +560,7 @@ const handleAbortTask = async () => {
             :project-title="projectTitle"
             :project-id="projectId"
             :is-uploading="isUploading"
+            :is-owner="isOwner"
             @file-select="handleMobileFileSelect"
             @project-title-change="handleProjectTitleChange"
             @file-uploaded="handleFileUploaded"
@@ -581,6 +588,7 @@ const handleAbortTask = async () => {
             :project-id="projectId"
             :is-running="isRunning"
             :is-uploading="isUploading"
+            :is-owner="isOwner"
             @send-message="handleSendMessage"
             @abort-task="handleAbortTask"
             @file-uploaded="handleFileUploaded"

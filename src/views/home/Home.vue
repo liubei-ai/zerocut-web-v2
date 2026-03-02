@@ -19,19 +19,33 @@ const authStore = useAuthStore();
 const router = useRouter();
 
 const videoPrompt = ref('');
-const selectedMode = ref('one_click');
+const selectedMode = ref('free_creation');
 const aspectRatio = ref('9:16');
 const videoType = ref('自动');
 const showAspectRatioMenu = ref(false);
 const showStyleMenu = ref(false);
 const selectedFiles = ref<FilePreview[]>([]);
 
+// Free creation mode options
+const freeCreationMode = ref('video_generation'); // 'agent' or 'video_generation'
+const videoModel = ref('zerocut3.0');
+const videoDuration = ref('15s');
+const videoAspectRatio = ref('9:16');
+const showFreeCreationModeMenu = ref(false);
+const showVideoModelMenu = ref(false);
+const showVideoDurationMenu = ref(false);
+const showVideoAspectRatioMenu = ref(false);
+
 const aspectRatioMenuRef = ref<HTMLElement | null>(null);
 const styleMenuRef = ref<HTMLElement | null>(null);
+const freeCreationModeMenuRef = ref<HTMLElement | null>(null);
+const videoModelMenuRef = ref<HTMLElement | null>(null);
+const videoDurationMenuRef = ref<HTMLElement | null>(null);
+const videoAspectRatioMenuRef = ref<HTMLElement | null>(null);
 
 const modes = [
-  { id: 'one_click', label: '一键成片', icon: '⚡' },
   { id: 'free_creation', label: '自由创作', icon: '🎨' },
+  { id: 'one_click', label: '一键成片', icon: '⚡' },
   /*   { id: 'storyboard', label: '分镜脚本', icon: '📋' },
    */
 ];
@@ -52,6 +66,24 @@ const styles = [
   { id: 'cyberpunk', label: '赛博朋克', icon: '🌃' },
   { id: 'sketch', label: '简笔画', icon: '✏️' },
   { id: 'pixel', label: '像素风格', icon: '🎮' },
+];
+
+const freeCreationModes = [
+  { id: 'video_generation', label: '视频生成' },
+  { id: 'agent', label: 'Agent模式' },
+];
+
+const videoModels = [{ id: 'zerocut3.0', label: 'ZeroCut 3.0', description: '默认' }];
+
+const videoDurations = [
+  { id: '5s', label: '5秒', description: '四宫格分镜' },
+  { id: '10s', label: '10秒', description: '六宫格分镜' },
+  { id: '15s', label: '15秒', description: '九宫格分镜' },
+];
+
+const videoAspectRatios = [
+  { id: '9:16', label: '9:16', description: '竖屏' },
+  { id: '16:9', label: '16:9', description: '横屏' },
 ];
 
 const suggestionsByMode: Record<string, string[]> = {
@@ -109,7 +141,21 @@ const handleSubmit = () => {
     if (selectedMode.value === 'one_click') {
       chatMessage = `请使用一键成片技能为我创作视频，比例为${aspectRatio.value}，${videoType.value === '自动' ? '' : '风格为' + videoType.value + '，'}主题内容为：${videoPrompt.value}`;
     } else if (selectedMode.value === 'free_creation') {
-      chatMessage = `${videoPrompt.value}`;
+      if (freeCreationMode.value === 'agent') {
+        chatMessage = `${videoPrompt.value}`;
+      } else {
+        // Video generation mode
+        const durationMap: Record<string, string> = {
+          '5s': '5秒，四宫格分镜',
+          '10s': '10秒，六宫格分镜',
+          '15s': '15秒，九宫格分镜',
+        };
+        const aspectRatioMap: Record<string, string> = {
+          '9:16': '9:16竖屏',
+          '16:9': '16:9横屏',
+        };
+        chatMessage = `根据以下内容使用素材创作技能，参考生视频，模型使用${videoModel.value}，${aspectRatioMap[videoAspectRatio.value]}，${durationMap[videoDuration.value]}。内容：${videoPrompt.value}`;
+      }
     } else if (selectedMode.value === 'storyboard') {
       chatMessage = `请根据内容撰写分镜脚本，内容为：${videoPrompt.value}`;
     }
@@ -130,6 +176,8 @@ const handleSubmit = () => {
     }
 
     // Navigate to workspace/new and pass chatMessage via router state
+    console.log('chatMessage', chatMessage);
+    //return;
     router.push({
       path: '/workspace/new',
       state: {
@@ -150,6 +198,36 @@ const selectStyle = (style: string) => {
   showStyleMenu.value = false;
 };
 
+const selectFreeCreationMode = (mode: string) => {
+  freeCreationMode.value = mode;
+  showFreeCreationModeMenu.value = false;
+};
+
+const selectVideoModel = (model: string) => {
+  videoModel.value = model;
+  showVideoModelMenu.value = false;
+};
+
+const selectVideoDuration = (duration: string) => {
+  videoDuration.value = duration;
+  showVideoDurationMenu.value = false;
+};
+
+const selectVideoAspectRatio = (ratio: string) => {
+  videoAspectRatio.value = ratio;
+  showVideoAspectRatioMenu.value = false;
+};
+
+// Calculate credits needed for video generation
+const creditsNeeded = computed(() => {
+  if (selectedMode.value !== 'free_creation' || freeCreationMode.value !== 'video_generation') {
+    return 0;
+  }
+
+  const durationSeconds = parseInt(videoDuration.value);
+  return 40 + 36 * durationSeconds;
+});
+
 // Handle click outside to close menus
 const handleClickOutside = (event: MouseEvent) => {
   const target = event.target as Node;
@@ -160,6 +238,22 @@ const handleClickOutside = (event: MouseEvent) => {
 
   if (styleMenuRef.value && !styleMenuRef.value.contains(target)) {
     showStyleMenu.value = false;
+  }
+
+  if (freeCreationModeMenuRef.value && !freeCreationModeMenuRef.value.contains(target)) {
+    showFreeCreationModeMenu.value = false;
+  }
+
+  if (videoModelMenuRef.value && !videoModelMenuRef.value.contains(target)) {
+    showVideoModelMenu.value = false;
+  }
+
+  if (videoDurationMenuRef.value && !videoDurationMenuRef.value.contains(target)) {
+    showVideoDurationMenu.value = false;
+  }
+
+  if (videoAspectRatioMenuRef.value && !videoAspectRatioMenuRef.value.contains(target)) {
+    showVideoAspectRatioMenu.value = false;
   }
 };
 
@@ -231,6 +325,7 @@ onUnmounted(() => {
                       📎
                     </button>
 
+                    <!-- One Click Mode Options -->
                     <div v-if="selectedMode === 'one_click'" class="ml-2 flex gap-2">
                       <!-- Aspect Ratio Selector -->
                       <div ref="aspectRatioMenuRef" class="relative">
@@ -304,21 +399,189 @@ onUnmounted(() => {
                         </div>
                       </div>
                     </div>
+
+                    <!-- Free Creation Mode Options -->
+                    <div v-if="selectedMode === 'free_creation'" class="ml-2 flex gap-2">
+                      <!-- Mode Selector -->
+                      <div ref="freeCreationModeMenuRef" class="relative">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          @click="
+                            showFreeCreationModeMenu = !showFreeCreationModeMenu;
+                            showVideoModelMenu = false;
+                            showVideoDurationMenu = false;
+                            showVideoAspectRatioMenu = false;
+                          "
+                          class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
+                        >
+                          <span>🤖</span>
+                          <span>{{ freeCreationModes.find(m => m.id === freeCreationMode)?.label }}</span>
+                          <span class="text-xs">▼</span>
+                        </Button>
+
+                        <div
+                          v-if="showFreeCreationModeMenu"
+                          class="absolute bottom-full left-0 z-[1000] mb-2 min-w-[160px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                        >
+                          <Button
+                            v-for="mode in freeCreationModes"
+                            :key="mode.id"
+                            variant="ghost"
+                            @click="selectFreeCreationMode(mode.id)"
+                            :class="[
+                              'h-auto w-full justify-start rounded-lg px-3 py-2.5 text-left',
+                              freeCreationMode === mode.id ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]',
+                            ]"
+                          >
+                            <span class="text-sm font-medium text-[#111827]">{{ mode.label }}</span>
+                          </Button>
+                        </div>
+                      </div>
+
+                      <!-- Video Generation Options (only show when video_generation mode is selected) -->
+                      <template v-if="freeCreationMode === 'video_generation'">
+                        <!-- Model Selector -->
+                        <div ref="videoModelMenuRef" class="relative">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            @click="
+                              showVideoModelMenu = !showVideoModelMenu;
+                              showFreeCreationModeMenu = false;
+                              showVideoDurationMenu = false;
+                              showVideoAspectRatioMenu = false;
+                            "
+                            class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
+                          >
+                            <span>🎯</span>
+                            <span>{{ videoModels.find(m => m.id === videoModel)?.label }}</span>
+                            <span class="text-xs">▼</span>
+                          </Button>
+
+                          <div
+                            v-if="showVideoModelMenu"
+                            class="absolute bottom-full left-0 z-[1000] mb-2 min-w-[200px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                          >
+                            <Button
+                              v-for="model in videoModels"
+                              :key="model.id"
+                              variant="ghost"
+                              @click="selectVideoModel(model.id)"
+                              :class="[
+                                'h-auto w-full justify-between rounded-lg px-3 py-2.5 text-left',
+                                videoModel === model.id ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]',
+                              ]"
+                            >
+                              <span class="text-sm font-medium text-[#111827]">{{ model.label }}</span>
+                              <span class="text-xs text-[#9ca3af]">{{ model.description }}</span>
+                            </Button>
+                          </div>
+                        </div>
+
+                        <!-- Duration Selector -->
+                        <div ref="videoDurationMenuRef" class="relative">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            @click="
+                              showVideoDurationMenu = !showVideoDurationMenu;
+                              showFreeCreationModeMenu = false;
+                              showVideoModelMenu = false;
+                              showVideoAspectRatioMenu = false;
+                            "
+                            class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
+                          >
+                            <span>⏱️</span>
+                            <span>{{ videoDurations.find(d => d.id === videoDuration)?.label }}</span>
+                            <span class="text-xs">▼</span>
+                          </Button>
+
+                          <div
+                            v-if="showVideoDurationMenu"
+                            class="absolute bottom-full left-0 z-[1000] mb-2 min-w-[100px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                          >
+                            <Button
+                              v-for="duration in videoDurations"
+                              :key="duration.id"
+                              variant="ghost"
+                              @click="selectVideoDuration(duration.id)"
+                              :class="[
+                                'h-auto w-full justify-between rounded-lg px-3 py-2.5 text-left',
+                                videoDuration === duration.id ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]',
+                              ]"
+                            >
+                              <span class="text-sm font-medium text-[#111827]">{{ duration.label }}</span>
+                              <!-- <span class="text-xs text-[#9ca3af]">{{ duration.description }}</span> -->
+                            </Button>
+                          </div>
+                        </div>
+
+                        <!-- Aspect Ratio Selector -->
+                        <div ref="videoAspectRatioMenuRef" class="relative">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            @click="
+                              showVideoAspectRatioMenu = !showVideoAspectRatioMenu;
+                              showFreeCreationModeMenu = false;
+                              showVideoModelMenu = false;
+                              showVideoDurationMenu = false;
+                            "
+                            class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
+                          >
+                            <span>📐</span>
+                            <span>{{ videoAspectRatio }}</span>
+                            <span class="text-xs">▼</span>
+                          </Button>
+
+                          <div
+                            v-if="showVideoAspectRatioMenu"
+                            class="absolute bottom-full left-0 z-[1000] mb-2 min-w-[180px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                          >
+                            <Button
+                              v-for="ratio in videoAspectRatios"
+                              :key="ratio.id"
+                              variant="ghost"
+                              @click="selectVideoAspectRatio(ratio.id)"
+                              :class="[
+                                'h-auto w-full justify-between rounded-lg px-3 py-2.5 text-left',
+                                videoAspectRatio === ratio.id ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]',
+                              ]"
+                            >
+                              <span class="text-sm font-medium text-[#111827]">{{ ratio.label }}</span>
+                              <span class="text-xs text-[#9ca3af]">{{ ratio.description }}</span>
+                            </Button>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
                   </div>
 
-                  <!-- Submit Button -->
-                  <Button
-                    @click="handleSubmit"
-                    :disabled="!videoPrompt.trim()"
-                    :class="[
-                      'h-9 w-9 flex-shrink-0 rounded-full p-0 transition-all',
-                      videoPrompt.trim()
-                        ? 'bg-[#111827] hover:scale-105 hover:bg-black'
-                        : 'cursor-not-allowed bg-[#e5e7eb]',
-                    ]"
-                  >
-                    <span class="text-lg text-white">↑</span>
-                  </Button>
+                  <div class="flex items-center gap-2">
+                    <!-- Credits Display (only for video_generation mode) -->
+                    <div
+                      v-if="selectedMode === 'free_creation' && freeCreationMode === 'video_generation'"
+                      class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm"
+                    >
+                      <span class="text-base">💎</span>
+                      <span class="font-medium text-[#6b7280]">{{ creditsNeeded.toFixed(1) }}</span>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <Button
+                      @click="handleSubmit"
+                      :disabled="!videoPrompt.trim()"
+                      :class="[
+                        'h-9 w-9 flex-shrink-0 rounded-full p-0 transition-all',
+                        videoPrompt.trim()
+                          ? 'bg-[#111827] hover:scale-105 hover:bg-black'
+                          : 'cursor-not-allowed bg-[#e5e7eb]',
+                      ]"
+                    >
+                      <span class="text-lg text-white">↑</span>
+                    </Button>
+                  </div>
                 </div>
               </template>
             </FileReferenceInput>

@@ -11,6 +11,7 @@ interface Props {
   projectTitle?: string;
   projectId?: string | number;
   isUploading?: boolean;
+  isOwner?: boolean;
 }
 
 interface Emits {
@@ -24,6 +25,7 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   projectTitle: '未命名项目',
   isUploading: false,
+  isOwner: true,
 });
 
 const emit = defineEmits<Emits>();
@@ -211,6 +213,7 @@ const handleDownloadAll = async () => {
 
       <div class="flex gap-1.5">
         <button
+          v-if="props.isOwner"
           @click="handleFileUpload"
           :disabled="!projectId || props.isUploading"
           :class="[
@@ -225,6 +228,7 @@ const handleDownloadAll = async () => {
           <span>{{ props.isUploading ? '上传中...' : '上传' }}</span>
         </button>
         <button
+          v-if="props.isOwner"
           @click="handleDownloadAll"
           :disabled="files.length === 0 || isDownloading"
           :class="[

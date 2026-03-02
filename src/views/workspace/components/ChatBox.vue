@@ -11,6 +11,7 @@ interface Props {
   isUploading?: boolean;
   projectId?: string | number;
   files?: Array<{ id: string; file_name: string; file_type?: string; file_url?: string }>;
+  isOwner?: boolean;
 }
 
 interface Emits {
@@ -283,7 +284,7 @@ const handleKeyDown = (e: KeyboardEvent) => {
     </div>
 
     <!-- Input area -->
-    <div class="border-t border-gray-200 p-3 md:p-4">
+    <div v-if="props.isOwner !== false" class="border-t border-gray-200 p-3 md:p-4">
       <div class="relative rounded-xl border border-gray-200 bg-white p-2.5 md:p-3">
         <FileReferenceInput
           ref="fileReferenceInputRef"

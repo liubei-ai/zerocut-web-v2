@@ -161,6 +161,7 @@ export interface ProjectDetailsResponse {
   status: string;
   created_at: string;
   updated_at: string;
+  is_owner?: boolean;
 }
 
 export async function getProjectDetails(projectId: string | number) {
