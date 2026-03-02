@@ -10,6 +10,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuPortal,
 } from 'reka-ui';
+import { useToast } from '@/composables/useToast';
 
 interface FilePreview {
   id: string;
@@ -43,6 +44,8 @@ interface Emits {
   (e: 'files-change', files: FilePreview[]): void;
 }
 
+const { toast } = useToast();
+
 const props = withDefaults(defineProps<Props>(), {
   placeholder: '请输入你的设计需求...',
   disabled: false,
@@ -63,16 +66,6 @@ const inputValue = computed({
   get: () => props.modelValue,
   set: (value: string) => emit('update:modelValue', value),
 });
-
-// Available models
-const models = [
-  { id: 'zerocut3.0', name: 'zerocut3.0' },
-  { id: 'pro', name: 'pro' },
-  { id: 'vidu', name: 'vidu' },
-  { id: 'kling', name: 'kling' },
-  { id: 'hailuo', name: 'hailuo' },
-  { id: 'sora', name: 'sora' },
-];
 
 const triggerStyle = computed(() => ({
   top: `${cursorPosition.value.top}px`,
@@ -221,7 +214,38 @@ const handleFileChange = (e: Event) => {
 
   if (!files || files.length === 0) return;
 
+  const MAX_FILES = 6;
+  const remainingSlots = MAX_FILES - selectedFiles.value.length;
+
+  if (remainingSlots <= 0) {
+    toast.warning(`最多只能上传 ${MAX_FILES} 个文件`);
+    if (target) {
+      target.value = '';
+    }
+    return;
+  }
+
+  const filesToAdd: FilePreview[] = [];
+  let duplicateCount = 0;
+  let exceededCount = 0;
+
   Array.from(files).forEach(file => {
+    // Check if we've reached the limit
+    if (selectedFiles.value.length + filesToAdd.length >= MAX_FILES) {
+      exceededCount++;
+      return;
+    }
+
+    // Check for duplicate files (by name and size)
+    const isDuplicate = selectedFiles.value.some(
+      existingFile => existingFile.name === file.name && existingFile.file.size === file.size,
+    );
+
+    if (isDuplicate) {
+      duplicateCount++;
+      return;
+    }
+
     const fileType = file.type.startsWith('image/')
       ? 'image'
       : file.type.startsWith('video/')
@@ -238,10 +262,19 @@ const handleFileChange = (e: Event) => {
       file,
     };
 
-    selectedFiles.value.push(filePreview);
+    filesToAdd.push(filePreview);
   });
 
+  selectedFiles.value.push(...filesToAdd);
   emit('files-change', selectedFiles.value);
+
+  // Show feedback messages
+  if (duplicateCount > 0) {
+    toast.warning(`已过滤 ${duplicateCount} 个重复文件`);
+  }
+  if (exceededCount > 0) {
+    toast.warning(`已达到最大文件数量限制（${MAX_FILES}个），已忽略 ${exceededCount} 个文件`);
+  }
 
   // Reset input
   if (target) {
@@ -284,7 +317,10 @@ defineExpose({
       @input="handleInput"
       :placeholder="placeholder"
       :disabled="disabled"
-      :class="textareaClass || 'min-h-[100px] w-full resize-none border-0 p-0 text-base leading-[1.6] text-[#111827] outline-0 focus-visible:ring-0'"
+      :class="
+        textareaClass ||
+        'min-h-[100px] w-full resize-none border-0 p-0 text-base leading-[1.6] text-[#111827] outline-0 focus-visible:ring-0'
+      "
     />
 
     <!-- File previews (only for Home.vue with allowFilePick) -->
@@ -294,12 +330,7 @@ defineExpose({
         :key="file.id"
         class="group relative flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white p-2 pr-8"
       >
-        <img
-          v-if="file.type === 'image'"
-          :src="file.url"
-          :alt="file.name"
-          class="h-10 w-10 rounded object-cover"
-        />
+        <img v-if="file.type === 'image'" :src="file.url" :alt="file.name" class="h-10 w-10 rounded object-cover" />
         <div v-else class="flex h-10 w-10 items-center justify-center rounded bg-gray-100 text-lg">
           {{ getFileIcon(file.type) }}
         </div>
@@ -308,7 +339,7 @@ defineExpose({
         </div>
         <button
           @click="removeFile(file.id)"
-          class="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white opacity-0 transition-opacity hover:bg-red-600 group-hover:opacity-100"
+          class="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-600"
         >
           ✕
         </button>
@@ -316,7 +347,10 @@ defineExpose({
     </div>
 
     <!-- Invisible positioned container for dropdown trigger at cursor -->
-    <div class="pointer-events-none absolute left-0 top-0 h-full w-full overflow-hidden">
+    <div
+      v-if="(projectFiles && projectFiles.length > 0) || (allowFilePick && selectedFiles.length > 0)"
+      class="pointer-events-none absolute top-0 left-0 h-full w-full overflow-hidden"
+    >
       <DropdownMenuRoot v-model:open="dropdownOpen">
         <DropdownMenuTrigger as-child>
           <div :style="triggerStyle" class="pointer-events-auto absolute h-5 w-0.5 opacity-0" />
@@ -324,119 +358,68 @@ defineExpose({
 
         <DropdownMenuPortal>
           <DropdownMenuContent
-            class="z-[9999] max-h-[400px] min-w-[120px] max-w-[200px] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
+            class="z-[9999] max-h-[400px] max-w-[300px] min-w-[150px] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
             :side="'right'"
             :align="'start'"
             :side-offset="5"
             :align-offset="0"
             :collision-padding="10"
           >
-            <!-- Project Files submenu (for ChatBox.vue) -->
-            <DropdownMenuSub v-if="projectFiles && projectFiles.length > 0">
-              <DropdownMenuSubTrigger
-                class="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-gray-100 data-[state=open]:bg-gray-100 data-[state=selected]:bg-gray-100"
+            <!-- Project Files (for ChatBox.vue) -->
+            <template v-if="projectFiles && projectFiles.length > 0">
+              <DropdownMenuItem
+                v-for="file in projectFiles"
+                :key="file.id"
+                @select="insertMention(file.file_name)"
+                class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
               >
-                <span>📁 文件</span>
-                <span class="ml-auto text-xs text-gray-400">▶</span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuPortal>
-                <DropdownMenuSubContent
-                  class="max-h-[400px] max-w-[200px] min-w-[150px] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
-                  :side-offset="8"
-                  :collision-padding="10"
-                >
-                  <DropdownMenuItem
-                    v-for="file in projectFiles"
-                    :key="file.id"
-                    @select="insertMention(file.file_name)"
-                    class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
+                <div class="flex items-center gap-2">
+                  <img
+                    v-if="file.file_type === 'image' && file.file_url"
+                    :src="`${file.file_url}?x-tos-process=image/resize,w_100`"
+                    :alt="file.file_name"
+                    class="h-6 w-6 flex-shrink-0 rounded object-cover"
+                  />
+                  <div
+                    v-else
+                    class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-gray-100 text-sm"
                   >
-                    <div class="flex items-center gap-2">
-                      <img
-                        v-if="file.file_type === 'image' && file.file_url"
-                        :src="`${file.file_url}?x-tos-process=image/resize,w_100`"
-                        :alt="file.file_name"
-                        class="h-6 w-6 flex-shrink-0 rounded object-cover"
-                      />
-                      <div
-                        v-else
-                        class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-gray-100 text-sm"
-                      >
-                        {{ getFileIcon(file.file_type) }}
-                      </div>
-                      <div class="truncate" :title="file.file_name">
-                        {{ file.file_name }}
-                      </div>
-                    </div>
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuPortal>
-            </DropdownMenuSub>
+                    {{ getFileIcon(file.file_type) }}
+                  </div>
+                  <div class="truncate" :title="file.file_name">
+                    {{ file.file_name }}
+                  </div>
+                </div>
+              </DropdownMenuItem>
+            </template>
 
             <!-- Local Files (for Home.vue with allowFilePick) -->
-            <DropdownMenuSub v-else-if="allowFilePick && selectedFiles.length > 0">
-              <DropdownMenuSubTrigger
-                class="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-gray-100 data-[state=open]:bg-gray-100 data-[state=selected]:bg-gray-100"
+            <template v-else-if="allowFilePick && selectedFiles.length > 0">
+              <DropdownMenuItem
+                v-for="file in selectedFiles"
+                :key="file.id"
+                @select="insertMention(file.name)"
+                class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
               >
-                <span>📁 文件</span>
-                <span class="ml-auto text-xs text-gray-400">▶</span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuPortal>
-                <DropdownMenuSubContent
-                  class="max-h-[400px] max-w-[200px] min-w-[150px] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
-                  :side-offset="8"
-                  :collision-padding="10"
-                >
-                  <DropdownMenuItem
-                    v-for="file in selectedFiles"
-                    :key="file.id"
-                    @select="insertMention(file.name)"
-                    class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
+                <div class="flex items-center gap-2">
+                  <img
+                    v-if="file.type === 'image'"
+                    :src="file.url"
+                    :alt="file.name"
+                    class="h-6 w-6 flex-shrink-0 rounded object-cover"
+                  />
+                  <div
+                    v-else
+                    class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-gray-100 text-sm"
                   >
-                    <div class="flex items-center gap-2">
-                      <img
-                        v-if="file.type === 'image'"
-                        :src="file.url"
-                        :alt="file.name"
-                        class="h-6 w-6 flex-shrink-0 rounded object-cover"
-                      />
-                      <div v-else class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-gray-100 text-sm">
-                        {{ getFileIcon(file.type) }}
-                      </div>
-                      <div class="truncate" :title="file.name">
-                        {{ file.name }}
-                      </div>
-                    </div>
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuPortal>
-            </DropdownMenuSub>
-
-            <!-- Models submenu -->
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger
-                class="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-gray-100 data-[state=open]:bg-gray-100 data-[state=selected]:bg-gray-100"
-              >
-                <span>🤖 模型</span>
-                <span class="ml-auto text-xs text-gray-400">▶</span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuPortal>
-                <DropdownMenuSubContent
-                  class="min-w-[200px] rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
-                  :side-offset="8"
-                  :collision-padding="10"
-                >
-                  <DropdownMenuItem
-                    v-for="model in models"
-                    :key="model.id"
-                    @select="insertMention(model.name)"
-                    class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
-                  >
-                    {{ model.name }}
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuPortal>
-            </DropdownMenuSub>
+                    {{ getFileIcon(file.type) }}
+                  </div>
+                  <div class="truncate" :title="file.name">
+                    {{ file.name }}
+                  </div>
+                </div>
+              </DropdownMenuItem>
+            </template>
           </DropdownMenuContent>
         </DropdownMenuPortal>
       </DropdownMenuRoot>
@@ -449,14 +432,14 @@ defineExpose({
       type="file"
       @change="handleFileChange"
       class="hidden"
-      accept="image/*,video/*,audio/*"
+      accept="image/*"
       multiple
     />
 
     <!-- Action buttons slot -->
-    <slot 
-      name="actions" 
-      :on-mention-click="handleMentionButtonClick" 
+    <slot
+      name="actions"
+      :on-mention-click="handleMentionButtonClick"
       :on-file-pick-click="handleFilePickClick"
       :textarea-ref="textareaRef"
     />

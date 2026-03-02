@@ -165,7 +165,7 @@ const loadProjects = async (page: number = 1, append: boolean = false) => {
   }
   
   try {
-    const pageSize = props.isInHomePage ? 6 : 12;
+    const pageSize = 12;
     const data = await getUserVideoProjects({ page, pageSize });
     
     if (append) {

@@ -178,10 +178,10 @@ const handleButtonClick = () => {
 };
 
 const handleKeyDown = (e: KeyboardEvent) => {
-  if (e.key === 'Enter' && !e.shiftKey && !props.isRunning) {
+  /* if (e.key === 'Enter' && e.ctrlKey && !props.isRunning) {
     e.preventDefault();
     handleSubmit();
-  }
+  } */
 };
 </script>
 

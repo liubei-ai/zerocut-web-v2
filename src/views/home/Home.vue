@@ -115,7 +115,7 @@ const suggestionsByMode: Record<string, string[]> = {
 
 const placeholderByMode: Record<string, string> = {
   one_click: '输入视频创意主题、剧本或分镜，快速生成完整视频',
-  free_creation: '输入创作需求，自由生成图片、视频等内容',
+  free_creation: '最多支持上传6张参考图，可自由组合图片等元素，描述视频的创意内容。例如参考 @图片 输入具体的创意内容。',
   storyboard: '输入剧本，智能生成专业分镜脚本',
 };
 
@@ -401,7 +401,7 @@ onUnmounted(() => {
                     </div>
 
                     <!-- Free Creation Mode Options -->
-                    <div v-if="selectedMode === 'free_creation'" class="ml-2 flex gap-2">
+                    <div v-if="selectedMode === 'free_creation'" class="ml-2 flex flex-wrap gap-2">
                       <!-- Mode Selector -->
                       <div ref="freeCreationModeMenuRef" class="relative">
                         <Button
@@ -565,7 +565,7 @@ onUnmounted(() => {
                       class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm"
                     >
                       <span class="text-base">💎</span>
-                      <span class="font-medium text-[#6b7280]">{{ creditsNeeded.toFixed(1) }}</span>
+                      <span class="font-medium text-[#6b7280]">{{ creditsNeeded }}</span>
                     </div>
 
                     <!-- Submit Button -->
