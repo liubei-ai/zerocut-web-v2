@@ -58,6 +58,7 @@ const isPolling = ref(false);
 const projectId = ref<string>('');
 const activeTab = ref<'files' | 'preview' | 'chat'>('chat');
 const isOwner = ref<boolean>(true);
+const isCancelling = ref(false);
 
 const tabs = [
   { id: 'files' as const, label: '文件', icon: '📁' },
@@ -76,26 +77,26 @@ onMounted(async () => {
   if (projectId.value === 'new' || route.path === '/workspace/new') {
     isNewProject.value = true;
     initialUserInput.value = history.state?.chatMessage as string;
-    
+
     // Retrieve files from sessionStorage and window object
     if (history.state?.hasFiles) {
       const fileMetadata = JSON.parse(sessionStorage.getItem('pendingFiles') || '[]');
       const files = (window as any).__pendingFiles || [];
-      
+
       if (fileMetadata.length > 0 && files.length > 0) {
         initialFiles.value = fileMetadata.map((meta: any, index: number) => ({
           ...meta,
-          file: files[index]
+          file: files[index],
         }));
       }
-      
+
       // Clean up
       sessionStorage.removeItem('pendingFiles');
       delete (window as any).__pendingFiles;
     }
-    
+
     await loadProject();
-    
+
     // Auto-send initial message if it exists
     if (initialUserInput.value && initialUserInput.value.trim()) {
       await handleSendMessage(initialUserInput.value);
@@ -194,35 +195,23 @@ const refreshWorkspaceData = async () => {
     // Handle status changes
     const currentStatus = projectData.status;
 
-    // TODO: use Enum here
-    if (currentStatus === 'RUNNING') {
-      isRunning.value = true;
-    }
-
     projectTitle.value = projectData.project_name;
 
-    // Check if task has ended
-    if (currentStatus && currentStatus !== 'RUNNING') {
+    if (currentStatus === 'RUNNING' || currentStatus === 'KILLED') {
+      isRunning.value = true;
+    }
+    
+    // Reset isCancelling when status is not KILLED
+    if (currentStatus !== 'KILLED') {
+      isCancelling.value = false;
+    }
+    
+    // when currentStatus is null,we should not change the isRunning
+    if (currentStatus && currentStatus !== 'RUNNING' && currentStatus !== 'KILLED') {
       console.log('任务结束:', currentStatus);
       // 任务结束
       isRunning.value = false;
       stopPolling();
-
-      /* // Find the latest assistant message and update its status
-      const latestAssistantMsg = messages.value
-        .filter(msg => msg.role === 'assistant')
-        .pop();
-
-      if (latestAssistantMsg) {
-        if (currentStatus === 'SUCCESS') {
-          latestAssistantMsg.message_type = 'text';
-        } else if (currentStatus === 'FAILED') {
-          latestAssistantMsg.message_type = 'error';
-          latestAssistantMsg.content = '视频生成失败';
-        } else if (currentStatus === 'CANCELLED') {
-          latestAssistantMsg.message_type = 'text';
-        }
-      } */
     }
 
     // no matter what's the project's status,load Oss and Messages
@@ -342,7 +331,7 @@ const handleSendMessage = async (content: string) => {
 
           removeMessage(uploadMessage.id);
           console.log('✅ 文件上传成功');
-          
+
           // Clear initial files after upload
           initialFiles.value = [];
         } catch (uploadError) {
@@ -473,20 +462,20 @@ const handleShowPrompt = () => {
 };
 
 const handleAbortTask = async () => {
-  if (!projectId.value || isAborting.value) return;
+  if (!projectId.value || isCancelling.value) return;
 
   try {
-    isAborting.value = true;
+    isCancelling.value = true;
 
     // Call abort API
     await abortVideoCreation({ projectId: projectId.value });
 
     console.log('任务中断请求已发送');
 
-    // The polling will handle the status change to CANCELLED
+    // The polling will handle the status change and reset isCancelling
   } catch (error) {
     console.error('❌ 中断任务失败:', error);
-    isAborting.value = false;
+    isCancelling.value = false;
   }
 };
 </script>
@@ -495,14 +484,14 @@ const handleAbortTask = async () => {
   <MainLayout :show-footer="false" :show-sidebar="false">
     <div class="flex h-[calc(100vh-64px)] overflow-hidden bg-white">
       <!-- Mobile Tab Navigation -->
-      <div class="fixed bottom-0 left-0 right-0 z-50 flex border-t border-gray-200 bg-white md:hidden">
+      <div class="fixed right-0 bottom-0 left-0 z-50 flex border-t border-gray-200 bg-white md:hidden">
         <button
           v-for="tab in tabs"
           :key="tab.id"
           @click="activeTab = tab.id"
           :class="[
             'flex flex-1 flex-col items-center justify-center gap-1 py-3 text-xs font-medium transition-colors',
-            activeTab === tab.id ? 'text-blue-500' : 'text-gray-400'
+            activeTab === tab.id ? 'text-blue-500' : 'text-gray-400',
           ]"
         >
           <span class="text-lg">{{ tab.icon }}</span>
@@ -543,6 +532,7 @@ const handleAbortTask = async () => {
           :is-running="isRunning"
           :is-uploading="isUploading"
           :is-owner="isOwner"
+          :is-cancelling="isCancelling"
           @send-message="handleSendMessage"
           @abort-task="handleAbortTask"
           @file-uploaded="handleFileUploaded"
@@ -589,6 +579,7 @@ const handleAbortTask = async () => {
             :is-running="isRunning"
             :is-uploading="isUploading"
             :is-owner="isOwner"
+            :is-cancelling="isCancelling"
             @send-message="handleSendMessage"
             @abort-task="handleAbortTask"
             @file-uploaded="handleFileUploaded"

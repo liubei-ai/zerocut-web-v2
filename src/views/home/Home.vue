@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import FileReferenceInput from '@/components/workspace/FileReferenceInput.vue';
 import ProjectGrid from '@/views/project/ProjectGrid.vue';
 import { useAuthStore } from '@/stores/authStore';
+import { getSystemConfig, type TemplateItem } from '@/api/systemApi';
 
 interface FilePreview {
   id: string;
@@ -25,6 +26,7 @@ const videoType = ref('自动');
 const showAspectRatioMenu = ref(false);
 const showStyleMenu = ref(false);
 const selectedFiles = ref<FilePreview[]>([]);
+const homeTips = ref('新用户注册送1000积分～');
 
 // Free creation mode options
 const freeCreationMode = ref('video_generation'); // 'agent' or 'video_generation'
@@ -86,32 +88,32 @@ const videoAspectRatios = [
   { id: '16:9', label: '16:9', description: '横屏' },
 ];
 
-const suggestionsByMode: Record<string, string[]> = {
+const suggestionsByMode = ref<Record<string, TemplateItem[]>>({
   one_click: [
-    '制作一个产品宣传视频',
-    '创建旅行Vlog剪辑',
-    '生成教学演示视频',
-    '制作婚礼回忆短片',
-    '创建企业介绍视频',
-    '生成音乐MV',
+    { name: '制作一个产品宣传视频', placeholder: '制作一个产品宣传视频' },
+    { name: '创建旅行Vlog剪辑', placeholder: '创建旅行Vlog剪辑' },
+    { name: '生成教学演示视频', placeholder: '生成教学演示视频' },
+    { name: '制作婚礼回忆短片', placeholder: '制作婚礼回忆短片' },
+    { name: '创建企业介绍视频', placeholder: '创建企业介绍视频' },
+    { name: '生成音乐MV', placeholder: '生成音乐MV' },
   ],
   free_creation: [
-    '生成一张未来科技风格的插画',
-    '创作一个悬疑短片的剧本大纲',
-    '制作一段产品介绍视频',
-    '设计一组社交媒体配图',
-    '编写一个广告文案脚本',
-    '生成品牌宣传海报',
+    { name: '生成一张未来科技风格的插画', placeholder: '生成一张未来科技风格的插画' },
+    { name: '创作一个悬疑短片的剧本大纲', placeholder: '创作一个悬疑短片的剧本大纲' },
+    { name: '制作一段产品介绍视频', placeholder: '制作一段产品介绍视频' },
+    { name: '设计一组社交媒体配图', placeholder: '设计一组社交媒体配图' },
+    { name: '编写一个广告文案脚本', placeholder: '编写一个广告文案脚本' },
+    { name: '生成品牌宣传海报', placeholder: '生成品牌宣传海报' },
   ],
-  storyboard: [
+  /* storyboard: [
     '一个咖啡店的温馨日常故事',
     '科幻题材的短片分镜',
     '产品发布会开场视频脚本',
     '旅行纪录片的叙事结构',
     '品牌故事微电影分镜',
     '教育类短视频脚本',
-  ],
-};
+  ], */
+});
 
 const placeholderByMode: Record<string, string> = {
   one_click: '输入视频创意主题、剧本或分镜，快速生成完整视频',
@@ -259,11 +261,36 @@ const handleClickOutside = (event: MouseEvent) => {
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside);
+  loadSystemConfig();
 });
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside);
 });
+
+const loadSystemConfig = async () => {
+  try {
+    const config = await getSystemConfig([
+      'web_home_tips',
+      'web_home_auto_rec',
+      'web_home_auto_recommend',
+      'web_home_free_recommend',
+    ]);
+    if (config.webHomeTips?.key) {
+      homeTips.value = config.webHomeTips.key;
+    }
+    const webHomeAutoRecommend = config.webHomeAutoRecommend?.data;
+    const webHomeFreeRecommend = config.webHomeFreeRecommend?.data;
+    if (webHomeAutoRecommend && webHomeAutoRecommend.length > 0) {
+      suggestionsByMode.value.one_click = webHomeAutoRecommend;
+    }
+    if (webHomeFreeRecommend && webHomeFreeRecommend.length > 0) {
+      suggestionsByMode.value.free_creation = webHomeFreeRecommend;
+    }
+  } catch (error) {
+    console.error('Failed to load system config:', error);
+  }
+};
 </script>
 
 <template>
@@ -276,8 +303,7 @@ onUnmounted(() => {
             v-if="!authStore.isAuthenticated"
             class="mb-6 inline-flex items-center gap-2 rounded-[20px] border border-[#fde68a] bg-[#fef3c7] px-5 py-2"
           >
-            <span class="text-base">🎁</span>
-            <span class="text-sm text-[#92400e]">新用户注册送1000积分～</span>
+            <span class="text-sm text-[#92400e]">{{ homeTips }}</span>
           </div>
 
           <div class="mb-5 flex items-center gap-3">
@@ -305,28 +331,11 @@ onUnmounted(() => {
               @files-change="handleFilesChange"
             >
               <template #actions="{ onMentionClick, onFilePickClick }">
-                <div class="flex items-center justify-between border-t border-[#f3f4f6] pt-2">
-                  <div class="flex items-center gap-2">
-                    <!-- @ Mention Button -->
-                    <button
-                      @click="onMentionClick"
-                      class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-sm font-semibold text-gray-500 transition-all hover:bg-gray-50"
-                      title="@大模型/文件"
-                    >
-                      @
-                    </button>
-
-                    <!-- File Pick Button -->
-                    <button
-                      @click="onFilePickClick"
-                      class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-base text-gray-500 transition-all hover:bg-gray-50"
-                      title="选择文件"
-                    >
-                      📎
-                    </button>
-
+                <div class="flex flex-col gap-3 border-t border-[#f3f4f6] pt-2 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+                  <!-- Mode Options Row -->
+                  <div class="flex flex-wrap items-center gap-2">
                     <!-- One Click Mode Options -->
-                    <div v-if="selectedMode === 'one_click'" class="ml-2 flex gap-2">
+                    <div v-if="selectedMode === 'one_click'" class="ml-0 flex flex-wrap gap-2 sm:ml-2">
                       <!-- Aspect Ratio Selector -->
                       <div ref="aspectRatioMenuRef" class="relative">
                         <Button
@@ -401,7 +410,7 @@ onUnmounted(() => {
                     </div>
 
                     <!-- Free Creation Mode Options -->
-                    <div v-if="selectedMode === 'free_creation'" class="ml-2 flex flex-wrap gap-2">
+                    <div v-if="selectedMode === 'free_creation'" class="ml-0 flex flex-wrap gap-2 sm:ml-2">
                       <!-- Mode Selector -->
                       <div ref="freeCreationModeMenuRef" class="relative">
                         <Button
@@ -558,29 +567,54 @@ onUnmounted(() => {
                     </div>
                   </div>
 
-                  <div class="flex items-center gap-2">
-                    <!-- Credits Display (only for video_generation mode) -->
-                    <div
-                      v-if="selectedMode === 'free_creation' && freeCreationMode === 'video_generation'"
-                      class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm"
-                    >
-                      <span class="text-base">💎</span>
-                      <span class="font-medium text-[#6b7280]">{{ creditsNeeded }}</span>
+                  <!-- Action Buttons Row -->
+                  <div class="flex w-full items-center justify-between gap-2 flex-1">
+                    <!-- Left side: Mention and File Pick buttons -->
+                    <div class="flex items-center gap-2">
+                      <!-- @ Mention Button -->
+                      <button
+                        @click="onMentionClick"
+                        class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-sm font-semibold text-gray-500 transition-all hover:bg-gray-50"
+                        title="@大模型/文件"
+                      >
+                        @
+                      </button>
+
+                      <!-- File Pick Button -->
+                      <button
+                        @click="onFilePickClick"
+                        class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-base text-gray-500 transition-all hover:bg-gray-50"
+                        title="选择文件"
+                      >
+                        📎
+                      </button>
                     </div>
 
-                    <!-- Submit Button -->
-                    <Button
-                      @click="handleSubmit"
-                      :disabled="!videoPrompt.trim()"
-                      :class="[
-                        'h-9 w-9 flex-shrink-0 rounded-full p-0 transition-all',
-                        videoPrompt.trim()
-                          ? 'bg-[#111827] hover:scale-105 hover:bg-black'
-                          : 'cursor-not-allowed bg-[#e5e7eb]',
-                      ]"
-                    >
-                      <span class="text-lg text-white">↑</span>
-                    </Button>
+                    <!-- Right side: Credits and Submit button -->
+                    <div class="flex items-center gap-2">
+                      <!-- Credits Display (only for video_generation mode) -->
+                      <div
+                        v-if="selectedMode === 'free_creation' && freeCreationMode === 'video_generation'"
+                        class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm"
+                      >
+                        <span class="text-base">💎</span>
+                        <span class="font-medium text-[#6b7280]">{{ creditsNeeded }}</span>
+                      </div>
+
+                      <!-- Submit Button -->
+                      <Button
+                        @click="handleSubmit"
+                        :disabled="!videoPrompt.trim()"
+                        :class="[
+                          'h-9 w-9 flex-shrink-0 rounded-full p-0 transition-all',
+                          videoPrompt.trim()
+                            ? 'bg-[#111827] hover:scale-105 hover:bg-black'
+                            : 'cursor-not-allowed bg-[#e5e7eb]',
+                        ]"
+                      >
+                        <span class="text-lg text-white">↑</span>
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </template>
@@ -610,11 +644,11 @@ onUnmounted(() => {
           <div class="grid grid-cols-3 gap-3">
             <button
               v-for="template in suggestionsByMode[selectedMode]"
-              :key="template"
-              @click="videoPrompt = template"
+              :key="template.name"
+              @click="videoPrompt = template.placeholder"
               class="cursor-pointer rounded-xl border border-[#e5e7eb] bg-white p-4 text-left text-sm text-[#6b7280] transition-all hover:-translate-y-0.5 hover:border-[#d1d5db] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)]"
             >
-              {{ template }}
+              {{ template.name }}
             </button>
           </div>
         </div>

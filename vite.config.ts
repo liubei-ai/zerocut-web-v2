@@ -19,6 +19,7 @@ export default defineConfig(({ command, mode }) => {
       },
     },
     server: {
+      port: 5188,
       proxy: {
         '/api_user': {
           target: env.VITE_API_USER_URL_PROXY_TARGET,

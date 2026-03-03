@@ -193,6 +193,10 @@ const insertMention = (name: string) => {
 const handleMentionButtonClick = () => {
   if (!textareaRef.value) return;
 
+  const hasAtFiles = (props.projectFiles && props.projectFiles.length > 0) || selectedFiles.value.length > 0;
+
+  if (!hasAtFiles) return;
+
   const position = textareaRef.value.selectionStart || 0;
   const coords = getCursorCoordinates(textareaRef.value, position);
   cursorPosition.value = coords;
@@ -317,10 +321,11 @@ defineExpose({
       @input="handleInput"
       :placeholder="placeholder"
       :disabled="disabled"
-      :class="
+      :class="[
         textareaClass ||
-        'min-h-[100px] w-full resize-none border-0 p-0 text-base leading-[1.6] text-[#111827] outline-0 focus-visible:ring-0'
-      "
+          'min-h-[100px] w-full resize-none border-0 p-0 text-base leading-[1.6] text-[#111827] outline-0 focus-visible:ring-0',
+        { 'cursor-not-allowed opacity-50': disabled },
+      ]"
     />
 
     <!-- File previews (only for Home.vue with allowFilePick) -->

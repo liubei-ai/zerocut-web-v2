@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, nextTick, watch, computed, onUnmounted, toRef } from 'vue';
-import { abortVideoCreation } from '@/api/videoProjectApi';
 import { useFileUpload } from '@/composables/useFileUpload';
 import { type ChatMessage, type AssistantMessage } from '@/types/workspace';
 import FileReferenceInput from '@/components/workspace/FileReferenceInput.vue';
@@ -12,11 +11,12 @@ interface Props {
   projectId?: string | number;
   files?: Array<{ id: string; file_name: string; file_type?: string; file_url?: string }>;
   isOwner?: boolean;
+  isCancelling?: boolean;
 }
 
 interface Emits {
   (e: 'send-message', message: string): void;
-  (e: 'cancel-task'): void;
+  (e: 'abort-task'): void;
   (e: 'file-uploaded'): void;
   (e: 'upload-start'): void;
   (e: 'upload-end'): void;
@@ -28,7 +28,7 @@ const isUploadingRef = toRef(props, 'isUploading');
 const { fileInputRef, handleFileUploadClick, handleFileChange } = useFileUpload(
   isUploadingRef,
   () => emit('upload-start'),
-  () => emit('upload-end')
+  () => emit('upload-end'),
 );
 
 const input = ref('');
@@ -88,10 +88,12 @@ const processedMessages = computed<ProcessedMessage[]>(() => {
         id: message.id,
         timestamp: message.timestamp,
         role: 'assistant' as const,
-        content: message.content.map(content => ({
-          userResponse: getUserResponseOfAssistant(content),
-          reasoning: getReasoningOfAssistant(content),
-        })).filter(item => item.userResponse.trim() !== ''),
+        content: message.content
+          .map(content => ({
+            userResponse: getUserResponseOfAssistant(content),
+            reasoning: getReasoningOfAssistant(content),
+          }))
+          .filter(item => item.userResponse.trim() !== ''),
       };
     }
     return message as ProcessedMessage;
@@ -190,21 +192,16 @@ const handleFileUpload = () => {
 
 const onFileChange = (e: Event) => {
   if (!props.projectId) return;
-  
+
   handleFileChange(e, props.projectId, () => {
     // Notify parent to refresh the file list
     emit('file-uploaded');
   });
 };
 
-const handleCancel = async () => {
+const handleCancel = () => {
   if (props.isRunning && props.projectId) {
-    try {
-      await abortVideoCreation({ projectId: props.projectId });
-      emit('cancel-task');
-    } catch (error) {
-      console.error('Failed to cancel task:', error);
-    }
+    emit('abort-task');
   }
 };
 
@@ -225,7 +222,9 @@ const handleKeyDown = (e: KeyboardEvent) => {
 </script>
 
 <template>
-  <div class="flex h-full w-full flex-col overflow-hidden border-l border-gray-200 bg-white md:w-[320px] lg:w-[400px] xl:w-[480px]">
+  <div
+    class="flex h-full w-full flex-col overflow-hidden border-l border-gray-200 bg-white md:w-[320px] lg:w-[400px] xl:w-[480px]"
+  >
     <div
       ref="messagesContainer"
       @scroll="handleScroll"
@@ -236,7 +235,11 @@ const handleKeyDown = (e: KeyboardEvent) => {
         v-if="processedMessages.length === 0"
         class="flex h-full flex-col items-center justify-center gap-4 px-4 py-8 md:gap-6 md:px-5 md:py-10"
       >
-        <div class="flex h-16 w-16 items-center justify-center rounded-full bg-gray-50 text-3xl md:h-20 md:w-20 md:text-4xl">🤖</div>
+        <div
+          class="flex h-16 w-16 items-center justify-center rounded-full bg-gray-50 text-3xl md:h-20 md:w-20 md:text-4xl"
+        >
+          🤖
+        </div>
         <div class="flex flex-col gap-1.5 text-center md:gap-2">
           <h3 class="m-0 text-base font-semibold text-gray-900 md:text-lg">开始创作</h3>
           <p class="m-0 text-xs leading-relaxed text-gray-500 md:text-sm">描述你的想法，AI 助手将帮你实现</p>
@@ -255,86 +258,97 @@ const handleKeyDown = (e: KeyboardEvent) => {
       <template v-else>
         <div v-for="(message, messageIndex) in processedMessages" :key="message.id">
           <!-- Regular message -->
-          <div :class="['flex items-start gap-2.5 md:gap-3', message.role === 'user' ? 'flex-row-reverse' : '']">
-            <div
-              :class="[
-                'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-base font-semibold text-white md:h-9 md:w-9',
-                message.role === 'user' ? 'bg-blue-500' : 'bg-gray-900',
-              ]"
-            >
-              {{ message.role === 'user' ? '👤' : '🤖' }}
-            </div>
-
-            <div :class="['flex max-w-[80%] flex-1 flex-col gap-1 md:max-w-[75%] md:gap-1.5']">
-              <div :class="['flex items-center gap-1.5 md:gap-2', message.role === 'user' ? 'flex-row-reverse' : '']">
-                <span class="text-xs font-semibold text-gray-900">
-                  {{ message.role === 'user' ? '你' : 'AI 助手' }}
-                </span>
-                <span class="text-[10px] text-gray-400 md:text-[11px]">
-                  {{ formatTime(message.timestamp) }}
-                </span>
-              </div>
-
-              <!-- Message content -->
+          <div :class="['flex flex-col gap-1.5 md:gap-2']">
+            <!-- Icon and role name row -->
+            <div :class="['flex items-center gap-2 md:gap-2.5', message.role === 'user' ? 'flex-row-reverse' : '']">
               <div
                 :class="[
-                  'px-3 py-3 text-xs leading-relaxed shadow-sm md:px-4 md:py-3.5 md:text-sm',
-                  message.role === 'user'
-                    ? 'rounded-2xl rounded-tr-sm bg-blue-500 text-white'
-                    : 'rounded-2xl rounded-tl-sm bg-gray-50 text-gray-900',
+                  'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white md:h-8 md:w-8 md:text-base',
+                  message.role === 'user' ? 'bg-blue-500' : 'bg-gray-900',
                 ]"
               >
-                <!-- Display userResponses as styled list for assistant messages -->
-                <div v-if="message.role === 'assistant'" class="space-y-2.5 md:space-y-3">
+                {{ message.role === 'user' ? '👤' : '🤖' }}
+              </div>
+              <span class="text-xs font-semibold text-gray-900 md:text-sm">
+                {{ message.role === 'user' ? '你' : 'AI 助手' }}
+              </span>
+              <span class="text-[10px] text-gray-400 md:text-[11px]">
+                {{ formatTime(message.timestamp) }}
+              </span>
+            </div>
+
+            <!-- Message content row -->
+            <div
+              :class="[
+                'px-3 py-3 text-xs leading-relaxed shadow-sm md:px-4 md:py-3.5 md:text-sm',
+                message.role === 'user'
+                  ? 'ml-0 rounded-2xl rounded-tr-sm bg-blue-500 text-white md:ml-0'
+                  : 'ml-0 rounded-2xl rounded-tl-sm bg-gray-50 text-gray-900 md:ml-0',
+              ]"
+            >
+              <!-- Display userResponses as styled list for assistant messages -->
+              <div v-if="message.role === 'assistant'" class="space-y-2.5 md:space-y-3">
+                <div
+                  v-for="(content, index) in message.content"
+                  :key="index"
+                  class="rounded-lg border border-gray-200 bg-white p-2.5 shadow-sm md:p-3"
+                >
+                  <!-- Reasoning section (collapsible) -->
                   <div
-                    v-for="(content, index) in message.content"
-                    :key="index"
-                    class="rounded-lg border border-gray-200 bg-white p-2.5 shadow-sm md:p-3"
+                    v-if="content.reasoning && content.reasoning.trim()"
+                    class="mb-2.5 rounded-md border border-gray-200 md:mb-3"
                   >
-                    <!-- Reasoning section (collapsible) -->
-                    <div v-if="content.reasoning && content.reasoning.trim()" class="mb-2.5 rounded-md border border-gray-200 md:mb-3">
-                      <button
-                        @click="collapsedReasoning[`${message.id}-${index}`] = !collapsedReasoning[`${message.id}-${index}`]"
-                        class="flex w-full items-center justify-between bg-gray-50 px-2.5 py-2 text-left transition-colors md:px-3 md:hover:bg-gray-100"
+                    <button
+                      @click="
+                        collapsedReasoning[`${message.id}-${index}`] = !collapsedReasoning[`${message.id}-${index}`]
+                      "
+                      class="flex w-full items-center justify-between bg-gray-50 px-2.5 py-2 text-left transition-colors md:px-3 md:hover:bg-gray-100"
+                    >
+                      <span class="text-xs font-medium text-gray-700 md:text-sm">💭 思考过程</span>
+                      <span
+                        class="text-gray-500 transition-transform"
+                        :class="{ 'rotate-180': collapsedReasoning[`${message.id}-${index}`] }"
                       >
-                        <span class="text-xs font-medium text-gray-700 md:text-sm">💭 思考过程</span>
-                        <span class="text-gray-500 transition-transform" :class="{ 'rotate-180': collapsedReasoning[`${message.id}-${index}`] }">
-                          ▼
-                        </span>
-                      </button>
+                        ▼
+                      </span>
+                    </button>
+                    <div v-show="collapsedReasoning[`${message.id}-${index}`]" class="bg-gray-50 p-2.5 md:p-3">
                       <div
-                        v-show="collapsedReasoning[`${message.id}-${index}`]"
-                        class="bg-gray-50 p-2.5 md:p-3"
+                        class="text-xs leading-relaxed break-words break-all whitespace-pre-wrap text-gray-600 md:text-sm"
                       >
-                        <div class="break-words break-all whitespace-pre-wrap text-xs leading-relaxed text-gray-600 md:text-sm">
-                          {{ content.reasoning }}
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- User response content -->
-                    <div class="flex items-start gap-1.5 md:gap-2">
-                      <div class="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-500 md:mt-2 md:h-2 md:w-2"></div>
-                      <div class="break-words break-all whitespace-pre-wrap text-xs md:text-sm">
-                        {{ content.userResponse }}
+                        {{ content.reasoning }}
                       </div>
                     </div>
                   </div>
 
+                  <!-- User response content -->
+                  <div class="flex items-start gap-1.5 md:gap-2">
+                    <div class="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-500 md:mt-2 md:h-2 md:w-2"></div>
+                    <div class="text-xs break-words break-all whitespace-pre-wrap md:text-sm">
+                      {{ content.userResponse }}
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  v-if="isRunning && messageIndex === processedMessages.length - 1"
+                  class="mt-2.5 flex items-center gap-1.5 rounded-2xl rounded-tl-sm bg-gray-50 px-3 py-3 text-xs shadow-sm md:mt-3 md:px-4 md:py-3.5 md:text-sm"
+                >
+                  <div class="h-1.5 w-1.5 animate-pulse rounded-full bg-gray-500 md:h-2 md:w-2"></div>
                   <div
-                    v-if="isRunning && messageIndex === processedMessages.length - 1"
-                    class="mt-2.5 flex items-center gap-1.5 rounded-2xl rounded-tl-sm bg-gray-50 px-3 py-3 text-xs shadow-sm md:mt-3 md:px-4 md:py-3.5 md:text-sm"
-                  >
-                    <div class="h-1.5 w-1.5 animate-pulse rounded-full bg-gray-500 md:h-2 md:w-2"></div>
-                    <div class="h-1.5 w-1.5 animate-pulse rounded-full bg-gray-500 md:h-2 md:w-2" style="animation-delay: 0.2s"></div>
-                    <div class="h-1.5 w-1.5 animate-pulse rounded-full bg-gray-500 md:h-2 md:w-2" style="animation-delay: 0.4s"></div>
-                  </div>
+                    class="h-1.5 w-1.5 animate-pulse rounded-full bg-gray-500 md:h-2 md:w-2"
+                    style="animation-delay: 0.2s"
+                  ></div>
+                  <div
+                    class="h-1.5 w-1.5 animate-pulse rounded-full bg-gray-500 md:h-2 md:w-2"
+                    style="animation-delay: 0.4s"
+                  ></div>
                 </div>
+              </div>
 
-                <!-- Display regular content for other cases -->
-                <div v-else class="break-words break-all whitespace-pre-wrap text-xs md:text-sm">
-                  {{ message.content }}
-                </div>
+              <!-- Display regular content for other cases -->
+              <div v-else class="text-xs break-words break-all whitespace-pre-wrap md:text-sm">
+                {{ message.content }}
               </div>
             </div>
           </div>
@@ -379,24 +393,25 @@ const handleKeyDown = (e: KeyboardEvent) => {
                   :title="props.isUploading ? '上传中...' : '上传附件'"
                 >
                   <span v-if="!props.isUploading">📎</span>
-                  <span v-else class="animate-spin" style="font-size: 0.65rem;">⏳</span>
+                  <span v-else class="animate-spin" style="font-size: 0.65rem">⏳</span>
                 </button>
               </div>
 
               <button
                 @click="handleButtonClick"
-                :disabled="buttonDisabled"
+                :disabled="buttonDisabled || props.isCancelling"
                 :class="[
-                  'flex h-7 w-7 flex-shrink-0 cursor-pointer items-center justify-center rounded-lg border-none text-sm transition-all md:h-8 md:w-8 md:text-base',
-                  buttonDisabled
+                  'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border-none text-sm transition-all md:h-8 md:w-8 md:text-base',
+                  buttonDisabled || props.isCancelling
                     ? 'cursor-not-allowed bg-gray-200'
                     : isRunning
                       ? 'bg-red-500 active:bg-red-700 md:hover:bg-red-600'
-                      : 'bg-gray-900 active:bg-black md:hover:bg-black',
+                      : 'cursor-pointer bg-gray-900 active:bg-black md:hover:bg-black',
                 ]"
-                :title="isRunning ? '取消任务' : '发送消息'"
+                :title="props.isCancelling ? '取消中...' : isRunning ? '取消任务' : '发送消息'"
               >
-                <span class="text-white">{{ isRunning ? '✕' : '↑' }}</span>
+                <span v-if="!props.isCancelling" class="text-white">{{ isRunning ? '✕' : '↑' }}</span>
+                <span v-else class="animate-spin text-white">⏳</span>
               </button>
             </div>
           </template>
@@ -404,13 +419,7 @@ const handleKeyDown = (e: KeyboardEvent) => {
       </div>
 
       <!-- Hidden file input -->
-      <input
-        ref="fileInputRef"
-        type="file"
-        @change="onFileChange"
-        class="hidden"
-        accept="image/*,video/*,audio/*"
-      />
+      <input ref="fileInputRef" type="file" @change="onFileChange" class="hidden" accept="image/*,video/*,audio/*" />
     </div>
   </div>
 </template>
