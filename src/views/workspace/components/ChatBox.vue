@@ -49,18 +49,57 @@ const getUserResponseOfAssistant = (assistantMessage: AssistantMessage) => {
   return '';
 };
 
+const getReasoningOfAssistant = (assistantMessage: AssistantMessage) => {
+  if (assistantMessage.type === 'toolCall' && assistantMessage.toolCall?.reasoning) {
+    return assistantMessage.toolCall.reasoning;
+  } else if (assistantMessage.type === 'toolCallResponse' && assistantMessage.toolCallResponse?.reasoning) {
+    return assistantMessage.toolCallResponse.reasoning;
+  } else if (assistantMessage.type === 'text' && assistantMessage.reasoning) {
+    return assistantMessage.reasoning;
+  }
+  return '';
+};
+
+// Define processed message content type
+interface ProcessedContent {
+  userResponse: string;
+  reasoning: string;
+}
+
+type ProcessedMessage = {
+  id: string;
+  timestamp: string;
+} & (
+  | {
+      role: 'user';
+      content: string;
+    }
+  | {
+      role: 'assistant';
+      content: ProcessedContent[];
+    }
+);
+
 // Filter out empty content from assistant messages and transform to strings
-const processedMessages = computed(() => {
+const processedMessages = computed<ProcessedMessage[]>(() => {
   return props.messages.map(message => {
     if (message.role === 'assistant' && Array.isArray(message.content)) {
       return {
-        ...message,
-        content: message.content.map(content => getUserResponseOfAssistant(content)).filter(text => text.trim() !== ''),
+        id: message.id,
+        timestamp: message.timestamp,
+        role: 'assistant' as const,
+        content: message.content.map(content => ({
+          userResponse: getUserResponseOfAssistant(content),
+          reasoning: getReasoningOfAssistant(content),
+        })).filter(item => item.userResponse.trim() !== ''),
       };
     }
-    return message;
+    return message as ProcessedMessage;
   });
 });
+
+// Track collapsed state for reasoning sections
+const collapsedReasoning = ref<Record<string, boolean>>({});
 
 // Reset user scrolling state when task starts running
 watch(
@@ -252,10 +291,32 @@ const handleKeyDown = (e: KeyboardEvent) => {
                     :key="index"
                     class="rounded-lg border border-gray-200 bg-white p-2.5 shadow-sm md:p-3"
                   >
+                    <!-- Reasoning section (collapsible) -->
+                    <div v-if="content.reasoning && content.reasoning.trim()" class="mb-2.5 rounded-md border border-gray-200 md:mb-3">
+                      <button
+                        @click="collapsedReasoning[`${message.id}-${index}`] = !collapsedReasoning[`${message.id}-${index}`]"
+                        class="flex w-full items-center justify-between bg-gray-50 px-2.5 py-2 text-left transition-colors md:px-3 md:hover:bg-gray-100"
+                      >
+                        <span class="text-xs font-medium text-gray-700 md:text-sm">💭 思考过程</span>
+                        <span class="text-gray-500 transition-transform" :class="{ 'rotate-180': collapsedReasoning[`${message.id}-${index}`] }">
+                          ▼
+                        </span>
+                      </button>
+                      <div
+                        v-show="collapsedReasoning[`${message.id}-${index}`]"
+                        class="bg-gray-50 p-2.5 md:p-3"
+                      >
+                        <div class="break-words break-all whitespace-pre-wrap text-xs leading-relaxed text-gray-600 md:text-sm">
+                          {{ content.reasoning }}
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- User response content -->
                     <div class="flex items-start gap-1.5 md:gap-2">
                       <div class="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-500 md:mt-2 md:h-2 md:w-2"></div>
                       <div class="break-words break-all whitespace-pre-wrap text-xs md:text-sm">
-                        {{ content }}
+                        {{ content.userResponse }}
                       </div>
                     </div>
                   </div>
