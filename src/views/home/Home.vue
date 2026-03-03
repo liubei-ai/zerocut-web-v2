@@ -156,7 +156,21 @@ const handleSubmit = () => {
           '9:16': '9:16竖屏',
           '16:9': '16:9横屏',
         };
-        chatMessage = `根据以下内容使用素材创作技能，参考生视频，模型使用${videoModel.value}，${aspectRatioMap[videoAspectRatio.value]}，${durationMap[videoDuration.value]}。内容：${videoPrompt.value}`;
+        
+        // Build prompt for unmentioned files
+        let filePrompt = '';
+        if (selectedFiles.value.length > 0) {
+          const unmentionedFiles = selectedFiles.value.filter(file => 
+            !videoPrompt.value.includes(file.name)
+          );
+          
+          if (selectedFiles.value.length > 0) {
+            const fileNames = selectedFiles.value.map(f => f.name).join(',');
+            filePrompt = `(${fileNames})`;
+          }
+        }
+        
+        chatMessage = `根据以下内容使用素材创作技能，参考生视频${filePrompt}，模型使用${videoModel.value}，${aspectRatioMap[videoAspectRatio.value]}，${durationMap[videoDuration.value]}。内容：${videoPrompt.value}`;
       }
     } else if (selectedMode.value === 'storyboard') {
       chatMessage = `请根据内容撰写分镜脚本，内容为：${videoPrompt.value}`;
@@ -179,7 +193,7 @@ const handleSubmit = () => {
 
     // Navigate to workspace/new and pass chatMessage via router state
     console.log('chatMessage', chatMessage);
-    //return;
+    return;
     router.push({
       path: '/workspace/new',
       state: {
@@ -646,7 +660,7 @@ const loadSystemConfig = async () => {
               v-for="template in suggestionsByMode[selectedMode]"
               :key="template.name"
               @click="videoPrompt = template.placeholder"
-              class="cursor-pointer rounded-xl border border-[#e5e7eb] bg-white p-4 text-left text-sm text-[#6b7280] transition-all hover:-translate-y-0.5 hover:border-[#d1d5db] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)]"
+              class="cursor-pointer rounded-xl border border-[#e5e7eb] bg-white p-4 text-center text-sm text-[#6b7280] transition-all hover:-translate-y-0.5 hover:border-[#d1d5db] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)]"
             >
               {{ template.name }}
             </button>
