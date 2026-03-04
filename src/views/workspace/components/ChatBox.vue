@@ -324,9 +324,7 @@ const handleKeyDown = (e: KeyboardEvent) => {
                   <!-- User response content -->
                   <div class="flex items-start gap-1.5 md:gap-2">
                     <div class="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-500 md:mt-2 md:h-2 md:w-2"></div>
-                    <div class="text-xs break-words break-all whitespace-pre-wrap md:text-sm">
-                      {{ content.userResponse }}
-                    </div>
+                    <div class="text-xs break-words break-all whitespace-pre-wrap md:text-sm" v-html="content.userResponse"></div>
                   </div>
                 </div>
 

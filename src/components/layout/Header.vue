@@ -2,20 +2,16 @@
 import { Button } from '@/components/ui/button';
 import LoginModal from '@/components/auth/LoginModal.vue';
 import { useAuthStore } from '@/stores/authStore';
+import { useCreditsStore } from '@/stores/creditsStore';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { RouterLink } from 'vue-router';
-import { getWalletInfo } from '@/api/walletApi';
 
 const authStore = useAuthStore();
+const creditsStore = useCreditsStore();
 const showUserMenu = ref(false);
 const userMenuRef = ref<HTMLElement | null>(null);
 
 const workspaceUrl = import.meta.env.VITE_WORKSPACE_URL
-
-// Wallet balance state
-const creditsBalance = ref(0);
-const isLoadingCredits = ref(false);
-let creditsUpdateTimer: ReturnType<typeof setInterval> | null = null;
 
 const userInitial = computed(() => {
   const user = authStore.user;
@@ -39,61 +35,6 @@ const userInitial = computed(() => {
   return '尊贵的ZeroCut用户';
 });
 
-// Fetch wallet balance
-const fetchCreditsBalance = async () => {
-  if (!authStore.user || isLoadingCredits.value) return;
-
-  isLoadingCredits.value = true;
-  try {
-    // Get workspace ID
-    let workspaceId = authStore.currentWorkspaceId;
-    if (!workspaceId) {
-      try {
-        // @ts-ignore - fetchAndSetWorkspaceId may not be typed
-        workspaceId = await authStore.fetchAndSetWorkspaceId();
-      } catch (error) {
-        console.warn('Failed to fetch workspace ID:', error);
-      }
-    }
-
-    if (!workspaceId) {
-      console.warn('No workspace ID found, skipping wallet balance fetch');
-      return;
-    }
-
-    const walletInfo = await getWalletInfo(workspaceId);
-    creditsBalance.value = walletInfo.availableCredits;
-  } catch (error: any) {
-    if (error.code === 401) {
-      authStore.clearAuthState();
-    }
-    console.error('Failed to fetch wallet balance:', error);
-  } finally {
-    isLoadingCredits.value = false;
-  }
-};
-
-// Start periodic wallet balance updates
-const startCreditsUpdateTimer = () => {
-  // Initial fetch with delay to avoid concurrent requests
-  setTimeout(() => {
-    fetchCreditsBalance();
-  }, 500);
-
-  // Update every 60 seconds
-  creditsUpdateTimer = setInterval(() => {
-    fetchCreditsBalance();
-  }, 60000);
-};
-
-// Stop periodic wallet balance updates
-const stopCreditsUpdateTimer = () => {
-  if (creditsUpdateTimer) {
-    clearInterval(creditsUpdateTimer);
-    creditsUpdateTimer = null;
-  }
-};
-
 const handleLogout = async () => {
   try {
     await authStore.logout();
@@ -113,10 +54,9 @@ const handleClickOutside = (event: MouseEvent) => {
 // Watch authentication state changes
 watch(() => authStore.isAuthenticated, (isAuthenticated) => {
   if (isAuthenticated) {
-    startCreditsUpdateTimer();
+    creditsStore.startCreditsUpdateTimer();
   } else {
-    stopCreditsUpdateTimer();
-    creditsBalance.value = 0;
+    creditsStore.resetCredits();
   }
 });
 
@@ -125,13 +65,13 @@ onMounted(() => {
 
   // Start wallet balance updates if user is logged in
   if (authStore.isAuthenticated) {
-    startCreditsUpdateTimer();
+    creditsStore.startCreditsUpdateTimer();
   }
 });
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside);
-  stopCreditsUpdateTimer();
+  creditsStore.stopCreditsUpdateTimer();
 });
 </script>
 
@@ -162,7 +102,7 @@ onUnmounted(() => {
             class="flex items-center gap-2 bg-[#f9fafb] px-4 py-2 rounded-[20px] border border-[#e5e7eb]">
             <span class="text-base">💎</span>
             <span class="text-sm font-semibold text-[#111827]">
-              {{ creditsBalance.toLocaleString() }}
+              {{ creditsStore.creditsBalance.toLocaleString() }}
             </span>
           </a>
 

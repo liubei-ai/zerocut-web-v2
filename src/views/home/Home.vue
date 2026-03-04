@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button';
 import FileReferenceInput from '@/components/workspace/FileReferenceInput.vue';
 import ProjectGrid from '@/views/project/ProjectGrid.vue';
 import { useAuthStore } from '@/stores/authStore';
+import { useCreditsStore } from '@/stores/creditsStore';
 import { getSystemConfig, type TemplateItem } from '@/api/systemApi';
+import { useToast } from '@/composables/useToast';
 
 interface FilePreview {
   id: string;
@@ -17,7 +19,9 @@ interface FilePreview {
 }
 
 const authStore = useAuthStore();
+const creditsStore = useCreditsStore();
 const router = useRouter();
+const { toast } = useToast();
 
 const videoPrompt = ref('');
 const selectedMode = ref('free_creation');
@@ -132,6 +136,15 @@ const handleSubmit = () => {
   // Check if user is authenticated before proceeding
   if (!authStore.isAuthenticated) {
     authStore.openLoginModal();
+    return;
+  }
+
+  // Check if user has enough credits for video generation
+  if (creditsNeeded.value > 0 && creditsNeeded.value > creditsStore.creditsBalance) {
+    toast.error(
+      `积分不足！需要 ${creditsNeeded.value} 积分，当前余额 ${creditsStore.creditsBalance} 积分，请点击右上角积分按钮充值`,
+      '积分不足'
+    );
     return;
   }
 
