@@ -27,6 +27,7 @@ const showAspectRatioMenu = ref(false);
 const showStyleMenu = ref(false);
 const selectedFiles = ref<FilePreview[]>([]);
 const homeTips = ref('新用户注册送1000积分～');
+const priceConfig = ref<any>(null);
 
 // Free creation mode options
 const freeCreationMode = ref('video_generation'); // 'agent' or 'video_generation'
@@ -156,20 +157,18 @@ const handleSubmit = () => {
           '9:16': '9:16竖屏',
           '16:9': '16:9横屏',
         };
-        
+
         // Build prompt for unmentioned files
         let filePrompt = '';
         if (selectedFiles.value.length > 0) {
-          const unmentionedFiles = selectedFiles.value.filter(file => 
-            !videoPrompt.value.includes(file.name)
-          );
-          
+          const unmentionedFiles = selectedFiles.value.filter(file => !videoPrompt.value.includes(file.name));
+
           if (selectedFiles.value.length > 0) {
             const fileNames = selectedFiles.value.map(f => f.name).join(',');
             filePrompt = `(${fileNames})`;
           }
         }
-        
+
         chatMessage = `根据以下内容使用素材创作技能，参考生视频${filePrompt}，模型使用${videoModel.value}，${aspectRatioMap[videoAspectRatio.value]}，${durationMap[videoDuration.value]}。内容：${videoPrompt.value}`;
       }
     } else if (selectedMode.value === 'storyboard') {
@@ -241,7 +240,18 @@ const creditsNeeded = computed(() => {
   }
 
   const durationSeconds = parseInt(videoDuration.value);
-  return 40 + 36 * durationSeconds;
+  
+  // Use web_price_v3 config if available
+  if (priceConfig.value) {
+    const resolution720p = priceConfig.value.resolutions?.find((r: any) => r.name === '720p');
+    if (resolution720p) {
+      const { min_price, additional_price_per_second, time_range } = resolution720p;
+      return min_price + (durationSeconds - time_range.min) * additional_price_per_second;
+    }
+  }
+  
+  // Fallback to old calculation
+  return 30 + 24 * durationSeconds;
 });
 
 // Handle click outside to close menus
@@ -286,15 +296,21 @@ const loadSystemConfig = async () => {
   try {
     const config = await getSystemConfig([
       'web_home_tips',
-      'web_home_auto_rec',
+      'web_price_v3',
       'web_home_auto_recommend',
       'web_home_free_recommend',
     ]);
     if (config.webHomeTips?.key) {
       homeTips.value = config.webHomeTips.key;
     }
-    const webHomeAutoRecommend = config.webHomeAutoRecommend?.data;
-    const webHomeFreeRecommend = config.webHomeFreeRecommend?.data;
+    
+    // Store price config
+    if (config.webPriceV3) {
+      priceConfig.value = config.webPriceV3;
+    }
+    
+    const webHomeAutoRecommend = config.webHomeAutoRecommend;
+    const webHomeFreeRecommend = config.webHomeFreeRecommend;
     if (webHomeAutoRecommend && webHomeAutoRecommend.length > 0) {
       suggestionsByMode.value.one_click = webHomeAutoRecommend;
     }
@@ -345,7 +361,9 @@ const loadSystemConfig = async () => {
               @files-change="handleFilesChange"
             >
               <template #actions="{ onMentionClick, onFilePickClick }">
-                <div class="flex flex-col gap-3 border-t border-[#f3f4f6] pt-2 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+                <div
+                  class="flex flex-col gap-3 border-t border-[#f3f4f6] pt-2 sm:flex-row sm:items-center sm:justify-between sm:gap-2"
+                >
                   <!-- Mode Options Row -->
                   <div class="flex flex-wrap items-center gap-2">
                     <!-- One Click Mode Options -->
@@ -582,7 +600,7 @@ const loadSystemConfig = async () => {
                   </div>
 
                   <!-- Action Buttons Row -->
-                  <div class="flex w-full items-center justify-between gap-2 flex-1">
+                  <div class="flex w-full flex-1 items-center justify-between gap-2">
                     <!-- Left side: Mention and File Pick buttons -->
                     <div class="flex items-center gap-2">
                       <!-- @ Mention Button -->

@@ -10,15 +10,12 @@ export interface TemplateItem {
 }
 
 export interface SystemConfigResponse {
+  webPriceV3?: any;
   webHomeTips?: {
     key: string;
   };
-  webHomeAutoRecommend?: {
-    data: TemplateItem[]
-  };
-  webHomeFreeRecommend?: {
-    data: TemplateItem[]
-  };
+  webHomeAutoRecommend?: TemplateItem[];
+  webHomeFreeRecommend?: TemplateItem[];
 }
 
 /**
@@ -29,7 +26,7 @@ export const getSystemConfig = async (
 ): Promise<SystemConfigResponse> => {
   const response = await apiClient.post<SystemConfigRequest, SystemConfigResponse>(
     '/studio/system-config/batch',
-    { keys }
+    { keys }, { noErrorAlert: true }
   );
 
   return response.data;
