@@ -3,8 +3,8 @@ interface Props {
   fileUrl?: string;
   fileType?: string;
   fileName?: string;
-  isDownloading?: boolean;
-  downloadProgress?: number;
+  isDownloading: boolean;
+  downloadProgress: number;
 }
 
 interface Emits {
