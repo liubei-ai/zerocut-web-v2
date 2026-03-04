@@ -200,12 +200,12 @@ const refreshWorkspaceData = async () => {
     if (currentStatus === 'RUNNING' || currentStatus === 'KILLED') {
       isRunning.value = true;
     }
-    
+
     // Reset isCancelling when status is not KILLED
     if (currentStatus !== 'KILLED') {
       isCancelling.value = false;
     }
-    
+
     // when currentStatus is null,we should not change the isRunning
     if (currentStatus && currentStatus !== 'RUNNING' && currentStatus !== 'KILLED') {
       console.log('任务结束:', currentStatus);
@@ -443,9 +443,102 @@ const handleUploadEnd = () => {
   isUploading.value = false;
 };
 
-const handleDownload = () => {
-  if (selectedFile.value) {
-    window.open(selectedFile.value.file_url, '_blank');
+const isDownloading = ref(false);
+const downloadProgress = ref(0);
+
+const handleDownload = async () => {
+  if (!selectedFile.value || isDownloading.value) return;
+
+  try {
+    isDownloading.value = true;
+    downloadProgress.value = 0;
+
+    // Fetch the file with progress tracking
+    const response = await fetch(selectedFile.value.file_url);
+
+    if (!response.ok) {
+      throw new Error('Download failed');
+    }
+
+    const contentLength = response.headers.get('content-length');
+    const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+    console.log('Download started - Content-Length:', total || 'unknown');
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('Unable to read response');
+    }
+
+    const chunks: Uint8Array[] = [];
+    let receivedLength = 0;
+
+    // For unknown file size, simulate progress
+    let simulatedProgress = 0;
+    const progressInterval =
+      total === 0
+        ? setInterval(() => {
+            if (simulatedProgress < 99) {
+              simulatedProgress += Math.random() * 3;
+              downloadProgress.value = Math.min(90, Math.round(simulatedProgress));
+            }
+          }, 200)
+        : null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) break;
+
+      chunks.push(value);
+      receivedLength += value.length;
+
+      // Update progress based on actual size
+      if (total > 0) {
+        const progress = Math.round((receivedLength / total) * 100);
+        downloadProgress.value = progress;
+        console.log(`Download progress: ${progress}% (${receivedLength}/${total} bytes)`);
+      }
+    }
+
+    // Clear simulated progress interval
+    if (progressInterval) {
+      clearInterval(progressInterval);
+    }
+
+    console.log('Download complete - Total bytes:', receivedLength);
+
+    // Combine chunks into single array
+    const blob = new Blob(chunks as BlobPart[]);
+    const url = window.URL.createObjectURL(blob);
+
+    // Show completion
+    downloadProgress.value = 100;
+
+    // Small delay to show 100% before triggering download
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // Trigger download
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = selectedFile.value.file_name || 'download';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Clean up
+    window.URL.revokeObjectURL(url);
+
+    // Keep success state visible briefly
+    setTimeout(() => {
+      isDownloading.value = false;
+      downloadProgress.value = 0;
+    }, 800);
+  } catch (error) {
+    console.error('Download failed:', error);
+    toast.error('下载失败，请稍后重试');
+    isDownloading.value = false;
+    downloadProgress.value = 0;
   }
 };
 
@@ -519,6 +612,8 @@ const handleAbortTask = async () => {
           :file-url="selectedFile?.file_url"
           :file-type="selectedFile?.file_type"
           :file-name="selectedFile?.file_name"
+          :is-downloading="isDownloading"
+          :download-progress="downloadProgress"
           @regenerate="handleRegenerate"
           @download="handleDownload"
           @modify="handleModify"
@@ -564,6 +659,8 @@ const handleAbortTask = async () => {
             :file-url="selectedFile?.file_url"
             :file-type="selectedFile?.file_type"
             :file-name="selectedFile?.file_name"
+            :is-downloading="isDownloading"
+            :download-progress="downloadProgress"
             @regenerate="handleRegenerate"
             @download="handleDownload"
             @modify="handleModify"

@@ -254,7 +254,7 @@ export async function uploadMaterial(projectId: string | number, file: File) {
 
   const response = await apiClient.upload<UploadMaterialResponse>(
     `/video-creation/upload/${projectId}`,
-    formData, { noErrorAlert: true }
+    formData, { noErrorAlert: true ,timeout: 2000000}
   );
   return response.data;
 }

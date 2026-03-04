@@ -70,7 +70,7 @@ const hideLoading = () => {
 };
 
 // URL prefixes that should use the proxy target
-const USER_TARGET_PREFIXES = ['/wallet/', '/homepage', '/auth','/studio'];
+const USER_TARGET_PREFIXES = ['/wallet/', '/homepage', '/auth', '/studio'];
 
 // Utility functions
 export function isHttpStatusOk(statusCode: number): boolean {
@@ -102,6 +102,7 @@ class HttpRequest {
   constructor() {
     this.defaultTimeout = Number(import.meta.env.VITE_REQUEST_TIMEOUT) || 15000;
     this.toast = useToast().toast;
+    console.log('this.defaultTimeout', this.defaultTimeout)
   }
 
   public get<RES = any, REQ = any>(
@@ -288,7 +289,7 @@ class HttpRequest {
 
           throw new ApiError(status, errorMessage, axiosError.response);
         } else if (axiosError.request) {
-          const errorMessage = 'Network error, please check your connection';
+          const errorMessage = axiosError.message || 'Network error, please check your connection';
           if (!options.noErrorAlert) {
             this.toast.error(errorMessage);
           }
