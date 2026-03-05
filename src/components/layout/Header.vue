@@ -16,7 +16,7 @@ const workspaceUrl = import.meta.env.VITE_WORKSPACE_URL;
 const userInitial = computed(() => {
   const user = authStore.user;
   console.log('user in computed: ', user);
-  if (!user) return '尊贵的ZeroCut用户';
+  if (!user) return 'ZeroCut用户';
 
   // 优先级：username > name > email > phone > 默认
   if (user.username && user.username.trim()) {
@@ -32,7 +32,7 @@ const userInitial = computed(() => {
     return user.phone;
   }
 
-  return '尊贵的ZeroCut用户';
+  return 'ZeroCut用户';
 });
 
 const handleLogout = async () => {
