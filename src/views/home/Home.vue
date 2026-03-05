@@ -213,7 +213,7 @@ const handleSubmit = () => {
 
     // Navigate to workspace/new and pass chatMessage via router state
     console.log('chatMessage', chatMessage);
-    return;
+    //return;
     router.push({
       path: '/workspace/new',
       state: {
