@@ -4,7 +4,7 @@ import { getWalletInfo } from '@/api/walletApi';
 import { useAuthStore } from './authStore';
 
 export const useCreditsStore = defineStore('credits', () => {
-  const creditsBalance = ref(0);
+  const creditsBalance = ref<null | Number>(null);
   const isLoadingCredits = ref(false);
   let creditsUpdateTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -13,7 +13,7 @@ export const useCreditsStore = defineStore('credits', () => {
    */
   const fetchCreditsBalance = async () => {
     const authStore = useAuthStore();
-    
+
     if (!authStore.user || isLoadingCredits.value) return;
 
     isLoadingCredits.value = true;

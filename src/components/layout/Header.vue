@@ -11,7 +11,7 @@ const creditsStore = useCreditsStore();
 const showUserMenu = ref(false);
 const userMenuRef = ref<HTMLElement | null>(null);
 
-const workspaceUrl = import.meta.env.VITE_WORKSPACE_URL
+const workspaceUrl = import.meta.env.VITE_WORKSPACE_URL;
 
 const userInitial = computed(() => {
   const user = authStore.user;
@@ -52,13 +52,16 @@ const handleClickOutside = (event: MouseEvent) => {
 };
 
 // Watch authentication state changes
-watch(() => authStore.isAuthenticated, (isAuthenticated) => {
-  if (isAuthenticated) {
-    creditsStore.startCreditsUpdateTimer();
-  } else {
-    creditsStore.resetCredits();
-  }
-});
+watch(
+  () => authStore.isAuthenticated,
+  isAuthenticated => {
+    if (isAuthenticated) {
+      creditsStore.startCreditsUpdateTimer();
+    } else {
+      creditsStore.resetCredits();
+    }
+  },
+);
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside);
@@ -76,7 +79,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <header class="sticky top-0 z-50 w-full h-16 bg-white border-b border-[#e5e7eb]">
+  <header class="sticky top-0 z-50 h-16 w-full border-b border-[#e5e7eb] bg-white">
     <div class="flex h-full items-center justify-between px-10">
       <!-- Logo -->
       <RouterLink to="/" class="flex items-center">
@@ -87,22 +90,27 @@ onUnmounted(() => {
       <div class="flex items-center gap-4">
         <!-- Show login/register when not logged in -->
         <template v-if="!authStore.isAuthenticated">
-          <Button size="sm" variant="ghost" @click="authStore.openLoginModal()" class="text-[#6b7280]">
-            登录
-          </Button>
-          <Button size="sm" @click="authStore.openLoginModal()"
-            class="bg-[#111827] text-white hover:bg-black rounded-[20px] px-4 py-2 text-sm font-medium">
+          <Button size="sm" variant="ghost" @click="authStore.openLoginModal()" class="text-[#6b7280]"> 登录 </Button>
+          <Button
+            size="sm"
+            @click="authStore.openLoginModal()"
+            class="rounded-[20px] bg-[#111827] px-4 py-2 text-sm font-medium text-white hover:bg-black"
+          >
             注册
           </Button>
         </template>
 
         <!-- Show user info when logged in -->
         <template v-else>
-          <a title="剩余积分" :href="workspaceUrl + 'wallet'" target="_blank"
-            class="flex items-center gap-2 bg-[#f9fafb] px-4 py-2 rounded-[20px] border border-[#e5e7eb]">
+          <a
+            title="剩余积分"
+            :href="workspaceUrl + 'wallet'"
+            target="_blank"
+            class="flex items-center gap-2 rounded-[20px] border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2"
+          >
             <span class="text-base">💎</span>
             <span class="text-sm font-semibold text-[#111827]">
-              {{ creditsStore.creditsBalance.toLocaleString() }}
+              {{ creditsStore.creditsBalance || 0 }}
             </span>
           </a>
 
@@ -112,16 +120,27 @@ onUnmounted(() => {
 
           <!-- User menu -->
           <div ref="userMenuRef" class="relative">
-            <button :title="userInitial" @click="showUserMenu = !showUserMenu"
-              class="w-9 h-9 rounded-full bg-[#111827] border-2 border-[#e5e7eb] cursor-pointer flex items-center justify-center text-base font-semibold text-white">
-              {{ String(userInitial || '我').toUpperCase().slice(0, 1) }}
+            <button
+              :title="userInitial"
+              @click="showUserMenu = !showUserMenu"
+              class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border-2 border-[#e5e7eb] bg-[#111827] text-base font-semibold text-white"
+            >
+              {{
+                String(userInitial || '我')
+                  .toUpperCase()
+                  .slice(0, 1)
+              }}
             </button>
 
             <!-- Dropdown menu -->
-            <div v-if="showUserMenu"
-              class="absolute right-0 mt-2 min-w-[160px] bg-white border border-[#e5e7eb] rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.12)] overflow-hidden z-[1000]">
-              <button @click="handleLogout"
-                class="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-[#dc2626] hover:bg-[#fef2f2] transition-colors">
+            <div
+              v-if="showUserMenu"
+              class="absolute right-0 z-[1000] mt-2 min-w-[160px] overflow-hidden rounded-xl border border-[#e5e7eb] bg-white shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+            >
+              <button
+                @click="handleLogout"
+                class="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium text-[#dc2626] transition-colors hover:bg-[#fef2f2]"
+              >
                 <span>🚪</span>
                 <span>退出</span>
               </button>

@@ -24,7 +24,7 @@ const router = useRouter();
 const { toast } = useToast();
 
 const videoPrompt = ref('');
-const selectedMode = ref('free_creation');
+const selectedMode = ref('one_click');
 const aspectRatio = ref('9:16');
 const videoType = ref('自动');
 const showAspectRatioMenu = ref(false);
@@ -83,10 +83,19 @@ const freeCreationModes = [
 const videoModels = [{ id: 'zerocut3.0', label: 'ZeroCut 3.0', description: '默认' }];
 
 const videoDurations = [
-  { id: '5s', label: '5秒', description: '四宫格分镜' },
-  { id: '10s', label: '10秒', description: '六宫格分镜' },
-  { id: '15s', label: '15秒', description: '九宫格分镜' },
+  { id: '5s', label: '5秒', description: '宫格分镜' },
+  { id: '10s', label: '10秒', description: '宫格分镜' },
+  { id: '15s', label: '15秒', description: '宫格分镜' },
 ];
+
+// Derive duration map from videoDurations array
+const durationMap = videoDurations.reduce(
+  (acc, item) => {
+    acc[item.id] = `${item.label}，${item.description}`;
+    return acc;
+  },
+  {} as Record<string, string>,
+);
 
 const videoAspectRatios = [
   { id: '9:16', label: '9:16', description: '竖屏' },
@@ -140,10 +149,14 @@ const handleSubmit = () => {
   }
 
   // Check if user has enough credits for video generation
-  if (creditsNeeded.value > 0 && creditsNeeded.value > creditsStore.creditsBalance) {
+  if (
+    creditsStore.creditsBalance !== null &&
+    creditsNeeded.value > 0 &&
+    creditsNeeded.value > creditsStore.creditsBalance
+  ) {
     toast.error(
       `积分不足！需要 ${creditsNeeded.value} 积分，当前余额 ${creditsStore.creditsBalance} 积分，请点击右上角积分按钮充值`,
-      '积分不足'
+      '积分不足',
     );
     return;
   }
@@ -161,11 +174,6 @@ const handleSubmit = () => {
         chatMessage = `${videoPrompt.value}`;
       } else {
         // Video generation mode
-        const durationMap: Record<string, string> = {
-          '5s': '5秒，四宫格分镜',
-          '10s': '10秒，六宫格分镜',
-          '15s': '15秒，九宫格分镜',
-        };
         const aspectRatioMap: Record<string, string> = {
           '9:16': '9:16竖屏',
           '16:9': '16:9横屏',
@@ -205,7 +213,7 @@ const handleSubmit = () => {
 
     // Navigate to workspace/new and pass chatMessage via router state
     console.log('chatMessage', chatMessage);
-    //return;
+    return;
     router.push({
       path: '/workspace/new',
       state: {
@@ -253,7 +261,7 @@ const creditsNeeded = computed(() => {
   }
 
   const durationSeconds = parseInt(videoDuration.value);
-  
+
   // Use web_price_v3 config if available
   if (priceConfig.value) {
     const resolution720p = priceConfig.value.resolutions?.find((r: any) => r.name === '720p');
@@ -262,7 +270,7 @@ const creditsNeeded = computed(() => {
       return min_price + (durationSeconds - time_range.min) * additional_price_per_second;
     }
   }
-  
+
   // Fallback to old calculation
   return 30 + 24 * durationSeconds;
 });
@@ -316,12 +324,12 @@ const loadSystemConfig = async () => {
     if (config.webHomeTips?.key) {
       homeTips.value = config.webHomeTips.key;
     }
-    
+
     // Store price config
     if (config.webPriceV3) {
       priceConfig.value = config.webPriceV3;
     }
-    
+
     const webHomeAutoRecommend = config.webHomeAutoRecommend;
     const webHomeFreeRecommend = config.webHomeFreeRecommend;
     if (webHomeAutoRecommend && webHomeAutoRecommend.length > 0) {
