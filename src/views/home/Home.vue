@@ -24,7 +24,7 @@ const router = useRouter();
 const { toast } = useToast();
 
 const videoPrompt = ref('');
-const selectedMode = ref('one_click');
+const selectedMode = ref('free_creation');
 const aspectRatio = ref('9:16');
 const videoType = ref('自动');
 const showAspectRatioMenu = ref(false);
