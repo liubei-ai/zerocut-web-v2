@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import LoginModal from '@/components/auth/LoginModal.vue';
+import MembershipModal from '@/components/membership/MembershipModal.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useCreditsStore } from '@/stores/creditsStore';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
@@ -9,6 +10,7 @@ import { RouterLink } from 'vue-router';
 const authStore = useAuthStore();
 const creditsStore = useCreditsStore();
 const showUserMenu = ref(false);
+const showMembershipModal = ref(false);
 const userMenuRef = ref<HTMLElement | null>(null);
 
 const workspaceUrl = import.meta.env.VITE_WORKSPACE_URL;
@@ -102,17 +104,16 @@ onUnmounted(() => {
 
         <!-- Show user info when logged in -->
         <template v-else>
-          <a
-            title="剩余积分"
-            :href="workspaceUrl + 'wallet'"
-            target="_blank"
-            class="flex items-center gap-2 rounded-[20px] border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2"
+          <button
+            title="会员中心"
+            @click="showMembershipModal = true"
+            class="flex items-center gap-2 rounded-[20px] border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2 transition-colors hover:bg-[#f3f4f6]"
           >
             <span class="text-base">💎</span>
             <span class="text-sm font-semibold text-[#111827]">
               {{ creditsStore.creditsBalance || 0 }}
             </span>
-          </a>
+          </button>
 
           <!-- <Button size="sm" class="bg-[#111827] text-white hover:bg-black rounded-[20px] px-4 py-2 text-sm font-medium">
             升级
@@ -152,5 +153,8 @@ onUnmounted(() => {
 
     <!-- Login Modal -->
     <LoginModal v-model:open="authStore.showLoginModal" />
+
+    <!-- Membership Modal -->
+    <MembershipModal v-model:open="showMembershipModal" />
   </header>
 </template>
