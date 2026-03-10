@@ -37,6 +37,8 @@ interface Props {
   projectFiles?: ProjectFile[];
   // Custom textarea class
   textareaClass?: string;
+  // Show mode selector at the top
+  showModeSelector?: boolean;
 }
 
 interface Emits {
@@ -52,6 +54,7 @@ const props = withDefaults(defineProps<Props>(), {
   allowFilePick: false,
   projectFiles: () => [],
   textareaClass: '',
+  showModeSelector: false,
 });
 
 const emit = defineEmits<Emits>();
@@ -315,6 +318,11 @@ defineExpose({
 
 <template>
   <div class="relative">
+    <!-- Mode selector slot at the top -->
+    <div v-if="showModeSelector" class="mb-4 pb-4 border-b border-[#f3f4f6]">
+      <slot name="mode-selector" />
+    </div>
+
     <textarea
       ref="textareaRef"
       v-model="inputValue"

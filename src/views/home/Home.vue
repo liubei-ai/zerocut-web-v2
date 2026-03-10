@@ -91,7 +91,7 @@ const videoDurations = [
 // Derive duration map from videoDurations array
 const durationMap = videoDurations.reduce(
   (acc, item) => {
-    acc[item.id] = `${item.label}，${item.description}`;
+    acc[item.id] = `${item.label}`;
     return acc;
   },
   {} as Record<string, string>,
@@ -373,20 +373,41 @@ const loadSystemConfig = async () => {
         <!-- Main Input Card -->
         <div class="mb-10 w-full">
           <div
-            class="relative mb-5 w-full rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_4px_24px_rgba(0,0,0,0.08)]"
+            class="relative mb-5 w-full rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_4px_24px_rgba(0,0,0,0.08)] transition-all duration-300"
           >
             <FileReferenceInput
               v-model="videoPrompt"
               :placeholder="currentPlaceholder"
               :allow-file-pick="true"
+              :show-mode-selector="true"
               @files-change="handleFilesChange"
             >
+              <!-- Mode Selection Buttons -->
+              <template #mode-selector>
+                <div class="flex justify-center gap-2.5">
+                  <Button
+                    v-for="mode in modes"
+                    :key="mode.id"
+                    @click="selectedMode = mode.id"
+                    :variant="selectedMode === mode.id ? 'default' : 'outline'"
+                    :class="[
+                      'h-auto gap-2 rounded-2xl border-2 px-5 py-2.5 text-[14px] font-medium transition-colors',
+                      selectedMode === mode.id
+                        ? 'border-[#111827] bg-[#111827] text-white shadow-sm'
+                        : 'border-[#e5e7eb] bg-white text-[#6b7280] hover:border-[#111827] hover:text-[#111827]',
+                    ]"
+                  >
+                    <span>{{ mode.icon }}</span>
+                    <span>{{ mode.label }}</span>
+                  </Button>
+                </div>
+              </template>
               <template #actions="{ onMentionClick, onFilePickClick }">
                 <div
-                  class="flex flex-col gap-3 border-t border-[#f3f4f6] pt-2 sm:flex-row sm:items-center sm:justify-between sm:gap-2"
+                  class="flex flex-col gap-3 border-t border-[#f3f4f6] pt-2 sm:flex-row sm:items-start sm:justify-between sm:gap-2"
                 >
-                  <!-- Mode Options Row -->
-                  <div class="flex flex-wrap items-center gap-2">
+                  <!-- Mode Options Row with fixed min-height to prevent layout shift -->
+                  <div class="relative flex min-h-[88px] flex-wrap content-start items-start gap-2 transition-all duration-200 sm:min-h-[44px]">
                     <!-- One Click Mode Options -->
                     <div v-if="selectedMode === 'one_click'" class="ml-0 flex flex-wrap gap-2 sm:ml-2">
                       <!-- Aspect Ratio Selector -->
@@ -672,25 +693,6 @@ const loadSystemConfig = async () => {
                 </div>
               </template>
             </FileReferenceInput>
-          </div>
-
-          <!-- Mode Selection Buttons -->
-          <div class="mb-5 flex justify-center gap-3">
-            <Button
-              v-for="mode in modes"
-              :key="mode.id"
-              @click="selectedMode = mode.id"
-              :variant="selectedMode === mode.id ? 'default' : 'outline'"
-              :class="[
-                'h-auto gap-2 rounded-3xl px-6 py-3 text-[15px] font-medium transition-all',
-                selectedMode === mode.id
-                  ? 'border-2 border-[#111827] bg-[#111827] text-white'
-                  : 'border-2 border-[#e5e7eb] bg-white text-[#6b7280] hover:-translate-y-0.5 hover:border-[#d1d5db]',
-              ]"
-            >
-              <span>{{ mode.icon }}</span>
-              <span>{{ mode.label }}</span>
-            </Button>
           </div>
 
           <!-- Quick Templates -->
