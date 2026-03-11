@@ -245,7 +245,7 @@ onMounted(() => {
           <div class="grid grid-cols-2 gap-2 sm:gap-3">
             <a
               v-if="currentSubscription"
-              :href="workspaceUrl + 'wallet'"
+              :href="workspaceUrl + 'packages'"
               target="_blank"
               class="rounded-lg bg-teal-500 px-3 py-2 text-center text-xs font-medium text-white transition-colors hover:bg-teal-600 hover:!text-white sm:px-4 sm:py-2.5 sm:text-sm"
             >
@@ -285,7 +285,7 @@ onMounted(() => {
           <div class="flex gap-3">
             <a
               v-if="currentSubscription"
-              :href="workspaceUrl + 'wallet'"
+              :href="workspaceUrl + 'packages'"
               target="_blank"
               class="rounded-lg bg-teal-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-600 hover:!text-white"
             >
