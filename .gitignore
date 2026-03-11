@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 
 react-prototype
+
+**/src-old
+**/zerocut_vip-main

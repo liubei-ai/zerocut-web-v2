@@ -1,7 +1,7 @@
-import type { ApiError as IApiError, User } from '@/types/api';
+import type { ApiError as IApiError, User, UserWorkspaceDto } from '@/types/api';
 import { useGuard, type User as AuthingUser } from '@authing/guard-vue3';
 import { defineStore } from 'pinia';
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { requestLogout, syncUserProfile } from '@/api/authApi';
 import apiClient from '@/api/client';
 import { useToast } from '@/composables/useToast';
@@ -14,7 +14,8 @@ export const useAuthStore = defineStore(
     const error = ref<string | null>(null);
     const isLoggedIn = ref(false);
     const user = ref<User | null>(null);
-    const currentWorkspaceId = ref<string | null>(null);
+    const workspaces = ref<UserWorkspaceDto[]>([]);
+    const currentWorkspace = ref<UserWorkspaceDto | null>(null);
     const showLoginModal = ref(false);
     const token = ref<string | null>(null);
 
@@ -25,18 +26,29 @@ export const useAuthStore = defineStore(
     // Computed
     const isAuthenticated = computed(() => isLoggedIn.value && !!user.value);
     const userName = computed(() => user.value?.username || user.value?.email || '');
+    const currentWorkspaceId = computed(() => currentWorkspace.value?.workspaceId || null);
+    const currentWorkspaceName = computed(() => currentWorkspace.value?.name || '');
+    const hasWorkspaces = computed(() => workspaces.value.length > 0);
+    const activeWorkspaces = computed(() => workspaces.value.filter((ws: UserWorkspaceDto) => ws.isActive));
 
     /**
-     * Fetch workspace ID from backend
+     * Fetch workspace data from backend
      */
     const fetchAndSetWorkspaceId = async (): Promise<string | null> => {
       try {
         const response = await apiClient.get<any>('/homepage');
-        const wsId = response.data?.workspaces?.[0]?.workspaceId || null;
-        currentWorkspaceId.value = wsId;
-        return wsId;
+        
+        // Store all workspaces
+        workspaces.value = response.data?.workspaces || [];
+        
+        // Set current workspace (first one by default)
+        if (workspaces.value.length > 0 && !currentWorkspace.value) {
+          currentWorkspace.value = workspaces.value[0];
+        }
+        
+        return currentWorkspace.value?.workspaceId || null;
       } catch (err) {
-        console.error('Failed to fetch workspace ID:', err);
+        console.error('Failed to fetch workspace data:', err);
         return null;
       }
     };
@@ -102,6 +114,13 @@ export const useAuthStore = defineStore(
     };
 
     /**
+     * Set current workspace
+     */
+    const setCurrentWorkspace = (workspace: UserWorkspaceDto) => {
+      currentWorkspace.value = workspace;
+    };
+
+    /**
      * Clear authentication state
      */
     const clearAuthState = () => {
@@ -109,7 +128,8 @@ export const useAuthStore = defineStore(
       user.value = null;
       token.value = null;
       error.value = null;
-      currentWorkspaceId.value = null;
+      workspaces.value = [];
+      currentWorkspace.value = null;
     };
 
     /**
@@ -157,17 +177,23 @@ export const useAuthStore = defineStore(
       error,
       isLoggedIn,
       user,
-      currentWorkspaceId,
+      workspaces,
+      currentWorkspace,
       showLoginModal,
       token,
 
       // Computed
       isAuthenticated,
       userName,
+      currentWorkspaceId,
+      currentWorkspaceName,
+      hasWorkspaces,
+      activeWorkspaces,
 
       // Methods
       setAuthingUser,
       fetchAndSetWorkspaceId,
+      setCurrentWorkspace,
       logout,
       clearAuthState,
       handleAuthError,
@@ -178,7 +204,7 @@ export const useAuthStore = defineStore(
   },
   {
     persist: {
-      pick: ['isLoggedIn', 'currentWorkspaceId', 'user'],
+      pick: ['isLoggedIn', 'user', 'workspaces', 'currentWorkspace'],
     },
   }
 );

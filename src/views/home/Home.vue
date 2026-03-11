@@ -7,6 +7,7 @@ import FileReferenceInput from '@/components/workspace/FileReferenceInput.vue';
 import ProjectGrid from '@/views/project/ProjectGrid.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useCreditsStore } from '@/stores/creditsStore';
+import { useMembershipModalStore } from '@/stores/membershipModalStore';
 import { getSystemConfig, type TemplateItem } from '@/api/systemApi';
 import { useToast } from '@/composables/useToast';
 
@@ -20,6 +21,7 @@ interface FilePreview {
 
 const authStore = useAuthStore();
 const creditsStore = useCreditsStore();
+const membershipModalStore = useMembershipModalStore();
 const router = useRouter();
 const { toast } = useToast();
 
@@ -155,9 +157,10 @@ const handleSubmit = () => {
     creditsNeeded.value > creditsStore.creditsBalance
   ) {
     toast.error(
-      `积分不足！需要 ${creditsNeeded.value} 积分，当前余额 ${creditsStore.creditsBalance} 积分，请点击右上角积分按钮充值`,
+      `积分不足！需要 ${creditsNeeded.value} 积分，当前余额 ${creditsStore.creditsBalance} 积分`,
       '积分不足',
     );
+    membershipModalStore.openMembershipModal();
     return;
   }
 

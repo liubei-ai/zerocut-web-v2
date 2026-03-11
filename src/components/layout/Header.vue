@@ -3,11 +3,13 @@ import { Button } from '@/components/ui/button';
 import LoginModal from '@/components/auth/LoginModal.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useCreditsStore } from '@/stores/creditsStore';
+import { useMembershipModalStore } from '@/stores/membershipModalStore';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 
 const authStore = useAuthStore();
 const creditsStore = useCreditsStore();
+const membershipModalStore = useMembershipModalStore();
 const showUserMenu = ref(false);
 const userMenuRef = ref<HTMLElement | null>(null);
 
@@ -102,17 +104,16 @@ onUnmounted(() => {
 
         <!-- Show user info when logged in -->
         <template v-else>
-          <a
-            title="剩余积分"
-            :href="workspaceUrl + 'wallet'"
-            target="_blank"
-            class="flex items-center gap-2 rounded-[20px] border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2"
+          <button
+            title="会员中心"
+            @click="membershipModalStore.openMembershipModal()"
+            class="flex items-center gap-2 rounded-[20px] border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2 transition-colors hover:bg-[#f3f4f6]"
           >
             <span class="text-base">💎</span>
             <span class="text-sm font-semibold text-[#111827]">
               {{ creditsStore.creditsBalance || 0 }}
             </span>
-          </a>
+          </button>
 
           <!-- <Button size="sm" class="bg-[#111827] text-white hover:bg-black rounded-[20px] px-4 py-2 text-sm font-medium">
             升级
@@ -137,6 +138,15 @@ onUnmounted(() => {
               v-if="showUserMenu"
               class="absolute right-0 z-[1000] mt-2 min-w-[160px] overflow-hidden rounded-xl border border-[#e5e7eb] bg-white shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
             >
+              <a
+                :href="workspaceUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium text-[#111827] transition-colors hover:bg-[#f9fafb]"
+              >
+                <span>🎛️</span>
+                <span>控制台</span>
+              </a>
               <button
                 @click="handleLogout"
                 class="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium text-[#dc2626] transition-colors hover:bg-[#fef2f2]"
