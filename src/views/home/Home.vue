@@ -8,6 +8,7 @@ import ProjectGrid from '@/views/project/ProjectGrid.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useCreditsStore } from '@/stores/creditsStore';
 import { useMembershipModalStore } from '@/stores/membershipModalStore';
+import { useDebugStore } from '@/stores/debugStore';
 import { getSystemConfig, type TemplateItem } from '@/api/systemApi';
 import { useToast } from '@/composables/useToast';
 
@@ -22,6 +23,7 @@ interface FilePreview {
 const authStore = useAuthStore();
 const creditsStore = useCreditsStore();
 const membershipModalStore = useMembershipModalStore();
+const debugStore = useDebugStore();
 const router = useRouter();
 const { toast } = useToast();
 
@@ -160,7 +162,9 @@ const handleSubmit = () => {
       `积分不足！需要 ${creditsNeeded.value} 积分，当前余额 ${creditsStore.creditsBalance} 积分`,
       '积分不足',
     );
-    membershipModalStore.openMembershipModal();
+    if (debugStore.isDebugMode) {
+      membershipModalStore.openMembershipModal();
+    }
     return;
   }
 

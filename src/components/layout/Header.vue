@@ -4,12 +4,14 @@ import LoginModal from '@/components/auth/LoginModal.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useCreditsStore } from '@/stores/creditsStore';
 import { useMembershipModalStore } from '@/stores/membershipModalStore';
+import { useDebugStore } from '@/stores/debugStore';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 
 const authStore = useAuthStore();
 const creditsStore = useCreditsStore();
 const membershipModalStore = useMembershipModalStore();
+const debugStore = useDebugStore();
 const showUserMenu = ref(false);
 const userMenuRef = ref<HTMLElement | null>(null);
 
@@ -104,7 +106,9 @@ onUnmounted(() => {
 
         <!-- Show user info when logged in -->
         <template v-else>
+          <!-- Show button in debug mode, link otherwise -->
           <button
+            v-if="debugStore.isDebugMode"
             title="会员中心"
             @click="membershipModalStore.openMembershipModal()"
             class="flex items-center gap-2 rounded-[20px] border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2 transition-colors hover:bg-[#f3f4f6]"
@@ -114,6 +118,18 @@ onUnmounted(() => {
               {{ creditsStore.creditsBalance || 0 }}
             </span>
           </button>
+          <a
+            v-else
+            title="剩余积分"
+            :href="workspaceUrl + 'wallet'"
+            target="_blank"
+            class="flex items-center gap-2 rounded-[20px] border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2"
+          >
+            <span class="text-base">💎</span>
+            <span class="text-sm font-semibold text-[#111827]">
+              {{ creditsStore.creditsBalance || 0 }}
+            </span>
+          </a>
 
           <!-- <Button size="sm" class="bg-[#111827] text-white hover:bg-black rounded-[20px] px-4 py-2 text-sm font-medium">
             升级

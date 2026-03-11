@@ -376,6 +376,7 @@ const handleSendMessage = async (content: string) => {
 
     // Add video creation error message to chat
     addAssistantMessage('启动视频创建时出现错误。请稍后重试。');
+    toast.error(`错误信息：${videoError}`, '创建视频失败');
   }
 };
 
