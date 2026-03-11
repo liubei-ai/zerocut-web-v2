@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import LoginModal from '@/components/auth/LoginModal.vue';
-import MembershipModal from '@/components/membership/MembershipModal.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useCreditsStore } from '@/stores/creditsStore';
+import { useMembershipModalStore } from '@/stores/membershipModalStore';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 
 const authStore = useAuthStore();
 const creditsStore = useCreditsStore();
+const membershipModalStore = useMembershipModalStore();
 const showUserMenu = ref(false);
-const showMembershipModal = ref(false);
 const userMenuRef = ref<HTMLElement | null>(null);
 
 const workspaceUrl = import.meta.env.VITE_WORKSPACE_URL;
@@ -106,7 +106,7 @@ onUnmounted(() => {
         <template v-else>
           <button
             title="会员中心"
-            @click="showMembershipModal = true"
+            @click="membershipModalStore.openMembershipModal()"
             class="flex items-center gap-2 rounded-[20px] border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2 transition-colors hover:bg-[#f3f4f6]"
           >
             <span class="text-base">💎</span>
@@ -138,6 +138,15 @@ onUnmounted(() => {
               v-if="showUserMenu"
               class="absolute right-0 z-[1000] mt-2 min-w-[160px] overflow-hidden rounded-xl border border-[#e5e7eb] bg-white shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
             >
+              <a
+                :href="workspaceUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium text-[#111827] transition-colors hover:bg-[#f9fafb]"
+              >
+                <span>🎛️</span>
+                <span>控制台</span>
+              </a>
               <button
                 @click="handleLogout"
                 class="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium text-[#dc2626] transition-colors hover:bg-[#fef2f2]"
@@ -153,8 +162,5 @@ onUnmounted(() => {
 
     <!-- Login Modal -->
     <LoginModal v-model:open="authStore.showLoginModal" />
-
-    <!-- Membership Modal -->
-    <MembershipModal v-model:open="showMembershipModal" />
   </header>
 </template>

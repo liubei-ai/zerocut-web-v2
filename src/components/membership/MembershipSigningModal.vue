@@ -3,6 +3,7 @@ import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
 import { X } from 'lucide-vue-next';
 import QRCode from 'qrcode';
 import { createSigningSession, getSigningSessionStatus, closeSigningSession, type MembershipPlanDto } from '@/api/membershipApi';
+import { useAuthStore } from '@/stores/authStore';
 
 interface Props {
   open: boolean;
@@ -18,6 +19,8 @@ interface Emits {
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
+
+const authStore = useAuthStore();
 
 const qrCodeCanvas = ref<HTMLCanvasElement>();
 const sessionInfo = ref<any>(null);
@@ -108,8 +111,9 @@ const createSession = async () => {
     errorMessage.value = '';
 
     const response = await createSigningSession({
-      workspaceId: 'default',
-      planCode: props.membershipPlan.code
+      workspaceId: authStore.currentWorkspaceId || '',
+      planCode: props.membershipPlan.code,
+      displayAccountName: authStore.currentWorkspaceName || undefined
     });
 
     sessionInfo.value = response;
@@ -132,7 +136,7 @@ const handleCancel = async () => {
 
   if (sessionInfo.value?.signingSessionId) {
     try {
-      await closeSigningSession(sessionInfo.value.signingSessionId, 'default');
+      await closeSigningSession(sessionInfo.value.signingSessionId, authStore.currentWorkspaceId || '');
     } catch (error) {
       console.warn('Failed to close signing session:', error);
     }

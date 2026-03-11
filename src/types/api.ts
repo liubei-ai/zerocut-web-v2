@@ -16,6 +16,23 @@ export interface User {
   avatar?: string;
 }
 
+// Workspace Types
+export interface WorkspaceOwnerDto {
+  id: number;
+  username?: string;
+}
+
+export interface UserWorkspaceDto {
+  id: number;
+  workspaceId: string;
+  name: string;
+  description: string;
+  isActive: boolean;
+  role: string;
+  joinedAt: string;
+  owner: WorkspaceOwnerDto;
+}
+
 // Error Types
 export interface ApiError {
   code: number;

@@ -3,6 +3,7 @@ import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
 import { X } from 'lucide-vue-next';
 import QRCode from 'qrcode';
 import { purchaseOneTimeSubscription, closeOneTimeOrder, type MembershipPlanDto } from '@/api/membershipApi';
+import { useAuthStore } from '@/stores/authStore';
 
 interface Props {
   open: boolean;
@@ -18,6 +19,8 @@ interface Emits {
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
+
+const authStore = useAuthStore();
 
 const qrCodeCanvas = ref<HTMLCanvasElement>();
 const orderInfo = ref<any>(null);
@@ -94,7 +97,7 @@ const createPaymentOrder = async () => {
     const response = await purchaseOneTimeSubscription({
       planCode: props.membershipPlan.code,
       totalAmount: props.membershipPlan.priceYuan,
-      workspaceId: 'default'
+      workspaceId: authStore.currentWorkspaceId || ''
     });
 
     orderInfo.value = response;
@@ -117,7 +120,7 @@ const handleCancel = async () => {
 
   if (orderInfo.value?.outTradeNo) {
     try {
-      await closeOneTimeOrder(orderInfo.value.outTradeNo, 'default');
+      await closeOneTimeOrder(orderInfo.value.outTradeNo, authStore.currentWorkspaceId || '');
     } catch (error) {
       console.warn('Failed to close order:', error);
     }

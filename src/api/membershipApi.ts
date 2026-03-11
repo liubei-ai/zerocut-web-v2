@@ -17,7 +17,7 @@ export interface MembershipPlanDto {
 
 export interface IMembershipPlanFeature {
   key: string;
-  i18nKey?: string;
+  i18nKey: string;
   i18nParams?: Record<string, any>;
   label?: string;
   description?: string;
@@ -75,12 +75,10 @@ export async function purchaseOneTimeSubscription(params: {
   totalAmount: number;
   workspaceId: string;
 }) {
-  const response = await client.post<{
-    codeUrl: string;
-    outTradeNo: string;
-    subscriptionId: number;
-    expiresAt: string;
-  }>('/subscriptions/purchase', params);
+  const response = await client.post<
+    { planCode: string; totalAmount: number; workspaceId: string },
+    { codeUrl: string; outTradeNo: string; subscriptionId: number; expiresAt: string }
+  >('/subscriptions/purchase', params);
   return response.data;
 }
 
@@ -93,11 +91,10 @@ export async function createSigningSession(params: {
   planCode: string;
   displayAccountName?: string;
 }) {
-  const response = await client.post<{
-    signingSessionId: string;
-    qrUrl: string;
-    expiresAt: string;
-  }>('/subscriptions/signing-sessions', params);
+  const response = await client.post<
+    { workspaceId: string; planCode: string; displayAccountName?: string },
+    { signingSessionId: string; qrUrl: string; expiresAt: string }
+  >('/subscriptions/signing-sessions', params);
   return response.data;
 }
 
@@ -109,9 +106,9 @@ export async function getSigningSessionStatus(sessionId: string) {
 }
 
 export async function getCurrentSubscription(workspaceId: string) {
-  const response = await client.get<SubscriptionDetails>('/subscriptions/me', {
-    params: { workspaceId },
-  });
+  const response = await client.get<SubscriptionDetails>('/subscriptions/me',
+    { workspaceId },
+  );
   return response.data;
 }
 
