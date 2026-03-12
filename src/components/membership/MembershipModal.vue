@@ -37,7 +37,7 @@ const workspaceId = computed(() => authStore.currentWorkspaceId || '');
 
 // Hardcoded i18n translations for membership features
 const featureTranslations: Record<string, string> = {
-  'zerocut.membership.priceList.benefits.quotas.basic': '最多可生成 310 张图片或最多生成 250 秒视频（以默认模型计算）',
+  'zerocut.membership.priceList.benefits.quotas.basic': '最多可生成 250 张图片或最多生成 200 秒视频（以默认模型计算）',
   'zerocut.membership.priceList.benefits.quotas.standard': '最多可生成 1000 张图片或生成 800 秒视频（以默认模型计算）',
   'zerocut.membership.priceList.benefits.quotas.premium': '最多可生成 3125 张图片或生成 2500 秒视频（以默认模型计算）',
   'zerocut.membership.priceList.benefits.universal.allModels': '所有模型均可使用',
@@ -208,10 +208,8 @@ onMounted(() => {
   <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
     <div class="relative my-8 max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
       <!-- Close Button -->
-      <button
-        @click="closeModal"
-        class="absolute top-6 right-6 z-10 text-gray-400 transition-colors hover:text-gray-600"
-      >
+      <button @click="closeModal"
+        class="absolute top-6 right-6 z-10 text-gray-400 transition-colors hover:text-gray-600">
         <X :size="24" />
       </button>
 
@@ -221,8 +219,7 @@ onMounted(() => {
         <div class="block space-y-4 lg:hidden">
           <div class="flex items-center gap-3">
             <div
-              class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-400 to-teal-600 sm:h-12 sm:w-12"
-            >
+              class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-400 to-teal-600 sm:h-12 sm:w-12">
               <User class="text-white" :size="20" />
             </div>
             <div class="min-w-0 flex-1">
@@ -243,19 +240,12 @@ onMounted(() => {
           </div>
 
           <div class="grid grid-cols-2 gap-2 sm:gap-3">
-            <a
-              v-if="currentSubscription"
-              :href="workspaceUrl + 'packages'"
-              target="_blank"
-              class="rounded-lg bg-teal-500 px-3 py-2 text-center text-xs font-medium text-white transition-colors hover:bg-teal-600 hover:!text-white sm:px-4 sm:py-2.5 sm:text-sm"
-            >
+            <a v-if="currentSubscription" :href="workspaceUrl + 'packages'" target="_blank"
+              class="rounded-lg bg-teal-500 px-3 py-2 text-center text-xs font-medium text-white transition-colors hover:bg-teal-600 hover:!text-white sm:px-4 sm:py-2.5 sm:text-sm">
               积分充值
             </a>
-            <a
-              :href="workspaceUrl + 'plans-and-billing'"
-              target="_blank"
-              class="rounded-lg bg-gray-100 px-3 py-2 text-center text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200 sm:px-4 sm:py-2.5 sm:text-sm"
-            >
+            <a :href="workspaceUrl + 'plans-and-billing'" target="_blank"
+              class="rounded-lg bg-gray-100 px-3 py-2 text-center text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200 sm:px-4 sm:py-2.5 sm:text-sm">
               订阅管理
             </a>
           </div>
@@ -265,8 +255,7 @@ onMounted(() => {
         <div class="hidden items-center justify-between pr-12 lg:flex">
           <div class="flex items-center gap-6">
             <div
-              class="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-teal-400 to-teal-600"
-            >
+              class="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-teal-400 to-teal-600">
               <User class="text-white" :size="24" />
             </div>
             <div>
@@ -283,19 +272,12 @@ onMounted(() => {
             </div>
           </div>
           <div class="flex gap-3">
-            <a
-              v-if="currentSubscription"
-              :href="workspaceUrl + 'packages'"
-              target="_blank"
-              class="rounded-lg bg-teal-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-600 hover:!text-white"
-            >
+            <a v-if="currentSubscription" :href="workspaceUrl + 'packages'" target="_blank"
+              class="rounded-lg bg-teal-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-600 hover:!text-white">
               积分充值
             </a>
-            <a
-              :href="workspaceUrl + 'plans-and-billing'"
-              target="_blank"
-              class="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
-            >
+            <a :href="workspaceUrl + 'plans-and-billing'" target="_blank"
+              class="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200">
               订阅管理
             </a>
           </div>
@@ -306,31 +288,22 @@ onMounted(() => {
       <div class="p-4 pb-4 sm:p-6 sm:pb-6 md:p-8">
         <h3 class="mb-4 text-center text-lg font-semibold text-gray-900 sm:mb-6 sm:text-xl">订阅计划</h3>
         <div class="mx-auto flex max-w-2xl gap-2 sm:gap-3">
-          <button
-            @click="billingCycle = 'subscription'"
-            :class="[
-              'flex-1 rounded-lg border-2 px-2 py-2 transition-all sm:px-4 sm:py-3',
-              billingCycle === 'subscription' ? 'border-teal-500 bg-teal-50' : 'border-gray-200 hover:border-gray-300',
-            ]"
-          >
+          <button @click="billingCycle = 'subscription'" :class="[
+            'flex-1 rounded-lg border-2 px-2 py-2 transition-all sm:px-4 sm:py-3',
+            billingCycle === 'subscription' ? 'border-teal-500 bg-teal-50' : 'border-gray-200 hover:border-gray-300',
+          ]">
             <div class="text-xs font-medium text-gray-900 sm:text-sm">连续包月</div>
           </button>
-          <button
-            @click="billingCycle = 'yearly'"
-            :class="[
-              'flex-1 rounded-lg border-2 px-2 py-2 transition-all sm:px-4 sm:py-3',
-              billingCycle === 'yearly' ? 'border-teal-500 bg-teal-50' : 'border-gray-200 hover:border-gray-300',
-            ]"
-          >
+          <button @click="billingCycle = 'yearly'" :class="[
+            'flex-1 rounded-lg border-2 px-2 py-2 transition-all sm:px-4 sm:py-3',
+            billingCycle === 'yearly' ? 'border-teal-500 bg-teal-50' : 'border-gray-200 hover:border-gray-300',
+          ]">
             <div class="text-xs font-medium text-gray-900 sm:text-sm">包年</div>
           </button>
-          <button
-            @click="billingCycle = 'monthly'"
-            :class="[
-              'flex-1 rounded-lg border-2 px-2 py-2 transition-all sm:px-4 sm:py-3',
-              billingCycle === 'monthly' ? 'border-teal-500 bg-teal-50' : 'border-gray-200 hover:border-gray-300',
-            ]"
-          >
+          <button @click="billingCycle = 'monthly'" :class="[
+            'flex-1 rounded-lg border-2 px-2 py-2 transition-all sm:px-4 sm:py-3',
+            billingCycle === 'monthly' ? 'border-teal-500 bg-teal-50' : 'border-gray-200 hover:border-gray-300',
+          ]">
             <div class="text-xs font-medium text-gray-900 sm:text-sm">单月购买</div>
           </button>
         </div>
@@ -342,21 +315,15 @@ onMounted(() => {
           <div class="text-gray-500">加载中...</div>
         </div>
         <div v-else class="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-3">
-          <div
-            v-for="plan in plans"
-            :key="plan.id"
-            :class="[
-              'relative flex flex-col rounded-xl border-2 p-6 transition-all hover:shadow-lg',
-              plan.popular
-                ? 'border-teal-500 bg-gradient-to-b from-teal-50 to-white'
-                : 'border-gray-200 bg-white hover:border-gray-300',
-            ]"
-          >
+          <div v-for="plan in plans" :key="plan.id" :class="[
+            'relative flex flex-col rounded-xl border-2 p-6 transition-all hover:shadow-lg',
+            plan.popular
+              ? 'border-teal-500 bg-gradient-to-b from-teal-50 to-white'
+              : 'border-gray-200 bg-white hover:border-gray-300',
+          ]">
             <!-- Badge -->
-            <div
-              v-if="plan.popular"
-              class="absolute -top-3 right-4 rounded-full bg-gradient-to-r from-teal-500 to-teal-600 px-3 py-1 text-xs font-medium text-white"
-            >
+            <div v-if="plan.popular"
+              class="absolute -top-3 right-4 rounded-full bg-gradient-to-r from-teal-500 to-teal-600 px-3 py-1 text-xs font-medium text-white">
               最划算
             </div>
 
@@ -384,18 +351,14 @@ onMounted(() => {
               </div>
             </div>
             <!-- Button -->
-            <button
-              @click="handlePurchase(plan.id)"
-              :disabled="plan.isCurrentSubscription"
-              :class="[
-                'mb-6 w-full rounded-lg py-3 font-medium transition-all',
-                plan.isCurrentSubscription
-                  ? 'cursor-not-allowed bg-gray-200 text-gray-500'
-                  : plan.popular
-                    ? 'bg-gradient-to-r from-teal-400 to-teal-500 text-white hover:from-teal-500 hover:to-teal-600'
-                    : 'bg-black text-white hover:bg-gray-800',
-              ]"
-            >
+            <button @click="handlePurchase(plan.id)" :disabled="plan.isCurrentSubscription" :class="[
+              'mb-6 w-full rounded-lg py-3 font-medium transition-all',
+              plan.isCurrentSubscription
+                ? 'cursor-not-allowed bg-gray-200 text-gray-500'
+                : plan.popular
+                  ? 'bg-gradient-to-r from-teal-400 to-teal-500 text-white hover:from-teal-500 hover:to-teal-600'
+                  : 'bg-black text-white hover:bg-gray-800',
+            ]">
               {{ plan.isCurrentSubscription ? '当前计划' : '购买' }}
             </button>
 
@@ -414,32 +377,18 @@ onMounted(() => {
       <div class="px-4 pb-6 sm:px-6 sm:pb-8 md:px-8">
         <p class="text-center text-xs text-gray-500">
           购买即表示同意
-          <a
-            href="https://workspace.zerocut.cn/paid_service_agreement.html"
-            target="_blank"
-            class="text-teal-600 hover:underline"
-            >ZeroCut充值协议</a
-          >
+          <a href="https://workspace.zerocut.cn/paid_service_agreement.html" target="_blank"
+            class="text-teal-600 hover:underline">ZeroCut充值协议</a>
         </p>
       </div>
     </div>
 
     <!-- Payment Modal -->
-    <MembershipPaymentModal
-      v-model:open="showPaymentModal"
-      :membership-plan="selectedPlan"
-      :title="selectedPlanTitle"
-      @success="handlePaymentSuccess"
-      @cancel="handlePaymentCancel"
-    />
+    <MembershipPaymentModal v-model:open="showPaymentModal" :membership-plan="selectedPlan" :title="selectedPlanTitle"
+      @success="handlePaymentSuccess" @cancel="handlePaymentCancel" />
 
     <!-- Signing Modal -->
-    <MembershipSigningModal
-      v-model:open="showSigningModal"
-      :membership-plan="selectedPlan"
-      :title="selectedPlanTitle"
-      @success="handleSigningSuccess"
-      @cancel="handleSigningCancel"
-    />
+    <MembershipSigningModal v-model:open="showSigningModal" :membership-plan="selectedPlan" :title="selectedPlanTitle"
+      @success="handleSigningSuccess" @cancel="handleSigningCancel" />
   </div>
 </template>
