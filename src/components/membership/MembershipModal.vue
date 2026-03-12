@@ -81,17 +81,8 @@ const plans = computed(() => {
   return sorted.map(plan => {
     const isYearly = plan.purchaseMode === 'one_time_year' || plan.purchaseMode === 'auto_yearly';
     const monthlyPrice = isYearly ? (plan.priceYuan / 12).toFixed(2) : plan.priceYuan;
-    const pricePerCredit = (plan.priceYuan / (plan.monthlyCredits * (isYearly ? 12 : 1))).toFixed(4);
-
-    const oneTimeMonthPlan = rawPlans.value.find(p => p.tier === plan.tier && p.purchaseMode === 'one_time_month');
-    let discount = '';
-    if (oneTimeMonthPlan && oneTimeMonthPlan.priceYuan > 0) {
-      const basePrice = oneTimeMonthPlan.priceYuan * (isYearly ? 12 : 1);
-      const percent = Math.round((1 - plan.priceYuan / basePrice) * 100);
-      if (percent > 0) {
-        discount = `${(10 - percent / 10).toFixed(1)}折`;
-      }
-    }
+    const pricePerCredit = (plan.unitPriceYuanPer100 / 100).toFixed(4);
+    const discount = plan.discountZhe > 0 && plan.discountZhe < 10 ? `${plan.discountZhe.toFixed(1)}折` : '';
 
     const tierNames = { basic: '基础会员', standard: '标准会员', premium: '高级会员' };
     const icons = { basic: Sparkles, standard: Crown, premium: Gem };

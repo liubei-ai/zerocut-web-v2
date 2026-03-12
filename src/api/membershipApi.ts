@@ -9,6 +9,9 @@ export interface MembershipPlanDto {
   priceYuan: number;
   currency: string;
   monthlyCredits: number;
+  discountZhe: number;
+  unitPriceYuanPer100: number;
+  baseUnitPriceYuanPer100: number;
   billingIntervalMonths: number;
   isActive: boolean;
   wechatPapayPlanId?: string;
