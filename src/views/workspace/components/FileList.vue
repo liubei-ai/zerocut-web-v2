@@ -12,11 +12,13 @@ interface Props {
   projectId?: string | number;
   isUploading?: boolean;
   isOwner?: boolean;
+  isShared?: boolean;
 }
 
 interface Emits {
   (e: 'file-select', fileId: string): void;
   (e: 'project-title-change', newTitle: string): void;
+  (e: 'share-toggle'): void;
   (e: 'file-uploaded'): void;
   (e: 'upload-start'): void;
   (e: 'upload-end'): void;
@@ -26,6 +28,7 @@ const props = withDefaults(defineProps<Props>(), {
   projectTitle: '未命名项目',
   isUploading: false,
   isOwner: true,
+  isShared: false,
 });
 
 const emit = defineEmits<Emits>();
@@ -162,13 +165,56 @@ const handleDownloadAll = async () => {
           class="w-full rounded-md border border-blue-500 px-2 py-1 text-sm font-semibold text-gray-900 outline-none md:text-base"
           autofocus
         />
-        <div
-          v-else
-          @click="isEditingTitle = true"
-          class="cursor-pointer rounded-md px-2 py-1 text-sm font-semibold text-gray-900 transition-all hover:bg-gray-50 md:text-base"
-          title="点击编辑项目名称"
-        >
-          {{ projectTitle }}
+        <div v-else class="flex items-center gap-1.5">
+          <div
+            @click="isEditingTitle = true"
+            class="min-w-0 flex-1 cursor-pointer truncate rounded-md px-2 py-1 text-sm font-semibold text-gray-900 transition-all hover:bg-gray-50 md:text-base"
+            title="点击编辑项目名称"
+          >
+            {{ projectTitle }}
+          </div>
+          <button
+            v-if="props.isOwner && projectId"
+            @click="$emit('share-toggle')"
+            :class="[
+              'flex-shrink-0 cursor-pointer rounded-md p-1.5 transition-all',
+              props.isShared
+                ? 'text-blue-500 hover:bg-blue-50'
+                : 'text-gray-400 hover:bg-gray-100',
+            ]"
+            :title="props.isShared ? '已公开分享，点击关闭' : '未分享，点击开启公开分享'"
+          >
+            <!-- Unlocked icon (shared) -->
+            <svg
+              v-if="props.isShared"
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+            </svg>
+            <!-- Locked icon (not shared) -->
+            <svg
+              v-else
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          </button>
         </div>
       </div>
 

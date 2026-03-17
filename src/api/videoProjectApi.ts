@@ -71,7 +71,8 @@ export async function deleteVideoProject(projectId: string) {
 
 // Update video project
 export interface UpdateVideoProjectRequest {
-  project_name: string;
+  project_name?: string;
+  is_shared?: boolean;
 }
 
 export interface UpdateVideoProjectResponse {
@@ -162,6 +163,7 @@ export interface ProjectDetailsResponse {
   created_at: string;
   updated_at: string;
   is_owner?: boolean;
+  is_shared?: boolean;
 }
 
 export async function getProjectDetails(projectId: string | number) {
@@ -254,7 +256,7 @@ export async function uploadMaterial(projectId: string | number, file: File) {
 
   const response = await apiClient.upload<UploadMaterialResponse>(
     `/video-creation/upload/${projectId}`,
-    formData, { noErrorAlert: true ,timeout: 2000000}
+    formData, { noErrorAlert: true, timeout: 2000000 }
   );
   return response.data;
 }

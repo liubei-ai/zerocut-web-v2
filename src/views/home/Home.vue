@@ -197,7 +197,7 @@ const handleSubmit = () => {
           }
         }
 
-        chatMessage = `根据以下内容使用素材创作技能，参考生视频${filePrompt}，模型使用${videoModel.value}，${aspectRatioMap[videoAspectRatio.value]}，${durationMap[videoDuration.value]}。内容：${videoPrompt.value}`;
+        chatMessage = `根据以下内容使用素材创作技能，参考生视频${filePrompt}，模型使用${videoModel.value}，${aspectRatioMap[videoAspectRatio.value]}，生成单条${durationMap[videoDuration.value]}视频。内容：${videoPrompt.value}`;
       }
     } else if (selectedMode.value === 'storyboard') {
       chatMessage = `请根据内容撰写分镜脚本，内容为：${videoPrompt.value}`;

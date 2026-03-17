@@ -362,7 +362,7 @@ const handleKeyDown = (e: KeyboardEvent) => {
         <FileReferenceInput
           ref="fileReferenceInputRef"
           v-model="input"
-          placeholder="请输入你的设计需求..."
+          :placeholder="isRunning ? 'AI正在工作中，请稍候...' : '请输入你的设计需求...'"
           :disabled="isRunning"
           :project-files="files"
           textarea-class="max-h-[60px] min-h-[60px] w-full resize-none border-none text-xs leading-relaxed outline-none md:max-h-[70px] md:min-h-[70px] md:text-sm"

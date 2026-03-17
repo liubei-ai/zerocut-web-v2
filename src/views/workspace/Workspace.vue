@@ -58,6 +58,7 @@ const isPolling = ref(false);
 const projectId = ref<string>('');
 const activeTab = ref<'files' | 'preview' | 'chat'>('chat');
 const isOwner = ref<boolean>(true);
+const isShared = ref<boolean>(false);
 const isCancelling = ref(false);
 
 const tabs = [
@@ -191,6 +192,9 @@ const refreshWorkspaceData = async () => {
 
     // Update is_owner status
     isOwner.value = projectData.is_owner !== false;
+
+    // Update is_shared status
+    isShared.value = projectData.is_shared === true;
 
     // Handle status changes
     const currentStatus = projectData.status;
@@ -394,6 +398,10 @@ const handleProjectTitleChange = async (newTitle: string) => {
     return;
   }
 
+  if (newTitle.trim() === projectTitle.value) {
+    return;
+  }
+
   try {
     await updateVideoProject(projectId.value, {
       project_name: newTitle.trim(),
@@ -406,6 +414,24 @@ const handleProjectTitleChange = async (newTitle: string) => {
     console.error('❌ 更新项目标题失败:', error);
     toast.error('更新项目标题失败，请稍后重试');
     // Note: The UI should handle reverting the title change if needed
+  }
+};
+
+const handleShareToggle = async () => {
+  if (!projectId.value) return;
+
+  const newSharedStatus = !isShared.value;
+
+  try {
+    await updateVideoProject(projectId.value, {
+      is_shared: newSharedStatus,
+    });
+
+    isShared.value = newSharedStatus;
+    toast.success(newSharedStatus ? '已开启分享，任何人都可以通过当前链接查看本项目' : '已关闭分享');
+  } catch (error) {
+    console.error('❌ 更新分享状态失败:', error);
+    toast.error('更新分享状态失败，请稍后重试');
   }
 };
 
@@ -602,8 +628,10 @@ const handleAbortTask = async () => {
           :project-id="projectId"
           :is-uploading="isUploading"
           :is-owner="isOwner"
+          :is-shared="isShared"
           @file-select="handleFileSelect"
           @project-title-change="handleProjectTitleChange"
+          @share-toggle="handleShareToggle"
           @file-uploaded="handleFileUploaded"
           @upload-start="handleUploadStart"
           @upload-end="handleUploadEnd"
@@ -647,8 +675,10 @@ const handleAbortTask = async () => {
             :project-id="projectId"
             :is-uploading="isUploading"
             :is-owner="isOwner"
+            :is-shared="isShared"
             @file-select="handleMobileFileSelect"
             @project-title-change="handleProjectTitleChange"
+            @share-toggle="handleShareToggle"
             @file-uploaded="handleFileUploaded"
             @upload-start="handleUploadStart"
             @upload-end="handleUploadEnd"
