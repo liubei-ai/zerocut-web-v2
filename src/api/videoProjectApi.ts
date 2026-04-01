@@ -11,6 +11,7 @@ export interface VideoProject {
   thumbnail_url?: string;
   duration?: number;
   created_at: string;
+  is_shared: boolean;
   oss_mapping?: Array<{
     localFile: string;
     ossUrl: string;

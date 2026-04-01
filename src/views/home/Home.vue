@@ -39,7 +39,9 @@ const priceConfig = ref<any>(null);
 
 // Free creation mode options
 const freeCreationMode = ref('video_generation'); // 'agent' or 'video_generation'
+
 const videoModel = ref('zerocut3.0');
+
 const videoDuration = ref('15s');
 const videoAspectRatio = ref('9:16');
 const showFreeCreationModeMenu = ref(false);
@@ -84,7 +86,11 @@ const freeCreationModes = [
   { id: 'agent', label: 'Agent模式' },
 ];
 
-const videoModels = [{ id: 'zerocut3.0', label: 'ZeroCut 3.0', description: '默认' }];
+const videoModels = [
+  { id: 'zerocut3.0', label: 'ZeroCut 3.0', description: '均衡之王', priceId: 'zerocut3.0' },
+  { id: 'zerocut3.0-pro', label: 'Zerocut3.0-pro', description: '王者质量', priceId: 'seedance-2.0' },
+  { id: 'zerocut3.0-fast', label: 'Zerocut3.0-fast', description: '高性价比', priceId: 'seedance-2.0-fast' },
+];
 
 const videoDurations = [
   { id: '5s', label: '5秒', description: '宫格分镜' },
@@ -269,12 +275,18 @@ const creditsNeeded = computed(() => {
 
   const durationSeconds = parseInt(videoDuration.value);
 
-  // Use web_price_v3 config if available
-  if (priceConfig.value) {
-    const resolution720p = priceConfig.value.resolutions?.find((r: any) => r.name === '720p');
-    if (resolution720p) {
-      const { min_price, additional_price_per_second, time_range } = resolution720p;
-      return min_price + (durationSeconds - time_range.min) * additional_price_per_second;
+  // Use web_price config if available
+  if (priceConfig.value && Array.isArray(priceConfig.value)) {
+    const currentModelInfo = videoModels.find(m => m.id === videoModel.value);
+    const targetPriceId = currentModelInfo?.priceId || 'zerocut3.0'; // Fallback to zerocut3.0 if not found
+    const modelPriceInfo = priceConfig.value.find((c: any) => c.id === targetPriceId);
+
+    if (modelPriceInfo) {
+      const resolution720p = modelPriceInfo.resolutions?.find((r: any) => r.name === '720p');
+      if (resolution720p) {
+        const { min_price, additional_price_per_second, time_range } = resolution720p;
+        return min_price + (durationSeconds - time_range.min) * additional_price_per_second;
+      }
     }
   }
 
@@ -324,7 +336,7 @@ const loadSystemConfig = async () => {
   try {
     const config = await getSystemConfig([
       'web_home_tips',
-      'web_price_v3',
+      'web_price',
       'web_home_auto_recommend',
       'web_home_free_recommend',
     ]);
@@ -333,8 +345,8 @@ const loadSystemConfig = async () => {
     }
 
     // Store price config
-    if (config.webPriceV3) {
-      priceConfig.value = config.webPriceV3;
+    if (config.webPrice) {
+      priceConfig.value = config.webPrice;
     }
 
     const webHomeAutoRecommend = config.webHomeAutoRecommend;

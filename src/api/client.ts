@@ -70,7 +70,7 @@ const hideLoading = () => {
 };
 
 // URL prefixes that should use the proxy target
-const USER_TARGET_PREFIXES = ['/wallet/', '/homepage', '/auth', '/studio', '/subscriptions'];
+const USER_TARGET_PREFIXES = ['/wallet/', '/homepage', '/auth', '/studio', '/subscriptions', '/open'];
 
 // Utility functions
 export function isHttpStatusOk(statusCode: number): boolean {
