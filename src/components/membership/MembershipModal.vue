@@ -121,7 +121,7 @@ async function fetchData() {
   try {
     loading.value = true;
     const [plansData, subscription] = await Promise.all([
-      getMembershipPlans(),
+      getMembershipPlans(workspaceId.value),
       getCurrentSubscription(workspaceId.value).catch(() => null),
     ]);
     rawPlans.value = plansData || [];

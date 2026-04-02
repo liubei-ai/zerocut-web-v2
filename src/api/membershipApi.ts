@@ -68,7 +68,7 @@ export interface SubscriptionDetails {
   nextBillingAt: string | null;
 }
 
-export async function getMembershipPlans() {
+export async function getMembershipPlans(workspaceId: string) {
   const response = await client.get<MembershipPlanDto[]>('/subscriptions/membership-plans');
   return response.data;
 }
