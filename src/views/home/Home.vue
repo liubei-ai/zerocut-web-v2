@@ -87,9 +87,11 @@ const freeCreationModes = [
 ];
 
 const videoModels = [
-  { id: 'zerocut3.0', label: 'ZeroCut 3.0', description: '均衡之王', priceId: 'zerocut3.0' },
-  { id: 'zerocut3.0-pro', label: 'Zerocut3.0-pro', description: '王者质量', priceId: 'seedance-2.0' },
-  { id: 'zerocut3.0-fast', label: 'Zerocut3.0-fast', description: '高性价比', priceId: 'seedance-2.0-fast' },
+  { id: 'zerocut3.0', label: 'ZeroCut 3.0', description: '', priceId: 'zerocut3.0' },
+  { id: 'seedance-2.0', label: 'Seedance-2.0', description: '', priceId: 'seedance-2.0' },
+  { id: 'seedance-2.0-fast', label: 'Seedance-2.0-fast', description: '', priceId: 'seedance-2.0-fast' },
+  { id: 'zerocut3.0-pro', label: 'ZeroCut3.0-pro', description: '', priceId: 'seedance-2.0' },
+  { id: 'zerocut3.0-fast', label: 'ZeroCut3.0-fast', description: '', priceId: 'seedance-2.0-fast' },
 ];
 
 const videoDurations = [
