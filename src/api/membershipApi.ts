@@ -69,7 +69,9 @@ export interface SubscriptionDetails {
 }
 
 export async function getMembershipPlans(workspaceId: string) {
-  const response = await client.get<MembershipPlanDto[]>('/subscriptions/membership-plans');
+  const response = await client.get<MembershipPlanDto[]>('/subscriptions/membership-plans', {
+    workspaceId
+  });
   return response.data;
 }
 

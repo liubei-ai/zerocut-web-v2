@@ -40,7 +40,7 @@ const priceConfig = ref<any>(null);
 // Free creation mode options
 const freeCreationMode = ref('video_generation'); // 'agent' or 'video_generation'
 
-const videoModel = ref('zerocut3.0');
+const videoModel = ref('seedance-2.0');
 
 const videoDuration = ref('15s');
 const videoAspectRatio = ref('9:16');
