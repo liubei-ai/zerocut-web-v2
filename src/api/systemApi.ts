@@ -12,9 +12,7 @@ export interface TemplateItem {
 export interface SystemConfigResponse {
   webPriceV3?: any;
   webPrice?: any;
-  webHomeTips?: {
-    key: string;
-  };
+  webHomeTips?: string;
   webHomeAutoRecommend?: TemplateItem[];
   webHomeFreeRecommend?: TemplateItem[];
 }

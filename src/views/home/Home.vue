@@ -87,11 +87,12 @@ const freeCreationModes = [
 ];
 
 const videoModels = [
-  { id: 'zerocut3.0', label: 'ZeroCut 3.0', description: '', priceId: 'zerocut3.0' },
+  
   { id: 'seedance-2.0', label: 'Seedance-2.0', description: '', priceId: 'seedance-2.0' },
   { id: 'seedance-2.0-fast', label: 'Seedance-2.0-fast', description: '', priceId: 'seedance-2.0-fast' },
-  { id: 'zerocut3.0-pro', label: 'ZeroCut3.0-pro', description: '', priceId: 'seedance-2.0' },
-  { id: 'zerocut3.0-fast', label: 'ZeroCut3.0-fast', description: '', priceId: 'seedance-2.0-fast' },
+  { id: 'zerocut3.0', label: 'ZeroCut 3.0', description: '', priceId: 'zerocut3.0' },
+  { id: 'zerocut3.0-pro', label: 'ZeroCut 3.0-pro', description: '', priceId: 'seedance-2.0' },
+  { id: 'zerocut3.0-fast', label: 'ZeroCut 3.0-fast', description: '', priceId: 'seedance-2.0-fast' },
 ];
 
 const videoDurations = [
@@ -342,8 +343,9 @@ const loadSystemConfig = async () => {
       'web_home_auto_recommend',
       'web_home_free_recommend',
     ]);
-    if (config.webHomeTips?.key) {
-      homeTips.value = config.webHomeTips.key;
+    console.log('config',config)
+    if (config.webHomeTips) {
+      homeTips.value = config.webHomeTips;
     }
 
     // Store price config
