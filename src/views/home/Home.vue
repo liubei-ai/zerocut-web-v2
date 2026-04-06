@@ -91,8 +91,9 @@ const videoModels = [
   { id: 'seedance-2.0', label: 'Seedance-2.0', description: '', priceId: 'seedance-2.0' },
   { id: 'seedance-2.0-fast', label: 'Seedance-2.0-fast', description: '', priceId: 'seedance-2.0-fast' },
   { id: 'zerocut3.0', label: 'ZeroCut 3.0', description: '', priceId: 'zerocut3.0' },
-  { id: 'zerocut3.0-pro', label: 'ZeroCut 3.0-pro', description: '', priceId: 'seedance-2.0' },
-  { id: 'zerocut3.0-fast', label: 'ZeroCut 3.0-fast', description: '', priceId: 'seedance-2.0-fast' },
+  { id: 'zerocut3.0-pro', label: 'ZeroCut 3.0-pro', description: '', priceId: 'zerocut3.0-pro' },
+  { id: 'zerocut3.0-turbo', label: 'ZeroCut 3.0-turbo', description: '', priceId: 'zerocut3.0-turbo' },
+  { id: 'zerocut3.0-fast', label: 'ZeroCut 3.0-fast', description: '', priceId: 'zerocut3.0-pro-fast' },
 ];
 
 const videoDurations = [
