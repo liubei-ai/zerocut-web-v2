@@ -121,7 +121,7 @@ onUnmounted(() => {
           <a
             v-else
             title="剩余积分"
-            :href="workspaceUrl + 'wallet'"
+            :href="workspaceUrl + 'membership'"
             target="_blank"
             class="flex items-center gap-2 rounded-[20px] border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2"
           >
