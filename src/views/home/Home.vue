@@ -83,8 +83,27 @@ const styles = [
 
 const freeCreationModes = [
   { id: 'video_generation', label: '视频生成' },
+  { id: 'image_generation', label: '图片生成' },
   { id: 'agent', label: 'Agent模式' },
 ];
+
+const imageModel = ref('banana2');
+const showImageModelMenu = ref(false);
+const imageModelMenuRef = ref<HTMLElement | null>(null);
+
+const imageModels = [
+  { id: 'banana2', label: 'Banana 2' },
+  { id: 'banana-pro', label: 'Banana Pro' },
+  { id: 'seedream-pro', label: 'Seedream Pro' },
+  { id: 'seedream-5.0-lite', label: 'Seedream 5.0 Lite' },
+  { id: 'midjourney', label: 'Midjourney' },
+  { id: 'midjourney-niji', label: 'Midjourney Niji' },
+];
+
+const selectImageModel = (model: string) => {
+  imageModel.value = model;
+  showImageModelMenu.value = false;
+};
 
 const videoModels = [
   
@@ -133,6 +152,14 @@ const suggestionsByMode = ref<Record<string, TemplateItem[]>>({
     { name: '编写一个广告文案脚本', placeholder: '编写一个广告文案脚本' },
     { name: '生成品牌宣传海报', placeholder: '生成品牌宣传海报' },
   ],
+  image_generation: [
+    { name: '赛博朋克城市夜景', placeholder: '赛博朋克风格的城市夜景，霓虹灯倒映在雨后的街道上，高楼林立，充满未来感' },
+    { name: '水墨山水画', placeholder: '中国传统水墨风格的山水画，云雾缭绕的山峰，远处有一叶扁舟，意境悠远' },
+    { name: '可爱动物插画', placeholder: '一只穿着宇航服的柴犬漂浮在太空中，背景是星云和行星，卡通插画风格' },
+    { name: '梦幻森林场景', placeholder: '魔法森林中的精灵小屋，蘑菇发光，萤火虫飞舞，唯美奇幻风格' },
+    { name: '产品概念海报', placeholder: '极简主义风格的香水广告海报，玻璃瓶在柔和光线下折射出彩虹光晕，高端质感' },
+    { name: '复古胶片人像', placeholder: '复古胶片风格的街头人像摄影，暖色调，浅景深，充满年代感' },
+  ],
   /* storyboard: [
     '一个咖啡店的温馨日常故事',
     '科幻题材的短片分镜',
@@ -149,7 +176,12 @@ const placeholderByMode: Record<string, string> = {
   storyboard: '输入剧本，智能生成专业分镜脚本',
 };
 
-const currentPlaceholder = computed(() => placeholderByMode[selectedMode.value]);
+const currentPlaceholder = computed(() => {
+  if (selectedMode.value === 'free_creation' && freeCreationMode.value === 'image_generation') {
+    return '描述你想生成的图片内容，例如：一只可爱的小猫在魔法世界中荡秋千';
+  }
+  return placeholderByMode[selectedMode.value];
+});
 
 const handleFilesChange = (files: FilePreview[]) => {
   selectedFiles.value = files;
@@ -189,6 +221,12 @@ const handleSubmit = () => {
     } else if (selectedMode.value === 'free_creation') {
       if (freeCreationMode.value === 'agent') {
         chatMessage = `${videoPrompt.value}`;
+      } else if (freeCreationMode.value === 'image_generation') {
+        const aspectRatioMap: Record<string, string> = {
+          '9:16': '竖屏9:16',
+          '16:9': '横屏16:9',
+        };
+        chatMessage = `请使用${imageModels.find(m => m.id === imageModel.value)?.label || imageModel.value}模型生成图片，${aspectRatioMap[videoAspectRatio.value]}，内容为：${videoPrompt.value}`;
       } else {
         // Video generation mode
         const aspectRatioMap: Record<string, string> = {
@@ -324,6 +362,10 @@ const handleClickOutside = (event: MouseEvent) => {
 
   if (videoAspectRatioMenuRef.value && !videoAspectRatioMenuRef.value.contains(target)) {
     showVideoAspectRatioMenu.value = false;
+  }
+
+  if (imageModelMenuRef.value && !imageModelMenuRef.value.contains(target)) {
+    showImageModelMenu.value = false;
   }
 };
 
@@ -662,6 +704,81 @@ const loadSystemConfig = async () => {
                           </div>
                         </div>
                       </template>
+                      <!-- Image Generation Options (only show when image_generation mode is selected) -->
+                      <template v-if="freeCreationMode === 'image_generation'">
+                        <!-- Image Model Selector -->
+                        <div ref="imageModelMenuRef" class="relative">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            @click="
+                              showImageModelMenu = !showImageModelMenu;
+                              showFreeCreationModeMenu = false;
+                              showVideoAspectRatioMenu = false;
+                            "
+                            class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
+                          >
+                            <span>🎨</span>
+                            <span>{{ imageModels.find(m => m.id === imageModel)?.label }}</span>
+                            <span class="text-xs">▼</span>
+                          </Button>
+
+                          <div
+                            v-if="showImageModelMenu"
+                            class="absolute bottom-full left-0 z-[1000] mb-2 min-w-[200px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                          >
+                            <Button
+                              v-for="model in imageModels"
+                              :key="model.id"
+                              variant="ghost"
+                              @click="selectImageModel(model.id)"
+                              :class="[
+                                'h-auto w-full justify-start rounded-lg px-3 py-2.5 text-left',
+                                imageModel === model.id ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]',
+                              ]"
+                            >
+                              <span class="text-sm font-medium text-[#111827]">{{ model.label }}</span>
+                            </Button>
+                          </div>
+                        </div>
+
+                        <!-- Aspect Ratio Selector (reuse videoAspectRatio) -->
+                        <div ref="videoAspectRatioMenuRef" class="relative">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            @click="
+                              showVideoAspectRatioMenu = !showVideoAspectRatioMenu;
+                              showFreeCreationModeMenu = false;
+                              showImageModelMenu = false;
+                            "
+                            class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
+                          >
+                            <span>📐</span>
+                            <span>{{ videoAspectRatio }}</span>
+                            <span class="text-xs">▼</span>
+                          </Button>
+
+                          <div
+                            v-if="showVideoAspectRatioMenu"
+                            class="absolute bottom-full left-0 z-[1000] mb-2 min-w-[180px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                          >
+                            <Button
+                              v-for="ratio in videoAspectRatios"
+                              :key="ratio.id"
+                              variant="ghost"
+                              @click="selectVideoAspectRatio(ratio.id)"
+                              :class="[
+                                'h-auto w-full justify-between rounded-lg px-3 py-2.5 text-left',
+                                videoAspectRatio === ratio.id ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]',
+                              ]"
+                            >
+                              <span class="text-sm font-medium text-[#111827]">{{ ratio.label }}</span>
+                              <span class="text-xs text-[#9ca3af]">{{ ratio.description }}</span>
+                            </Button>
+                          </div>
+                        </div>
+                      </template>
                     </div>
                   </div>
 
@@ -722,7 +839,7 @@ const loadSystemConfig = async () => {
           <!-- Quick Templates -->
           <div class="grid grid-cols-3 gap-3">
             <button
-              v-for="template in suggestionsByMode[selectedMode]"
+              v-for="template in (selectedMode === 'free_creation' && freeCreationMode === 'image_generation' ? suggestionsByMode['image_generation'] : suggestionsByMode[selectedMode])"
               :key="template.name"
               @click="videoPrompt = template.placeholder"
               class="cursor-pointer rounded-xl border border-[#e5e7eb] bg-white p-4 text-center text-sm text-[#6b7280] transition-all hover:-translate-y-0.5 hover:border-[#d1d5db] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)]"
