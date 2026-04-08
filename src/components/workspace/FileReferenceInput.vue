@@ -445,7 +445,7 @@ defineExpose({
       type="file"
       @change="handleFileChange"
       class="hidden"
-      accept="image/*"
+      accept="image/*,video/*,audio/*"
       multiple
     />
 
