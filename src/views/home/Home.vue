@@ -11,6 +11,8 @@ import { useMembershipModalStore } from '@/stores/membershipModalStore';
 import { useDebugStore } from '@/stores/debugStore';
 import { getSystemConfig, type TemplateItem } from '@/api/systemApi';
 import { useToast } from '@/composables/useToast';
+import { videoModels, videoDurations, videoAspectRatios, videoResolutions } from '@/config/videoGeneration';
+import { calculateVideoCredits } from '@/utils/videoPriceCalculator';
 
 interface FilePreview {
   id: string;
@@ -44,10 +46,12 @@ const videoModel = ref('seedance-2.0');
 
 const videoDuration = ref('15s');
 const videoAspectRatio = ref('9:16');
+const videoResolution = ref<'720p' | '1080p'>('720p');
 const showFreeCreationModeMenu = ref(false);
 const showVideoModelMenu = ref(false);
 const showVideoDurationMenu = ref(false);
 const showVideoAspectRatioMenu = ref(false);
+const showVideoResolutionMenu = ref(false);
 
 const aspectRatioMenuRef = ref<HTMLElement | null>(null);
 const styleMenuRef = ref<HTMLElement | null>(null);
@@ -55,6 +59,7 @@ const freeCreationModeMenuRef = ref<HTMLElement | null>(null);
 const videoModelMenuRef = ref<HTMLElement | null>(null);
 const videoDurationMenuRef = ref<HTMLElement | null>(null);
 const videoAspectRatioMenuRef = ref<HTMLElement | null>(null);
+const videoResolutionMenuRef = ref<HTMLElement | null>(null);
 
 const modes = [
   { id: 'free_creation', label: '自由创作', icon: '🎨' },
@@ -105,22 +110,6 @@ const selectImageModel = (model: string) => {
   showImageModelMenu.value = false;
 };
 
-const videoModels = [
-  
-  { id: 'seedance-2.0', label: 'Seedance-2.0', description: '', priceId: 'seedance-2.0' },
-  { id: 'seedance-2.0-fast', label: 'Seedance-2.0-fast', description: '', priceId: 'seedance-2.0-fast' },
-  { id: 'zerocut3.0', label: 'ZeroCut 3.0', description: '', priceId: 'zerocut3.0' },
-  { id: 'zerocut3.0-pro', label: 'ZeroCut 3.0-pro', description: '', priceId: 'zerocut3.0-pro' },
-  { id: 'zerocut3.0-turbo', label: 'ZeroCut 3.0-turbo', description: '', priceId: 'zerocut3.0-turbo' },
-  { id: 'zerocut3.0-fast', label: 'ZeroCut 3.0-fast', description: '', priceId: 'zerocut3.0-pro-fast' },
-];
-
-const videoDurations = [
-  { id: '5s', label: '5秒', description: '宫格分镜' },
-  { id: '10s', label: '10秒', description: '宫格分镜' },
-  { id: '15s', label: '15秒', description: '宫格分镜' },
-];
-
 // Derive duration map from videoDurations array
 const durationMap = videoDurations.reduce(
   (acc, item) => {
@@ -129,11 +118,6 @@ const durationMap = videoDurations.reduce(
   },
   {} as Record<string, string>,
 );
-
-const videoAspectRatios = [
-  { id: '9:16', label: '9:16', description: '竖屏' },
-  { id: '16:9', label: '16:9', description: '横屏' },
-];
 
 const suggestionsByMode = ref<Record<string, TemplateItem[]>>({
   one_click: [
@@ -198,12 +182,9 @@ const handleSubmit = () => {
   if (
     creditsStore.creditsBalance !== null &&
     creditsNeeded.value > 0 &&
-    creditsNeeded.value > creditsStore.creditsBalance
+    creditsNeeded.value > creditsStore.creditsBalance.valueOf()
   ) {
-    toast.error(
-      `积分不足！需要 ${creditsNeeded.value} 积分，当前余额 ${creditsStore.creditsBalance} 积分`,
-      '积分不足',
-    );
+    toast.error(`积分不足！需要 ${creditsNeeded.value} 积分，当前余额 ${creditsStore.creditsBalance} 积分`, '积分不足');
     if (debugStore.isDebugMode) {
       membershipModalStore.openMembershipModal();
     }
@@ -213,6 +194,12 @@ const handleSubmit = () => {
   if (videoPrompt.value.trim()) {
     console.log('Submitting prompt:', videoPrompt.value);
     console.log('Selected files:', selectedFiles.value);
+    console.log('Selected mode:', selectedMode.value);
+    console.log('Free creation mode:', freeCreationMode.value);
+
+    // Check if we're in video generation mode
+    const isVideoGenerationMode =
+      selectedMode.value === 'free_creation' && freeCreationMode.value === 'video_generation';
 
     let chatMessage = '';
 
@@ -228,24 +215,8 @@ const handleSubmit = () => {
         };
         chatMessage = `请使用${imageModels.find(m => m.id === imageModel.value)?.label || imageModel.value}模型生成图片，${aspectRatioMap[videoAspectRatio.value]}，内容为：${videoPrompt.value}`;
       } else {
-        // Video generation mode
-        const aspectRatioMap: Record<string, string> = {
-          '9:16': '9:16竖屏',
-          '16:9': '16:9横屏',
-        };
-
-        // Build prompt for unmentioned files
-        let filePrompt = '';
-        if (selectedFiles.value.length > 0) {
-          const unmentionedFiles = selectedFiles.value.filter(file => !videoPrompt.value.includes(file.name));
-
-          if (selectedFiles.value.length > 0) {
-            const fileNames = selectedFiles.value.map(f => f.name).join(',');
-            filePrompt = `(${fileNames})`;
-          }
-        }
-
-        chatMessage = `根据以下内容使用素材创作技能，参考生视频${filePrompt}，模型使用${videoModel.value}，${aspectRatioMap[videoAspectRatio.value]}，生成单条${durationMap[videoDuration.value]}视频。内容：${videoPrompt.value}`;
+        // Video generation mode - use workflow API instead of chat
+        chatMessage = videoPrompt.value;
       }
     } else if (selectedMode.value === 'storyboard') {
       chatMessage = `请根据内容撰写分镜脚本，内容为：${videoPrompt.value}`;
@@ -268,12 +239,19 @@ const handleSubmit = () => {
 
     // Navigate to workspace/new and pass chatMessage via router state
     console.log('chatMessage', chatMessage);
-    //return;
+    console.log('isVideoGenerationMode', isVideoGenerationMode);
+
     router.push({
       path: '/workspace/new',
       state: {
         chatMessage,
         hasFiles: selectedFiles.value.length > 0,
+        generationMode: isVideoGenerationMode ? 'video_generation' : 'agent',
+        prompt: videoPrompt.value,
+        videoModel: videoModel.value,
+        videoDuration: parseInt(videoDuration.value),
+        videoAspectRatio: videoAspectRatio.value,
+        videoResolution: videoResolution.value,
       },
     });
   }
@@ -309,31 +287,19 @@ const selectVideoAspectRatio = (ratio: string) => {
   showVideoAspectRatioMenu.value = false;
 };
 
+const selectVideoResolution = (resolution: '720p' | '1080p') => {
+  videoResolution.value = resolution;
+  showVideoResolutionMenu.value = false;
+};
+
 // Calculate credits needed for video generation
-const creditsNeeded = computed(() => {
+const creditsNeeded = computed((): number => {
   if (selectedMode.value !== 'free_creation' || freeCreationMode.value !== 'video_generation') {
     return 0;
   }
 
   const durationSeconds = parseInt(videoDuration.value);
-
-  // Use web_price config if available
-  if (priceConfig.value && Array.isArray(priceConfig.value)) {
-    const currentModelInfo = videoModels.find(m => m.id === videoModel.value);
-    const targetPriceId = currentModelInfo?.priceId || 'zerocut3.0'; // Fallback to zerocut3.0 if not found
-    const modelPriceInfo = priceConfig.value.find((c: any) => c.id === targetPriceId);
-
-    if (modelPriceInfo) {
-      const resolution720p = modelPriceInfo.resolutions?.find((r: any) => r.name === '720p');
-      if (resolution720p) {
-        const { min_price, additional_price_per_second, time_range } = resolution720p;
-        return min_price + (durationSeconds - time_range.min) * additional_price_per_second;
-      }
-    }
-  }
-
-  // Fallback to old calculation
-  return 30 + 24 * durationSeconds;
+  return calculateVideoCredits(videoModel.value, durationSeconds, videoResolution.value, priceConfig.value, videoModels);
 });
 
 // Handle click outside to close menus
@@ -364,6 +330,10 @@ const handleClickOutside = (event: MouseEvent) => {
     showVideoAspectRatioMenu.value = false;
   }
 
+  if (videoResolutionMenuRef.value && !videoResolutionMenuRef.value.contains(target)) {
+    showVideoResolutionMenu.value = false;
+  }
+
   if (imageModelMenuRef.value && !imageModelMenuRef.value.contains(target)) {
     showImageModelMenu.value = false;
   }
@@ -386,7 +356,7 @@ const loadSystemConfig = async () => {
       'web_home_auto_recommend',
       'web_home_free_recommend',
     ]);
-    console.log('config',config)
+    console.log('config', config);
     if (config.webHomeTips) {
       homeTips.value = config.webHomeTips;
     }
@@ -473,7 +443,9 @@ const loadSystemConfig = async () => {
                   class="flex flex-col gap-3 border-t border-[#f3f4f6] pt-2 sm:flex-row sm:items-start sm:justify-between sm:gap-2"
                 >
                   <!-- Mode Options Row with fixed min-height to prevent layout shift -->
-                  <div class="relative flex min-h-[88px] flex-wrap content-start items-start gap-2 transition-all duration-200 sm:min-h-[44px]">
+                  <div
+                    class="relative flex min-h-[88px] flex-wrap content-start items-start gap-2 transition-all duration-200 sm:min-h-[44px]"
+                  >
                     <!-- One Click Mode Options -->
                     <div v-if="selectedMode === 'one_click'" class="ml-0 flex flex-wrap gap-2 sm:ml-2">
                       <!-- Aspect Ratio Selector -->
@@ -703,6 +675,45 @@ const loadSystemConfig = async () => {
                             </Button>
                           </div>
                         </div>
+
+                        <!-- Resolution Selector -->
+                        <div ref="videoResolutionMenuRef" class="relative">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            @click="
+                              showVideoResolutionMenu = !showVideoResolutionMenu;
+                              showFreeCreationModeMenu = false;
+                              showVideoModelMenu = false;
+                              showVideoDurationMenu = false;
+                              showVideoAspectRatioMenu = false;
+                            "
+                            class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
+                          >
+                            <span>📺</span>
+                            <span>{{ videoResolution }}</span>
+                            <span class="text-xs">▼</span>
+                          </Button>
+
+                          <div
+                            v-if="showVideoResolutionMenu"
+                            class="absolute bottom-full left-0 z-[1000] mb-2 min-w-[180px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                          >
+                            <Button
+                              v-for="res in videoResolutions"
+                              :key="res.id"
+                              variant="ghost"
+                              @click="selectVideoResolution(res.id as '720p' | '1080p')"
+                              :class="[
+                                'h-auto w-full justify-between rounded-lg px-3 py-2.5 text-left',
+                                videoResolution === res.id ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]',
+                              ]"
+                            >
+                              <span class="text-sm font-medium text-[#111827]">{{ res.label }}</span>
+                              <span class="text-xs text-[#9ca3af]">{{ res.description }}</span>
+                            </Button>
+                          </div>
+                        </div>
                       </template>
                       <!-- Image Generation Options (only show when image_generation mode is selected) -->
                       <template v-if="freeCreationMode === 'image_generation'">
@@ -839,7 +850,9 @@ const loadSystemConfig = async () => {
           <!-- Quick Templates -->
           <div class="grid grid-cols-3 gap-3">
             <button
-              v-for="template in (selectedMode === 'free_creation' && freeCreationMode === 'image_generation' ? suggestionsByMode['image_generation'] : suggestionsByMode[selectedMode])"
+              v-for="template in selectedMode === 'free_creation' && freeCreationMode === 'image_generation'
+                ? suggestionsByMode['image_generation']
+                : suggestionsByMode[selectedMode]"
               :key="template.name"
               @click="videoPrompt = template.placeholder"
               class="cursor-pointer rounded-xl border border-[#e5e7eb] bg-white p-4 text-center text-sm text-[#6b7280] transition-all hover:-translate-y-0.5 hover:border-[#d1d5db] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)]"

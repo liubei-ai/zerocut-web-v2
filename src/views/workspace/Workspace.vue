@@ -5,6 +5,9 @@ import MainLayout from '@/components/layout/MainLayout.vue';
 import FileList from './components/FileList.vue';
 import PreviewArea from './components/PreviewArea.vue';
 import ChatBox from './components/ChatBox.vue';
+import VideoGenerationForm from './components/VideoGenerationForm.vue';
+import VideoGenerationProgress from './components/VideoGenerationProgress.vue';
+import type { VideoGenerationParams } from './components/VideoGenerationForm.vue';
 import {
   createVideoProject,
   createVideo,
@@ -14,8 +17,16 @@ import {
   abortVideoCreation,
   updateVideoProject,
 } from '@/api/videoProjectApi';
+import {
+  createOmniVideo,
+  getVideoWorkflow,
+  deleteVideoWorkflow,
+  type VideoWorkflowResponse,
+} from '@/api/videoWorkflowApi';
 import { useChatMessages } from '@/composables';
 import { useToast } from '@/composables/useToast';
+import { getSystemConfig } from '@/api/systemApi';
+import { videoModels } from '@/config/videoGeneration';
 
 export interface WorkspaceFile {
   id: string;
@@ -55,11 +66,49 @@ const projectCreated = ref(false);
 const pollingTimer = ref<NodeJS.Timeout | null>(null);
 const isAborting = ref(false);
 const isPolling = ref(false);
+const isVideoPolling = ref(false);
 const projectId = ref<string>('');
 const activeTab = ref<'files' | 'preview' | 'chat'>('chat');
 const isOwner = ref<boolean>(true);
 const isShared = ref<boolean>(false);
 const isCancelling = ref(false);
+
+// Video generation mode (passed from home page)
+const generationMode = ref<'agent' | 'video_generation'>('agent');
+
+// Workspace tabs
+const workspaceTab = ref<'agent' | 'video'>('agent');
+
+// Video generation state
+const videoGenerationState = ref<'idle' | 'generating' | 'completed' | 'failed'>('idle');
+const videoWorkflowId = ref<string | number>('');
+const videoWorkflowData = ref<VideoWorkflowResponse | null>(null);
+const videoGenerationError = ref('');
+const initialPrompt = ref('');
+
+// Video params passed from home page
+const initialVideoModel = ref('seedance-2.0');
+const initialVideoDuration = ref(15);
+const initialVideoAspectRatio = ref<'16:9' | '9:16'>('9:16');
+const initialVideoResolution = ref<'720p' | '1080p'>('720p');
+
+// Price configuration from system config
+const priceConfig = ref<any>(null);
+
+// Load system config for pricing
+const loadSystemConfig = async () => {
+  try {
+    const config = await getSystemConfig(['web_price']);
+    if (config.webPrice) {
+      priceConfig.value = config.webPrice;
+    }
+  } catch (error) {
+    console.error('Failed to load system config:', error);
+  }
+};
+
+// Video generation polling
+let videoPollingTimer: NodeJS.Timeout | null = null;
 
 const tabs = [
   { id: 'files' as const, label: '文件', icon: '📁' },
@@ -73,6 +122,25 @@ const selectedFile = computed(() => {
 
 onMounted(async () => {
   projectId.value = route.params.projectId as string;
+
+  // Check generation mode from router state
+  const modeFromState = history.state?.generationMode as 'agent' | 'video_generation';
+  if (modeFromState) {
+    generationMode.value = modeFromState;
+    workspaceTab.value = modeFromState === 'video_generation' ? 'video' : 'agent';
+  }
+
+  // Get initial prompt from state
+  const promptFromState = history.state?.prompt as string;
+  if (promptFromState) {
+    initialPrompt.value = promptFromState;
+  }
+
+  // Get video params from state (passed from home page)
+  if (history.state?.videoModel) initialVideoModel.value = history.state.videoModel;
+  if (history.state?.videoDuration) initialVideoDuration.value = history.state.videoDuration;
+  if (history.state?.videoAspectRatio) initialVideoAspectRatio.value = history.state.videoAspectRatio;
+  if (history.state?.videoResolution) initialVideoResolution.value = history.state.videoResolution;
 
   // Handle new workspace creation
   if (projectId.value === 'new' || route.path === '/workspace/new') {
@@ -96,7 +164,14 @@ onMounted(async () => {
       delete (window as any).__pendingFiles;
     }
 
+    await loadSystemConfig();
     await loadProject();
+
+    // If in video generation mode, auto-create project then let user submit the form
+    if (generationMode.value === 'video_generation') {
+      await autoCreateProjectForVideoGeneration();
+      return;
+    }
 
     // Auto-send initial message if it exists
     if (initialUserInput.value && initialUserInput.value.trim()) {
@@ -110,12 +185,14 @@ onMounted(async () => {
     return;
   }
 
+  loadSystemConfig();
   loadProject();
 });
 
 // Clean up timer when component is unmounted
 onUnmounted(() => {
   stopPolling();
+  stopVideoPolling();
 });
 
 const loadProject = async () => {
@@ -598,6 +675,172 @@ const handleAbortTask = async () => {
     isCancelling.value = false;
   }
 };
+
+// Video generation functions
+const autoCreateProjectForVideoGeneration = async () => {
+  if (projectCreated.value || !isNewProject.value) return;
+
+  // Immediately show the progress UI
+  videoGenerationState.value = 'generating';
+
+  try {
+    // Step 1: create project
+    const projectData = await createVideoProject({
+      prompt: initialPrompt.value,
+    });
+
+    const newProjectId = projectData.id.toString();
+    await router.replace(`/workspace/${newProjectId}`);
+
+    projectId.value = newProjectId;
+    projectTitle.value = projectData.project_name;
+    projectCreated.value = true;
+    isNewProject.value = false;
+
+    console.log('✅ 视频生成项目创建成功:', projectData);
+
+    // Step 2: call createOmniVideo with params from home
+    videoGenerationError.value = '';
+    const response = await createOmniVideo({
+      projectId: Number(newProjectId),
+      model: initialVideoModel.value,
+      prompt: initialPrompt.value,
+      aspect_ratio: initialVideoAspectRatio.value,
+      resolution: initialVideoResolution.value,
+      duration: initialVideoDuration.value,
+    });
+
+    videoWorkflowId.value = response.workflowId;
+    console.log('✅ 视频生成任务已启动:', response);
+
+    startVideoPolling();
+  } catch (error) {
+    console.error('❌ 自动视频生成失败:', error);
+    videoGenerationState.value = 'failed';
+    videoGenerationError.value = error instanceof Error ? error.message : '启动视频生成失败';
+    toast.error('启动视频生成失败');
+  }
+};
+
+const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
+  if (!projectId.value || projectId.value === 'new') {
+    toast.error('请先创建项目');
+    return;
+  }
+
+  try {
+    videoGenerationState.value = 'generating';
+    videoGenerationError.value = '';
+
+    const response = await createOmniVideo({
+      projectId: Number(projectId.value),
+      model: params.model,
+      prompt: params.prompt,
+      aspect_ratio: params.aspectRatio,
+      resolution: params.resolution,
+      duration: params.duration,
+    });
+
+    videoWorkflowId.value = response.workflowId;
+    console.log('✅ 视频生成任务已启动:', response);
+
+    // Start polling for video generation status
+    startVideoPolling();
+
+  } catch (error) {
+    console.error('❌ 视频生成任务启动失败:', error);
+    videoGenerationState.value = 'failed';
+    videoGenerationError.value = error instanceof Error ? error.message : '启动视频生成失败';
+    toast.error('启动视频生成失败');
+  }
+};
+
+const stopVideoPolling = () => {
+  if (videoPollingTimer) {
+    clearTimeout(videoPollingTimer);
+    videoPollingTimer = null;
+  }
+  isVideoPolling.value = false;
+};
+
+const scheduleNextVideoPoll = (delay: number = 3000) => {
+  if (isVideoPolling.value) {
+    videoPollingTimer = setTimeout(async () => {
+      if (!isVideoPolling.value) return;
+
+      try {
+        await pollVideoWorkflowStatus();
+        if (isVideoPolling.value) {
+          scheduleNextVideoPoll(delay);
+        }
+      } catch (error) {
+        console.error('❌ 轮询视频生成状态失败:', error);
+        if (isVideoPolling.value) {
+          scheduleNextVideoPoll(delay);
+        }
+      }
+    }, delay);
+  }
+};
+
+const startVideoPolling = () => {
+  stopVideoPolling();
+  isVideoPolling.value = true;
+  scheduleNextVideoPoll();
+};
+
+const pollVideoWorkflowStatus = async () => {
+  if (!videoWorkflowId.value) return;
+
+  try {
+    const data = await getVideoWorkflow(videoWorkflowId.value);
+    videoWorkflowData.value = data;
+
+    if (data.status === 'SUCCESS') {
+      videoGenerationState.value = 'completed';
+      stopVideoPolling();
+      // Refresh file list to show new video
+      await loadOssMapping();
+      toast.success('视频生成完成');
+    } else if (data.status === 'FAILED') {
+      videoGenerationState.value = 'failed';
+      videoGenerationError.value = data.output?.errorMessage || data.output?.error || '视频生成失败';
+      stopVideoPolling();
+      toast.error(videoGenerationError.value);
+    }
+  } catch (error) {
+    console.error('❌ 轮询视频生成状态失败:', error);
+  }
+};
+
+const handleCancelVideoGeneration = async () => {
+  try {
+    if (videoWorkflowId.value) {
+      await deleteVideoWorkflow(videoWorkflowId.value);
+    }
+    stopVideoPolling();
+    videoGenerationState.value = 'idle';
+    videoWorkflowId.value = '';
+    videoWorkflowData.value = null;
+    videoGenerationError.value = '';
+    toast.success('已取消视频生成');
+  } catch (error) {
+    console.error('❌ 取消视频生成失败:', error);
+    stopVideoPolling();
+    videoGenerationState.value = 'idle';
+    videoWorkflowId.value = '';
+    videoWorkflowData.value = null;
+    videoGenerationError.value = '';
+    toast.error('取消视频生成失败，已返回表单');
+  }
+};
+
+const handleRetryVideoGeneration = () => {
+  videoGenerationState.value = 'idle';
+  videoGenerationError.value = '';
+  videoWorkflowId.value = '';
+  videoWorkflowData.value = null;
+};
 </script>
 
 <template>
@@ -649,20 +892,82 @@ const handleAbortTask = async () => {
           @show-prompt="handleShowPrompt"
         />
 
-        <ChatBox
-          :files="files"
-          :messages="messages"
-          :project-id="projectId"
-          :is-running="isRunning"
-          :is-uploading="isUploading"
-          :is-owner="isOwner"
-          :is-cancelling="isCancelling"
-          @send-message="handleSendMessage"
-          @abort-task="handleAbortTask"
-          @file-uploaded="handleFileUploaded"
-          @upload-start="handleUploadStart"
-          @upload-end="handleUploadEnd"
-        />
+        <!-- Desktop: Chat/Video Generation Area with Tabs -->
+        <div class="hidden h-full w-[320px] flex-col border-l border-gray-200 bg-white lg:w-[400px] xl:w-[480px] md:flex">
+          <!-- Tab Navigation -->
+          <div class="flex border-b border-gray-200">
+            <button
+              @click="workspaceTab = 'video'"
+              class="flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
+              :class="[
+                workspaceTab === 'video'
+                  ? 'border-b-2 border-gray-900 text-gray-900'
+                  : 'text-gray-500 hover:text-gray-700',
+              ]"
+            >
+              <span>🎬</span>
+              <span>视频生成</span>
+            </button>
+            <button
+              @click="workspaceTab = 'agent'"
+              class="flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
+              :class="[
+                workspaceTab === 'agent'
+                  ? 'border-b-2 border-gray-900 text-gray-900'
+                  : 'text-gray-500 hover:text-gray-700',
+              ]"
+            >
+              <span>🤖</span>
+              <span>Agent模式</span>
+            </button>
+          </div>
+
+          <!-- Tab Content -->
+          <div class="flex-1 overflow-hidden">
+            <!-- Video Generation Tab -->
+            <div v-show="workspaceTab === 'video'" class="h-full">
+              <VideoGenerationForm
+                v-if="videoGenerationState === 'idle'"
+                :initial-prompt="initialPrompt"
+                :initial-model="initialVideoModel"
+                :initial-duration="initialVideoDuration"
+                :initial-aspect-ratio="initialVideoAspectRatio"
+                :initial-resolution="initialVideoResolution"
+                :price-config="priceConfig"
+                :is-loading="isRunning"
+                @submit="handleVideoGenerationSubmit"
+              />
+              <VideoGenerationProgress
+                v-else
+                :status="videoWorkflowData?.status || 'PENDING'"
+                :progress="videoWorkflowData?.output?.progress"
+                :result-url="videoWorkflowData?.output?.videoUrl || videoWorkflowData?.output?.videoUrls?.[0]"
+                :error-message="videoGenerationError"
+                :workflow-id="Number(videoWorkflowId)"
+                @cancel="handleCancelVideoGeneration"
+                @retry="handleRetryVideoGeneration"
+              />
+            </div>
+
+            <!-- Agent Mode Tab -->
+            <div v-show="workspaceTab === 'agent'" class="h-full">
+              <ChatBox
+                :files="files"
+                :messages="messages"
+                :project-id="projectId"
+                :is-running="isRunning"
+                :is-uploading="isUploading"
+                :is-owner="isOwner"
+                :is-cancelling="isCancelling"
+                @send-message="handleSendMessage"
+                @abort-task="handleAbortTask"
+                @file-uploaded="handleFileUploaded"
+                @upload-start="handleUploadStart"
+                @upload-end="handleUploadEnd"
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Mobile Layout -->
@@ -700,20 +1005,157 @@ const handleAbortTask = async () => {
         </div>
 
         <div v-show="activeTab === 'chat'" class="h-full overflow-hidden pb-16">
-          <ChatBox
-            :files="files"
-            :messages="messages"
-            :project-id="projectId"
-            :is-running="isRunning"
-            :is-uploading="isUploading"
-            :is-owner="isOwner"
-            :is-cancelling="isCancelling"
-            @send-message="handleSendMessage"
-            @abort-task="handleAbortTask"
-            @file-uploaded="handleFileUploaded"
-            @upload-start="handleUploadStart"
-            @upload-end="handleUploadEnd"
-          />
+          <!-- Mobile: Show tabs inside chat tab -->
+          <div class="flex h-full flex-col">
+            <!-- Tab Navigation (Mobile) -->
+            <div class="flex border-b border-gray-200 md:hidden">
+              <button
+                @click="workspaceTab = 'video'"
+                class="flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
+                :class="[
+                  workspaceTab === 'video'
+                    ? 'border-b-2 border-gray-900 text-gray-900'
+                    : 'text-gray-500 hover:text-gray-700',
+                ]"
+              >
+                <span>🎬</span>
+                <span>视频生成</span>
+              </button>
+              <button
+                @click="workspaceTab = 'agent'"
+                class="flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
+                :class="[
+                  workspaceTab === 'agent'
+                    ? 'border-b-2 border-gray-900 text-gray-900'
+                    : 'text-gray-500 hover:text-gray-700',
+                ]"
+              >
+                <span>🤖</span>
+                <span>Agent模式</span>
+              </button>
+            </div>
+
+            <!-- Mobile: Video Generation Tab -->
+            <div v-show="workspaceTab === 'video'" class="flex-1 overflow-hidden md:hidden">
+              <VideoGenerationForm
+                v-if="videoGenerationState === 'idle'"
+                :initial-prompt="initialPrompt"
+                :initial-model="initialVideoModel"
+                :initial-duration="initialVideoDuration"
+                :initial-aspect-ratio="initialVideoAspectRatio"
+                :initial-resolution="initialVideoResolution"
+                :price-config="priceConfig"
+                :is-loading="isRunning"
+                @submit="handleVideoGenerationSubmit"
+              />
+              <VideoGenerationProgress
+                v-else
+                :status="videoWorkflowData?.status || 'PENDING'"
+                :progress="videoWorkflowData?.output?.progress"
+                :result-url="videoWorkflowData?.output?.videoUrl || videoWorkflowData?.output?.videoUrls?.[0]"
+                :error-message="videoGenerationError"
+                :workflow-id="Number(videoWorkflowId)"
+                @cancel="handleCancelVideoGeneration"
+                @retry="handleRetryVideoGeneration"
+              />
+            </div>
+
+            <!-- Mobile: Agent Mode Tab -->
+            <div v-show="workspaceTab === 'agent'" class="h-full md:hidden">
+              <ChatBox
+                :files="files"
+                :messages="messages"
+                :project-id="projectId"
+                :is-running="isRunning"
+                :is-uploading="isUploading"
+                :is-owner="isOwner"
+                :is-cancelling="isCancelling"
+                @send-message="handleSendMessage"
+                @abort-task="handleAbortTask"
+                @file-uploaded="handleFileUploaded"
+                @upload-start="handleUploadStart"
+                @upload-end="handleUploadEnd"
+              />
+            </div>
+
+            <!-- Desktop: Video Generation and Agent tabs -->
+            <div class="hidden h-full w-[320px] flex-col border-l border-gray-200 bg-white lg:w-[400px] xl:w-[480px] md:flex">
+              <!-- Tab Navigation -->
+              <div class="flex border-b border-gray-200">
+                <button
+                  @click="workspaceTab = 'video'"
+                  class="flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
+                  :class="[
+                    workspaceTab === 'video'
+                      ? 'border-b-2 border-gray-900 text-gray-900'
+                      : 'text-gray-500 hover:text-gray-700',
+                  ]"
+                >
+                  <span>🎬</span>
+                  <span>视频生成</span>
+                </button>
+                <button
+                  @click="workspaceTab = 'agent'"
+                  class="flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
+                  :class="[
+                    workspaceTab === 'agent'
+                      ? 'border-b-2 border-gray-900 text-gray-900'
+                      : 'text-gray-500 hover:text-gray-700',
+                  ]"
+                >
+                  <span>🤖</span>
+                  <span>Agent模式</span>
+                </button>
+              </div>
+
+              <!-- Tab Content -->
+              <div class="flex-1 overflow-hidden">
+                <!-- Video Generation Tab -->
+                <div v-show="workspaceTab === 'video'" class="h-full">
+                  <VideoGenerationForm
+                    v-if="videoGenerationState === 'idle'"
+                    :initial-prompt="initialPrompt"
+                    :initial-model="initialVideoModel"
+                    :initial-duration="initialVideoDuration"
+                    :initial-aspect-ratio="initialVideoAspectRatio"
+                    :initial-resolution="initialVideoResolution"
+                    :price-config="priceConfig"
+                    :is-loading="isRunning"
+                    @submit="handleVideoGenerationSubmit"
+                    
+                  />
+                  <VideoGenerationProgress
+                    v-else
+                    :status="videoWorkflowData?.status || 'PENDING'"
+                    :progress="videoWorkflowData?.output?.progress"
+                    :result-url="videoWorkflowData?.output?.videoUrl || videoWorkflowData?.output?.videoUrls?.[0]"
+                    :error-message="videoGenerationError"
+                    :workflow-id="Number(videoWorkflowId)"
+                    @cancel="handleCancelVideoGeneration"
+                    @retry="handleRetryVideoGeneration"
+                  />
+                </div>
+
+                <!-- Agent Mode Tab -->
+                <div v-show="workspaceTab === 'agent'" class="h-full">
+                  <ChatBox
+                    :files="files"
+                    :messages="messages"
+                    :project-id="projectId"
+                    :is-running="isRunning"
+                    :is-uploading="isUploading"
+                    :is-owner="isOwner"
+                    :is-cancelling="isCancelling"
+                    @send-message="handleSendMessage"
+                    @abort-task="handleAbortTask"
+                    @file-uploaded="handleFileUploaded"
+                    @upload-start="handleUploadStart"
+                    @upload-end="handleUploadEnd"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
