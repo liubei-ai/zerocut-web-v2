@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import MainLayout from '@/components/layout/MainLayout.vue';
 import { Button } from '@/components/ui/button';
@@ -11,22 +11,16 @@ import { useMembershipModalStore } from '@/stores/membershipModalStore';
 import { useDebugStore } from '@/stores/debugStore';
 import { getSystemConfig, type TemplateItem } from '@/api/systemApi';
 import { useToast } from '@/composables/useToast';
-
-interface FilePreview {
-  id: string;
-  name: string;
-  type: string;
-  url: string;
-  file: File;
-}
+import { videoModels, videoDurations, videoAspectRatios, videoResolutions } from '@/config/videoGeneration';
+import { calculateVideoCredits } from '@/utils/videoPriceCalculator';
+import { MAX_FILES } from '@/types/fileReference';
+import type { FilePreview } from '@/types/fileReference';
 
 const authStore = useAuthStore();
 const creditsStore = useCreditsStore();
 const membershipModalStore = useMembershipModalStore();
 const debugStore = useDebugStore();
 const router = useRouter();
-const { toast } = useToast();
-
 const videoPrompt = ref('');
 const selectedMode = ref('free_creation');
 const aspectRatio = ref('9:16');
@@ -36,25 +30,76 @@ const showStyleMenu = ref(false);
 const selectedFiles = ref<FilePreview[]>([]);
 const homeTips = ref('新用户注册送1000积分～');
 const priceConfig = ref<any>(null);
+const { toast } = useToast();
 
 // Free creation mode options
-const freeCreationMode = ref('video_generation'); // 'agent' or 'video_generation'
+const freeCreationMode = ref('video_generation'); // 'agent' or 'video_generation' or 'image_generation'
+
+// Video generation reference mode
+const videoReferenceMode = ref<'reference' | 'first_last_frame'>('reference'); // 'reference' 全能参考, 'first_last_frame' 首尾帧
 
 const videoModel = ref('seedance-2.0');
 
 const videoDuration = ref('15s');
 const videoAspectRatio = ref('9:16');
+const videoResolution = ref<'720p' | '1080p'>('720p');
 const showFreeCreationModeMenu = ref(false);
 const showVideoModelMenu = ref(false);
+const showVideoReferenceModeMenu = ref(false);
 const showVideoDurationMenu = ref(false);
 const showVideoAspectRatioMenu = ref(false);
+const showVideoResolutionMenu = ref(false);
 
 const aspectRatioMenuRef = ref<HTMLElement | null>(null);
 const styleMenuRef = ref<HTMLElement | null>(null);
 const freeCreationModeMenuRef = ref<HTMLElement | null>(null);
 const videoModelMenuRef = ref<HTMLElement | null>(null);
+const videoReferenceModeMenuRef = ref<HTMLElement | null>(null);
 const videoDurationMenuRef = ref<HTMLElement | null>(null);
 const videoAspectRatioMenuRef = ref<HTMLElement | null>(null);
+const videoResolutionMenuRef = ref<HTMLElement | null>(null);
+
+const firstFrameImage = ref<FilePreview | null>(null);
+const lastFrameImage = ref<FilePreview | null>(null);
+
+const getFirstFrameImage = computed(() => {
+  if (videoReferenceMode.value === 'first_last_frame') {
+    return firstFrameImage.value;
+  }
+  return null;
+});
+
+const getLastFrameImage = computed(() => {
+  if (videoReferenceMode.value === 'first_last_frame') {
+    return lastFrameImage.value;
+  }
+  return null;
+});
+
+const removeFile = (fileId: string) => {
+  const file = selectedFiles.value.find(f => f.id === fileId);
+  if (file) {
+    URL.revokeObjectURL(file.url);
+    selectedFiles.value = selectedFiles.value.filter(f => f.id !== fileId);
+  }
+  if (firstFrameImage.value?.id === fileId) {
+    firstFrameImage.value = null;
+  }
+  if (lastFrameImage.value?.id === fileId) {
+    lastFrameImage.value = null;
+  }
+};
+
+const shouldShowAttachmentButton = computed(() => {
+  if (selectedMode.value !== 'free_creation') {
+    return true;
+  }
+  return freeCreationMode.value === 'agent' || freeCreationMode.value === 'image_generation';
+});
+
+const shouldShowAtButton = computed(() => {
+  return true;
+});
 
 const modes = [
   { id: 'free_creation', label: '自由创作', icon: '🎨' },
@@ -105,22 +150,6 @@ const selectImageModel = (model: string) => {
   showImageModelMenu.value = false;
 };
 
-const videoModels = [
-  
-  { id: 'seedance-2.0', label: 'Seedance-2.0', description: '', priceId: 'seedance-2.0' },
-  { id: 'seedance-2.0-fast', label: 'Seedance-2.0-fast', description: '', priceId: 'seedance-2.0-fast' },
-  { id: 'zerocut3.0', label: 'ZeroCut 3.0', description: '', priceId: 'zerocut3.0' },
-  { id: 'zerocut3.0-pro', label: 'ZeroCut 3.0-pro', description: '', priceId: 'zerocut3.0-pro' },
-  { id: 'zerocut3.0-turbo', label: 'ZeroCut 3.0-turbo', description: '', priceId: 'zerocut3.0-turbo' },
-  { id: 'zerocut3.0-fast', label: 'ZeroCut 3.0-fast', description: '', priceId: 'zerocut3.0-pro-fast' },
-];
-
-const videoDurations = [
-  { id: '5s', label: '5秒', description: '宫格分镜' },
-  { id: '10s', label: '10秒', description: '宫格分镜' },
-  { id: '15s', label: '15秒', description: '宫格分镜' },
-];
-
 // Derive duration map from videoDurations array
 const durationMap = videoDurations.reduce(
   (acc, item) => {
@@ -129,11 +158,6 @@ const durationMap = videoDurations.reduce(
   },
   {} as Record<string, string>,
 );
-
-const videoAspectRatios = [
-  { id: '9:16', label: '9:16', description: '竖屏' },
-  { id: '16:9', label: '16:9', description: '横屏' },
-];
 
 const suggestionsByMode = ref<Record<string, TemplateItem[]>>({
   one_click: [
@@ -180,6 +204,12 @@ const currentPlaceholder = computed(() => {
   if (selectedMode.value === 'free_creation' && freeCreationMode.value === 'image_generation') {
     return '描述你想生成的图片内容，例如：一只可爱的小猫在魔法世界中荡秋千';
   }
+  if (selectedMode.value === 'free_creation' && freeCreationMode.value === 'video_generation') {
+    if (videoReferenceMode.value === 'first_last_frame') {
+      return `上传首帧和尾帧图片，描述视频内容。例如：${MAX_FILES > 2 ? '@图片1 作为首帧，@图片2 作为尾帧' : '@图片1 作为首帧，@图片2 作为尾帧'}`;
+    }
+    return `上传1-${MAX_FILES}个参考素材、输入文字，自由组合图、文、音、视频多元素，定义精彩创意。例如：@图片1 模仿 @视频1 的动作，音色参考 @音频1。`;
+  }
   return placeholderByMode[selectedMode.value];
 });
 
@@ -196,14 +226,14 @@ const handleSubmit = () => {
 
   // Check if user has enough credits for video generation
   if (
+    selectedMode.value === 'free_creation' &&
+    freeCreationMode.value === 'video_generation' &&
     creditsStore.creditsBalance !== null &&
+    creditsNeeded.value !== null &&
     creditsNeeded.value > 0 &&
-    creditsNeeded.value > creditsStore.creditsBalance
+    creditsNeeded.value > creditsStore.creditsBalance.valueOf()
   ) {
-    toast.error(
-      `积分不足！需要 ${creditsNeeded.value} 积分，当前余额 ${creditsStore.creditsBalance} 积分`,
-      '积分不足',
-    );
+    toast.error(`积分不足！需要 ${creditsNeeded.value} 积分，当前余额 ${creditsStore.creditsBalance} 积分`, '积分不足');
     if (debugStore.isDebugMode) {
       membershipModalStore.openMembershipModal();
     }
@@ -213,6 +243,14 @@ const handleSubmit = () => {
   if (videoPrompt.value.trim()) {
     console.log('Submitting prompt:', videoPrompt.value);
     console.log('Selected files:', selectedFiles.value);
+    console.log('First frame:', firstFrameImage.value);
+    console.log('Last frame:', lastFrameImage.value);
+    console.log('Selected mode:', selectedMode.value);
+    console.log('Free creation mode:', freeCreationMode.value);
+
+    // Check if we're in video generation mode
+    const isVideoGenerationMode =
+      selectedMode.value === 'free_creation' && freeCreationMode.value === 'video_generation';
 
     let chatMessage = '';
 
@@ -228,33 +266,28 @@ const handleSubmit = () => {
         };
         chatMessage = `请使用${imageModels.find(m => m.id === imageModel.value)?.label || imageModel.value}模型生成图片，${aspectRatioMap[videoAspectRatio.value]}，内容为：${videoPrompt.value}`;
       } else {
-        // Video generation mode
-        const aspectRatioMap: Record<string, string> = {
-          '9:16': '9:16竖屏',
-          '16:9': '16:9横屏',
-        };
-
-        // Build prompt for unmentioned files
-        let filePrompt = '';
-        if (selectedFiles.value.length > 0) {
-          const unmentionedFiles = selectedFiles.value.filter(file => !videoPrompt.value.includes(file.name));
-
-          if (selectedFiles.value.length > 0) {
-            const fileNames = selectedFiles.value.map(f => f.name).join(',');
-            filePrompt = `(${fileNames})`;
-          }
-        }
-
-        chatMessage = `根据以下内容使用素材创作技能，参考生视频${filePrompt}，模型使用${videoModel.value}，${aspectRatioMap[videoAspectRatio.value]}，生成单条${durationMap[videoDuration.value]}视频。内容：${videoPrompt.value}`;
+        // Video generation mode - use workflow API instead of chat
+        chatMessage = videoPrompt.value;
       }
     } else if (selectedMode.value === 'storyboard') {
       chatMessage = `请根据内容撰写分镜脚本，内容为：${videoPrompt.value}`;
     }
 
+    // In first_last_frame mode, add first and last frame images to selectedFiles for upload
+    let filesToUpload = [...selectedFiles.value];
+    if (videoReferenceMode.value === 'first_last_frame') {
+      if (firstFrameImage.value) {
+        filesToUpload.push(firstFrameImage.value);
+      }
+      if (lastFrameImage.value) {
+        filesToUpload.push(lastFrameImage.value);
+      }
+    }
+
     // Store files in sessionStorage since we can't pass File objects through router state
-    if (selectedFiles.value.length > 0) {
+    if (filesToUpload.length > 0) {
       // Store file metadata (without the actual File object)
-      const fileMetadata = selectedFiles.value.map(f => ({
+      const fileMetadata = filesToUpload.map(f => ({
         id: f.id,
         name: f.name,
         type: f.type,
@@ -263,17 +296,25 @@ const handleSubmit = () => {
       sessionStorage.setItem('pendingFiles', JSON.stringify(fileMetadata));
 
       // Store actual files in a temporary array that we'll access in Workspace
-      (window as any).__pendingFiles = selectedFiles.value.map(f => f.file);
+      (window as any).__pendingFiles = filesToUpload.map(f => f.file);
     }
 
     // Navigate to workspace/new and pass chatMessage via router state
     console.log('chatMessage', chatMessage);
-    //return;
+    console.log('isVideoGenerationMode', isVideoGenerationMode);
+
     router.push({
       path: '/workspace/new',
       state: {
         chatMessage,
-        hasFiles: selectedFiles.value.length > 0,
+        hasFiles: filesToUpload.length > 0,
+        generationMode: isVideoGenerationMode ? 'video_generation' : 'agent',
+        prompt: videoPrompt.value,
+        videoModel: videoModel.value,
+        videoDuration: parseInt(videoDuration.value),
+        videoAspectRatio: videoAspectRatio.value,
+        videoResolution: videoResolution.value,
+        videoReferenceMode: videoReferenceMode.value,
       },
     });
   }
@@ -309,32 +350,47 @@ const selectVideoAspectRatio = (ratio: string) => {
   showVideoAspectRatioMenu.value = false;
 };
 
+const selectVideoResolution = (resolution: '720p' | '1080p') => {
+  videoResolution.value = resolution;
+  showVideoResolutionMenu.value = false;
+};
+
+const selectVideoReferenceMode = (mode: 'reference' | 'first_last_frame') => {
+  videoReferenceMode.value = mode;
+  showVideoReferenceModeMenu.value = false;
+};
+
 // Calculate credits needed for video generation
-const creditsNeeded = computed(() => {
+const creditsNeeded = ref<number | null>(null);
+const creditsLoading = ref<boolean>(false);
+const creditsError = ref<string | null>(null);
+
+const updateCreditsNeeded = async () => {
   if (selectedMode.value !== 'free_creation' || freeCreationMode.value !== 'video_generation') {
-    return 0;
+    creditsNeeded.value = null;
+    creditsLoading.value = false;
+    creditsError.value = null;
+    return;
   }
 
+  creditsLoading.value = true;
+  creditsError.value = null;
+  creditsNeeded.value = null;
+
+  try {
   const durationSeconds = parseInt(videoDuration.value);
-
-  // Use web_price config if available
-  if (priceConfig.value && Array.isArray(priceConfig.value)) {
-    const currentModelInfo = videoModels.find(m => m.id === videoModel.value);
-    const targetPriceId = currentModelInfo?.priceId || 'zerocut3.0'; // Fallback to zerocut3.0 if not found
-    const modelPriceInfo = priceConfig.value.find((c: any) => c.id === targetPriceId);
-
-    if (modelPriceInfo) {
-      const resolution720p = modelPriceInfo.resolutions?.find((r: any) => r.name === '720p');
-      if (resolution720p) {
-        const { min_price, additional_price_per_second, time_range } = resolution720p;
-        return min_price + (durationSeconds - time_range.min) * additional_price_per_second;
-      }
-    }
+    creditsNeeded.value = await calculateVideoCredits(videoModel.value, durationSeconds, videoResolution.value, priceConfig.value, videoModels);
+  } catch (error) {
+    creditsError.value = error instanceof Error ? error.message : '获取价格失败';
+    creditsNeeded.value = null;
+  } finally {
+    creditsLoading.value = false;
   }
+};
 
-  // Fallback to old calculation
-  return 30 + 24 * durationSeconds;
-});
+watch([videoModel, videoDuration, videoResolution, priceConfig], updateCreditsNeeded);
+
+updateCreditsNeeded();
 
 // Handle click outside to close menus
 const handleClickOutside = (event: MouseEvent) => {
@@ -364,6 +420,10 @@ const handleClickOutside = (event: MouseEvent) => {
     showVideoAspectRatioMenu.value = false;
   }
 
+  if (videoResolutionMenuRef.value && !videoResolutionMenuRef.value.contains(target)) {
+    showVideoResolutionMenu.value = false;
+  }
+
   if (imageModelMenuRef.value && !imageModelMenuRef.value.contains(target)) {
     showImageModelMenu.value = false;
   }
@@ -386,7 +446,7 @@ const loadSystemConfig = async () => {
       'web_home_auto_recommend',
       'web_home_free_recommend',
     ]);
-    console.log('config',config)
+    console.log('config', config);
     if (config.webHomeTips) {
       homeTips.value = config.webHomeTips;
     }
@@ -446,8 +506,13 @@ const loadSystemConfig = async () => {
               :placeholder="currentPlaceholder"
               :allow-file-pick="true"
               :show-mode-selector="true"
+              :enable-first-last-frame="true"
+              :first-last-frame-mode="videoReferenceMode"
               @files-change="handleFilesChange"
+              @first-frame-change="firstFrameImage = $event"
+              @last-frame-change="lastFrameImage = $event"
             >
+
               <!-- Mode Selection Buttons -->
               <template #mode-selector>
                 <div class="flex justify-center gap-2.5">
@@ -473,7 +538,9 @@ const loadSystemConfig = async () => {
                   class="flex flex-col gap-3 border-t border-[#f3f4f6] pt-2 sm:flex-row sm:items-start sm:justify-between sm:gap-2"
                 >
                   <!-- Mode Options Row with fixed min-height to prevent layout shift -->
-                  <div class="relative flex min-h-[88px] flex-wrap content-start items-start gap-2 transition-all duration-200 sm:min-h-[44px]">
+                  <div
+                    class="relative flex min-h-[88px] flex-wrap content-start items-start gap-2 transition-all duration-200 sm:min-h-[44px]"
+                  >
                     <!-- One Click Mode Options -->
                     <div v-if="selectedMode === 'one_click'" class="ml-0 flex flex-wrap gap-2 sm:ml-2">
                       <!-- Aspect Ratio Selector -->
@@ -628,6 +695,58 @@ const loadSystemConfig = async () => {
                           </div>
                         </div>
 
+                        <!-- Reference Mode Selector -->
+                        <div ref="videoReferenceModeMenuRef" class="relative">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            @click="
+                              showVideoReferenceModeMenu = !showVideoReferenceModeMenu;
+                              showFreeCreationModeMenu = false;
+                              showVideoModelMenu = false;
+                              showVideoDurationMenu = false;
+                              showVideoAspectRatioMenu = false;
+                            "
+                            class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
+                          >
+                            <span>🎨</span>
+                            <span>{{ videoReferenceMode === 'reference' ? '全能参考' : '首尾帧' }}</span>
+                            <span class="text-xs">▼</span>
+                          </Button>
+
+                          <div
+                            v-if="showVideoReferenceModeMenu"
+                            class="absolute bottom-full left-0 z-[1000] mb-2 min-w-[160px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                          >
+                            <Button
+                              variant="ghost"
+                              @click="selectVideoReferenceMode('reference'); showVideoReferenceModeMenu = false;"
+                              :class="[
+                                'h-auto w-full justify-start rounded-lg px-3 py-2.5 text-left',
+                                videoReferenceMode === 'reference' ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]',
+                              ]"
+                            >
+                              <div class="text-left">
+                                <div class="font-medium text-[#111827]">全能参考</div>
+                                <div class="text-xs text-[#9ca3af]">多图参考，支持最多6张参考图</div>
+                              </div>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              @click="selectVideoReferenceMode('first_last_frame'); showVideoReferenceModeMenu = false;"
+                              :class="[
+                                'h-auto w-full justify-start rounded-lg px-3 py-2.5 text-left',
+                                videoReferenceMode === 'first_last_frame' ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]',
+                              ]"
+                            >
+                              <div class="text-left">
+                                <div class="font-medium text-[#111827]">首尾帧</div>
+                                <div class="text-xs text-[#9ca3af]">指定首帧和尾帧生成视频</div>
+                              </div>
+                            </Button>
+                          </div>
+                        </div>
+
                         <!-- Duration Selector -->
                         <div ref="videoDurationMenuRef" class="relative">
                           <Button
@@ -700,6 +819,45 @@ const loadSystemConfig = async () => {
                             >
                               <span class="text-sm font-medium text-[#111827]">{{ ratio.label }}</span>
                               <span class="text-xs text-[#9ca3af]">{{ ratio.description }}</span>
+                            </Button>
+                          </div>
+                        </div>
+
+                        <!-- Resolution Selector -->
+                        <div ref="videoResolutionMenuRef" class="relative">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            @click="
+                              showVideoResolutionMenu = !showVideoResolutionMenu;
+                              showFreeCreationModeMenu = false;
+                              showVideoModelMenu = false;
+                              showVideoDurationMenu = false;
+                              showVideoAspectRatioMenu = false;
+                            "
+                            class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
+                          >
+                            <span>📺</span>
+                            <span>{{ videoResolution }}</span>
+                            <span class="text-xs">▼</span>
+                          </Button>
+
+                          <div
+                            v-if="showVideoResolutionMenu"
+                            class="absolute bottom-full left-0 z-[1000] mb-2 min-w-[180px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                          >
+                            <Button
+                              v-for="res in videoResolutions"
+                              :key="res.id"
+                              variant="ghost"
+                              @click="selectVideoResolution(res.id as '720p' | '1080p')"
+                              :class="[
+                                'h-auto w-full justify-between rounded-lg px-3 py-2.5 text-left',
+                                videoResolution === res.id ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]',
+                              ]"
+                            >
+                              <span class="text-sm font-medium text-[#111827]">{{ res.label }}</span>
+                              <span class="text-xs text-[#9ca3af]">{{ res.description }}</span>
                             </Button>
                           </div>
                         </div>
@@ -788,6 +946,7 @@ const loadSystemConfig = async () => {
                     <div class="flex items-center gap-2">
                       <!-- @ Mention Button -->
                       <button
+                        v-show="shouldShowAtButton"
                         @click="onMentionClick"
                         class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-sm font-semibold text-gray-500 transition-all hover:bg-gray-50"
                         title="@大模型/文件"
@@ -797,6 +956,7 @@ const loadSystemConfig = async () => {
 
                       <!-- File Pick Button -->
                       <button
+                        v-show="shouldShowAttachmentButton"
                         @click="onFilePickClick"
                         class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-base text-gray-500 transition-all hover:bg-gray-50"
                         title="选择文件"
@@ -811,18 +971,21 @@ const loadSystemConfig = async () => {
                       <div
                         v-if="selectedMode === 'free_creation' && freeCreationMode === 'video_generation'"
                         class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm"
+                        :title="creditsError || (creditsLoading ? '获取价格中...' : '')"
                       >
                         <span class="text-base">💎</span>
-                        <span class="font-medium text-[#6b7280]">{{ creditsNeeded }}</span>
+                        <span class="font-medium text-[#6b7280]">
+                          {{ creditsLoading || creditsError || creditsNeeded === null ? '-' : creditsNeeded }}
+                        </span>
                       </div>
 
                       <!-- Submit Button -->
                       <Button
                         @click="handleSubmit"
-                        :disabled="!videoPrompt.trim()"
+                        :disabled="!videoPrompt.trim() || (selectedMode === 'free_creation' && freeCreationMode === 'video_generation' && videoReferenceMode === 'first_last_frame' && !firstFrameImage)"
                         :class="[
                           'h-9 w-9 flex-shrink-0 rounded-full p-0 transition-all',
-                          videoPrompt.trim()
+                          videoPrompt.trim() && !(selectedMode === 'free_creation' && freeCreationMode === 'video_generation' && videoReferenceMode === 'first_last_frame' && !firstFrameImage)
                             ? 'bg-[#111827] hover:scale-105 hover:bg-black'
                             : 'cursor-not-allowed bg-[#e5e7eb]',
                         ]"
@@ -839,7 +1002,9 @@ const loadSystemConfig = async () => {
           <!-- Quick Templates -->
           <div class="grid grid-cols-3 gap-3">
             <button
-              v-for="template in (selectedMode === 'free_creation' && freeCreationMode === 'image_generation' ? suggestionsByMode['image_generation'] : suggestionsByMode[selectedMode])"
+              v-for="template in selectedMode === 'free_creation' && freeCreationMode === 'image_generation'
+                ? suggestionsByMode['image_generation']
+                : suggestionsByMode[selectedMode]"
               :key="template.name"
               @click="videoPrompt = template.placeholder"
               class="cursor-pointer rounded-xl border border-[#e5e7eb] bg-white p-4 text-center text-sm text-[#6b7280] transition-all hover:-translate-y-0.5 hover:border-[#d1d5db] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)]"

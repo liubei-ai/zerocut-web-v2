@@ -5,45 +5,37 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
   DropdownMenuPortal,
 } from 'reka-ui';
 import { useToast } from '@/composables/useToast';
-
-interface FilePreview {
-  id: string;
-  name: string;
-  type: string;
-  url: string;
-  file: File;
-}
-
-interface ProjectFile {
-  id: string;
-  file_name: string;
-  file_type?: string;
-  file_url?: string;
-}
+import type { FilePreview, ProjectFileReference } from '@/types/fileReference';
+import {
+  MAX_FILES,
+  MAX_VIDEO_TOTAL_DURATION,
+  MAX_VIDEO_COUNT,
+  MIN_VIDEO_DURATION,
+  MAX_VIDEO_DURATION,
+  MAX_FILE_SIZE,
+  checkVideoDuration,
+  getFileType,
+  getFileIcon,
+  generateFileName,
+} from '@/types/fileReference';
 
 interface Props {
   modelValue: string;
   placeholder?: string;
   disabled?: boolean;
-  // For Home.vue: allow file picking and show local file previews
   allowFilePick?: boolean;
-  // For ChatBox.vue: show existing project files in dropdown
-  projectFiles?: ProjectFile[];
-  // Custom textarea class
+  projectFiles?: ProjectFileReference[];
   textareaClass?: string;
-  // Show mode selector at the top
   showModeSelector?: boolean;
 }
 
 interface Emits {
   (e: 'update:modelValue', value: string): void;
   (e: 'files-change', files: FilePreview[]): void;
+  (e: 'video-total-duration', duration: number): void;
 }
 
 const { toast } = useToast();
@@ -64,6 +56,30 @@ const fileInputRef = ref<HTMLInputElement>();
 const dropdownOpen = ref(false);
 const cursorPosition = ref({ top: 0, left: 0 });
 const selectedFiles = ref<FilePreview[]>([]);
+
+const reindexFiles = () => {
+  let totalVideoDuration = 0;
+
+  selectedFiles.value.forEach(file => {
+    if (file.duration) {
+      totalVideoDuration += file.duration;
+    }
+  });
+  
+  // Emit total duration back to parent
+  emit('video-total-duration', totalVideoDuration);
+};
+
+const removeFile = (fileId: string) => {
+  const index = selectedFiles.value.findIndex(f => f.id === fileId);
+  if (index !== -1) {
+    URL.revokeObjectURL(selectedFiles.value[index].url);
+    selectedFiles.value.splice(index, 1);
+    reindexFiles();
+    emit('files-change', selectedFiles.value);
+  }
+};
+
 
 const inputValue = computed({
   get: () => props.modelValue,
@@ -215,13 +231,12 @@ const handleFilePickClick = () => {
   fileInputRef.value?.click();
 };
 
-const handleFileChange = (e: Event) => {
+const handleFileChange = async (e: Event) => {
   const target = e.target as HTMLInputElement;
   const files = target.files;
 
   if (!files || files.length === 0) return;
 
-  const MAX_FILES = 6;
   const remainingSlots = MAX_FILES - selectedFiles.value.length;
 
   if (remainingSlots <= 0) {
@@ -235,42 +250,131 @@ const handleFileChange = (e: Event) => {
   const filesToAdd: FilePreview[] = [];
   let duplicateCount = 0;
   let exceededCount = 0;
+  let invalidDurationCount = 0;
+  let invalidSizeCount = 0;
+  let exceededVideoCount = 0;
+  let currentVideoCount = selectedFiles.value.filter(f => f.type === 'video').length;
+  let totalVideoDuration = selectedFiles.value
+    .filter(f => f.type === 'video')
+    .reduce((sum, file) => sum + (file.duration || 0), 0);
 
-  Array.from(files).forEach(file => {
-    // Check if we've reached the limit
+  const imageCount = selectedFiles.value.filter(f => f.type === 'image').length;
+  const videoCount = selectedFiles.value.filter(f => f.type === 'video').length;
+  const audioCount = selectedFiles.value.filter(f => f.type === 'audio').length;
+
+  for (const file of Array.from(files)) {
     if (selectedFiles.value.length + filesToAdd.length >= MAX_FILES) {
       exceededCount++;
-      return;
+      continue;
     }
 
-    // Check for duplicate files (by name and size)
     const isDuplicate = selectedFiles.value.some(
       existingFile => existingFile.name === file.name && existingFile.file.size === file.size,
     );
 
     if (isDuplicate) {
       duplicateCount++;
-      return;
+      continue;
     }
 
-    const fileType = file.type.startsWith('image/')
-      ? 'image'
-      : file.type.startsWith('video/')
-        ? 'video'
-        : file.type.startsWith('audio/')
-          ? 'audio'
-          : 'document';
+    const fileType = getFileType(file);
 
-    const filePreview: FilePreview = {
-      id: `file-${Date.now()}-${Math.random()}`,
-      name: file.name,
-      type: fileType,
-      url: URL.createObjectURL(file),
-      file,
-    };
+    if (fileType === 'video') {
+      if (currentVideoCount + filesToAdd.filter(f => f.type === 'video').length >= MAX_VIDEO_COUNT) {
+        toast.error(`最多支持 ${MAX_VIDEO_COUNT} 段视频`);
+        exceededVideoCount++;
+        continue;
+      }
 
-    filesToAdd.push(filePreview);
-  });
+      if (file.size > MAX_FILE_SIZE) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+        toast.error(`视频文件 ${sizeMB}MB 超过限制，单个视频不能超过 200MB`);
+        invalidSizeCount++;
+        continue;
+      }
+
+      const duration = await checkVideoDuration(file);
+      if (duration < MIN_VIDEO_DURATION || duration > MAX_VIDEO_DURATION) {
+        console.log(duration, MAX_VIDEO_DURATION);
+        toast.error(`视频时长 ${duration} 秒不符合要求，单个视频需要 ${MIN_VIDEO_DURATION}～${MAX_VIDEO_DURATION} 秒`);
+        invalidDurationCount++;
+        continue;
+      }
+
+      if (totalVideoDuration + duration > MAX_VIDEO_TOTAL_DURATION) {
+        toast.error(`添加此视频后总时长 ${(totalVideoDuration + duration).toFixed(1)} 秒超过限制，总时长不能超过 ${MAX_VIDEO_TOTAL_DURATION} 秒`);
+        invalidDurationCount++;
+        continue;
+      }
+
+      currentVideoCount++;
+      totalVideoDuration += duration;
+
+      const renamedName = generateFileName(file.name, fileType, videoCount + filesToAdd.filter(f => f.type === 'video').length);
+
+      const filePreview: FilePreview = {
+        id: `file-${Date.now()}-${Math.random()}`,
+        name: renamedName,
+        type: fileType,
+        url: URL.createObjectURL(file),
+        file,
+        duration,
+      };
+
+      filesToAdd.push(filePreview);
+    } else if (fileType === 'audio') {
+      if (file.size > MAX_FILE_SIZE) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+        toast.error(`音频文件 ${sizeMB}MB 超过限制，单个文件不能超过 200MB`);
+        invalidSizeCount++;
+        continue;
+      }
+
+      const duration = await checkVideoDuration(file);
+      if (totalVideoDuration + duration > MAX_VIDEO_TOTAL_DURATION) {
+        toast.error(`添加此音频后总时长 ${(totalVideoDuration + duration).toFixed(1)} 秒超过限制，总时长不能超过 ${MAX_VIDEO_TOTAL_DURATION} 秒`);
+        invalidDurationCount++;
+        continue;
+      }
+
+      totalVideoDuration += duration;
+
+      const renamedName = generateFileName(file.name, fileType, audioCount + filesToAdd.filter(f => f.type === 'audio').length);
+
+      const filePreview: FilePreview = {
+        id: `file-${Date.now()}-${Math.random()}`,
+        name: renamedName,
+        type: fileType,
+        url: URL.createObjectURL(file),
+        file,
+        duration,
+      };
+
+      filesToAdd.push(filePreview);
+    } else {
+      if (file.size > MAX_FILE_SIZE) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+        toast.error(`文件 ${sizeMB}MB 超过限制，单个文件不能超过 200MB`);
+        invalidSizeCount++;
+        continue;
+      }
+
+      let renamedName = file.name;
+      if (fileType === 'image') {
+        renamedName = generateFileName(file.name, fileType, imageCount + filesToAdd.filter(f => f.type === 'image').length);
+      }
+
+      const filePreview: FilePreview = {
+        id: `file-${Date.now()}-${Math.random()}`,
+        name: renamedName,
+        type: fileType,
+        url: URL.createObjectURL(file),
+        file,
+      };
+
+      filesToAdd.push(filePreview);
+    }
+  }
 
   selectedFiles.value.push(...filesToAdd);
   emit('files-change', selectedFiles.value);
@@ -287,27 +391,6 @@ const handleFileChange = (e: Event) => {
   if (target) {
     target.value = '';
   }
-};
-
-const removeFile = (fileId: string) => {
-  const index = selectedFiles.value.findIndex(f => f.id === fileId);
-  if (index !== -1) {
-    // Revoke object URL to free memory
-    URL.revokeObjectURL(selectedFiles.value[index].url);
-    selectedFiles.value.splice(index, 1);
-    emit('files-change', selectedFiles.value);
-  }
-};
-
-const getFileIcon = (fileType?: string) => {
-  if (!fileType) return '📁';
-  const icons: Record<string, string> = {
-    image: '🖼️',
-    video: '🎬',
-    audio: '🎵',
-    document: '📄',
-  };
-  return icons[fileType] || '📁';
 };
 
 defineExpose({

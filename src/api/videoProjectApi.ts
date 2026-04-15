@@ -243,17 +243,20 @@ export async function exportProject(projectId: string | number) {
 
 // Upload material to project
 export interface UploadMaterialResponse {
-  projectId: number;
-  fileName: string;
-  fileUrl: string;
-  fileSize: number;
-  fileType: string;
-  uploadTime: string;
+  success: boolean;
+  message: string;
+  url: string;
+  key: string;
+  size: number;
 }
 
-export async function uploadMaterial(projectId: string | number, file: File) {
+export async function uploadMaterial(projectId: string | number, file: File, fileName?: string) {
   const formData = new FormData();
-  formData.append('file', file);
+  if (fileName) {
+    formData.append('file', file, fileName);
+  } else {
+    formData.append('file', file);
+  }
 
   const response = await apiClient.upload<UploadMaterialResponse>(
     `/video-creation/upload/${projectId}`,
