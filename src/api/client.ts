@@ -266,21 +266,9 @@ class HttpRequest {
       return response.data;
 
     } catch (error) {
-      console.log('error: ', error);
       if (axios.isCancel(error)) {
         // Request was cancelled, don't show error
         throw error;
-      }
-
-      if ((error as any).status === 401) {
-        // if (!options.noErrorAlert) {
-        //   this.toast.error('登录已过期，请重新登录');
-        // }
-        authStore.clearAuthState();
-        if (!options.noLoginModal) {
-          showLoginModal();
-        }
-        throw new ApiError(401, 'Authentication failed', error);
       }
 
       if (error instanceof ApiError) {
