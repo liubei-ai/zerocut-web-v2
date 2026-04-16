@@ -53,6 +53,25 @@ const openMenu = ref<string | null>(null);
 const toggleMenu = (id: string) => { openMenu.value = openMenu.value === id ? null : id; };
 const closeMenus = () => { openMenu.value = null; };
 
+const showAspectRatioMenu = () => toggleMenu('aspectRatio');
+const showDurationMenu = () => toggleMenu('duration');
+const showResolutionMenu = () => toggleMenu('resolution');
+
+const selectAspectRatio = (ratio: '16:9' | '9:16') => {
+  aspectRatio.value = ratio;
+  closeMenus();
+};
+
+const selectDuration = (seconds: number) => {
+  duration.value = seconds;
+  closeMenus();
+};
+
+const selectResolution = (res: '720p' | '1080p') => {
+  resolution.value = res;
+  closeMenus();
+};
+
 const handleFilesChange = (files: FilePreview[]) => {
   selectedFiles.value = files;
 };
@@ -174,41 +193,147 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
         </div>
       </div>
 
-      <!-- Inline chips: aspect ratio + duration -->
-      <div class="grid grid-cols-2 gap-3">
+      <!-- Aspect Ratio + Duration + Resolution in one row -->
+      <div class="grid grid-cols-3 gap-3">
         <!-- Aspect Ratio -->
-        <div>
+        <div data-menu>
           <label class="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-400">画面比例</label>
-          <div class="flex gap-1.5">
+          <div class="relative" data-menu>
             <button
-              v-for="r in videoAspectRatios"
-              :key="r.id"
-              @click="aspectRatio = r.id as typeof aspectRatio"
-              class="flex-1 rounded-lg border py-2 text-xs font-medium transition-colors"
-              :class="aspectRatio === r.id
-                ? 'border-gray-900 bg-gray-900 text-white'
-                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-400'"
+              @click.stop="showAspectRatioMenu"
+              data-menu
+              class="flex h-[60px] w-full items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm transition hover:border-gray-400"
+              :class="{ 'border-gray-900 bg-white ring-1 ring-gray-900': openMenu === 'aspectRatio' }"
             >
-              {{ r.label }}
+              <div class="flex items-center gap-2.5">
+                <span class="flex h-6 w-6 items-center justify-center rounded-md bg-gray-900 text-xs text-white font-bold">📐</span>
+                <div class="text-left">
+                  <div class="font-medium text-gray-900 leading-tight">{{ aspectRatio }}</div>
+                  <div class="text-xs text-gray-400">{{ videoAspectRatios.find(r => r.id === aspectRatio)?.description }}</div>
+                </div>
+              </div>
+              <svg class="h-4 w-4 text-gray-400 transition-transform" :class="{ 'rotate-180': openMenu === 'aspectRatio' }" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
             </button>
+            <div
+              v-if="openMenu === 'aspectRatio'"
+              data-menu
+              class="absolute bottom-full left-0 z-50 mb-1.5 w-full rounded-xl border border-gray-200 bg-white py-1.5 shadow-lg"
+            >
+              <button
+                v-for="r in videoAspectRatios"
+                :key="r.id"
+                @click.stop="selectAspectRatio(r.id as '16:9' | '9:16')"
+                data-menu
+                class="flex w-full items-center gap-3 px-3.5 py-2 text-left transition-colors hover:bg-gray-50"
+                :class="{ 'bg-gray-50': aspectRatio === r.id }"
+              >
+                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-bold"
+                  :class="aspectRatio === r.id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'">📐</span>
+                <div>
+                  <div class="text-sm font-medium text-gray-900">{{ r.label }}</div>
+                  <div class="text-xs text-gray-400">{{ r.description }}</div>
+                </div>
+                <svg v-if="aspectRatio === r.id" class="ml-auto h-4 w-4 text-gray-900" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 
         <!-- Duration -->
-        <div>
+        <div data-menu>
           <label class="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-400">视频时长</label>
-          <div class="flex gap-1.5">
+          <div class="relative" data-menu>
             <button
-              v-for="d in videoDurations"
-              :key="d.id"
-              @click="duration = d.seconds"
-              class="flex-1 rounded-lg border py-2 text-xs font-medium transition-colors"
-              :class="duration === d.seconds
-                ? 'border-gray-900 bg-gray-900 text-white'
-                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-400'"
+              @click.stop="showDurationMenu"
+              data-menu
+              class="flex h-[60px] w-full items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm transition hover:border-gray-400"
+              :class="{ 'border-gray-900 bg-white ring-1 ring-gray-900': openMenu === 'duration' }"
             >
-              {{ d.label }}
+              <div class="flex items-center gap-2.5">
+                <span class="flex h-6 w-6 items-center justify-center rounded-md bg-gray-900 text-xs text-white font-bold">⏱️</span>
+                <div class="text-left">
+                  <div class="font-medium text-gray-900 leading-tight">{{ videoDurations.find(d => d.seconds === duration)?.label }}</div>
+                </div>
+              </div>
+              <svg class="h-4 w-4 text-gray-400 transition-transform" :class="{ 'rotate-180': openMenu === 'duration' }" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
             </button>
+            <div
+               v-if="openMenu === 'duration'"
+               data-menu
+               class="absolute bottom-full left-0 z-50 mb-1.5 w-full rounded-xl border border-gray-200 bg-white py-1.5 shadow-lg"
+             >
+              <button
+                v-for="d in videoDurations"
+                :key="d.id"
+                @click.stop="selectDuration(d.seconds)"
+                data-menu
+                class="flex w-full items-center gap-3 px-3.5 py-2 text-left transition-colors hover:bg-gray-50"
+                :class="{ 'bg-gray-50': duration === d.seconds }"
+              >
+                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-bold"
+                  :class="duration === d.seconds ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'">⏱️</span>
+                <div>
+                  <div class="text-sm font-medium text-gray-900">{{ d.label }}</div>
+                </div>
+                <svg v-if="duration === d.seconds" class="ml-auto h-4 w-4 text-gray-900" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Resolution -->
+        <div data-menu>
+          <label class="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-400">分辨率</label>
+          <div class="relative" data-menu>
+            <button
+              @click.stop="showResolutionMenu"
+              data-menu
+              class="flex h-[60px] w-full items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm transition hover:border-gray-400"
+              :class="{ 'border-gray-900 bg-white ring-1 ring-gray-900': openMenu === 'resolution' }"
+            >
+              <div class="flex items-center gap-2.5">
+                <span class="flex h-6 w-6 items-center justify-center rounded-md bg-gray-900 text-xs text-white font-bold">📺</span>
+                <div class="text-left">
+                  <div class="font-medium text-gray-900 leading-tight">{{ resolution }}</div>
+                  <div class="text-xs text-gray-400">{{ videoResolutions.find(r => r.id === resolution)?.description }}</div>
+                </div>
+              </div>
+              <svg class="h-4 w-4 text-gray-400 transition-transform" :class="{ 'rotate-180': openMenu === 'resolution' }" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            <div
+               v-if="openMenu === 'resolution'"
+               data-menu
+               class="absolute bottom-full left-0 z-50 mb-1.5 w-full rounded-xl border border-gray-200 bg-white py-1.5 shadow-lg"
+             >
+              <button
+                v-for="r in videoResolutions"
+                :key="r.id"
+                @click.stop="selectResolution(r.id as '720p' | '1080p')"
+                data-menu
+                class="flex w-full items-center gap-3 px-3.5 py-2 text-left transition-colors hover:bg-gray-50"
+                :class="{ 'bg-gray-50': resolution === r.id }"
+              >
+                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-bold"
+                  :class="resolution === r.id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'">📺</span>
+                <div>
+                  <div class="text-sm font-medium text-gray-900">{{ r.label }}</div>
+                  <div class="text-xs text-gray-400">{{ r.description }}</div>
+                </div>
+                <svg v-if="resolution === r.id" class="ml-auto h-4 w-4 text-gray-900" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -237,7 +362,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
           <div
             v-if="openMenu === 'model'"
             data-menu
-            class="absolute z-50 mt-1.5 w-full rounded-xl border border-gray-200 bg-white py-1.5 shadow-lg"
+            class="absolute bottom-full left-0 z-50 mb-1.5 w-full rounded-xl border border-gray-200 bg-white py-1.5 shadow-lg"
           >
             <button
               v-for="m in videoModels"
@@ -261,24 +386,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
         </div>
       </div>
 
-      <!-- Resolution -->
-      <div data-menu>
-        <label class="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-400">分辨率</label>
-        <div class="flex gap-2">
-          <button
-            v-for="r in videoResolutions"
-            :key="r.id"
-            @click="resolution = r.id as typeof resolution"
-            class="flex flex-1 flex-col items-center rounded-xl border py-2.5 text-xs transition-colors"
-            :class="resolution === r.id
-              ? 'border-gray-900 bg-gray-900 text-white'
-              : 'border-gray-200 bg-white text-gray-600 hover:border-gray-400'"
-          >
-            <span class="font-semibold">{{ r.label }}</span>
-            <span class="mt-0.5 opacity-70">{{ r.description }}</span>
-          </button>
-        </div>
-      </div>
+
 
       <!-- Reference Mode -->
       <div data-menu>
@@ -308,7 +416,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
           <div
             v-if="openMenu === 'referenceMode'"
             data-menu
-            class="absolute z-50 mt-1.5 w-full rounded-xl border border-gray-200 bg-white py-1.5 shadow-lg"
+            class="absolute bottom-full left-0 z-50 mb-1.5 w-full rounded-xl border border-gray-200 bg-white py-1.5 shadow-lg"
           >
             <button
               @click.stop="referenceMode = 'reference'; closeMenus()"
