@@ -78,3 +78,94 @@ export function generateFileName(
   const baseName = `${typeNames[fileType]}${existingCount + 1}`;
   return ext ? `${baseName}.${ext}` : baseName;
 }
+
+export interface ProcessFilesResult {
+  filesToAdd: FilePreview[];
+  duplicateCount: number;
+  exceededCount: number;
+  invalidDurationCount: number;
+  invalidSizeCount: number;
+  exceededVideoCount: number;
+}
+
+export async function processFiles(
+  files: File[],
+  existingFiles: FilePreview[],
+  includeDurationCheck: boolean = true
+): Promise<ProcessFilesResult> {
+  const result: ProcessFilesResult = {
+    filesToAdd: [],
+    duplicateCount: 0,
+    exceededCount: 0,
+    invalidDurationCount: 0,
+    invalidSizeCount: 0,
+    exceededVideoCount: 0,
+  };
+
+  const remainingSlots = MAX_FILES - existingFiles.length;
+  if (remainingSlots <= 0) {
+    result.exceededCount = files.length;
+    return result;
+  }
+
+  let currentVideoCount = existingFiles.filter(f => f.type === 'video').length;
+  const imageCount = existingFiles.filter(f => f.type === 'image').length;
+  const videoCount = existingFiles.filter(f => f.type === 'video').length;
+  const audioCount = existingFiles.filter(f => f.type === 'audio').length;
+
+  for (const file of files) {
+    if (existingFiles.length + result.filesToAdd.length >= MAX_FILES) {
+      result.exceededCount++;
+      continue;
+    }
+
+    const isDuplicate = existingFiles.some(
+      existingFile => existingFile.name === file.name && existingFile.file.size === file.size,
+    );
+    if (isDuplicate) {
+      result.duplicateCount++;
+      continue;
+    }
+
+    const fileType = getFileType(file);
+    if (fileType === 'video' && currentVideoCount >= MAX_VIDEO_COUNT) {
+      result.exceededVideoCount++;
+      continue;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      result.invalidSizeCount++;
+      continue;
+    }
+
+    let duration: number | undefined;
+    if (fileType === 'video' && includeDurationCheck) {
+      duration = await checkVideoDuration(file);
+      if (duration < MIN_VIDEO_DURATION || duration > MAX_VIDEO_DURATION) {
+        result.invalidDurationCount++;
+        continue;
+      }
+    }
+
+    let renamedName = file.name;
+    if (fileType === 'image') {
+      renamedName = generateFileName(file.name, fileType, imageCount + result.filesToAdd.filter(f => f.type === 'image').length);
+    }
+
+    const filePreview: FilePreview = {
+      id: `file-${Date.now()}-${Math.random()}`,
+      name: renamedName,
+      type: fileType,
+      url: URL.createObjectURL(file),
+      file,
+      duration,
+    };
+
+    result.filesToAdd.push(filePreview);
+    if (fileType === 'video') {
+      currentVideoCount++;
+    }
+  }
+
+  return result;
+}

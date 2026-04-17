@@ -16,7 +16,6 @@ export interface VideoGenerationParams {
   resolution: '720p' | '1080p';
   aspectRatio: '16:9' | '9:16';
   duration: number;
-  referenceMode?: 'reference' | 'first_last_frame';
   images?: VideoWorkflowImage[];
   videos?: VideoWorkflowVideo[];
   audios?: VideoWorkflowAudio[];
@@ -50,6 +49,77 @@ const referenceMode = ref<'reference' | 'first_last_frame'>(props.initialReferen
 const selectedFiles = ref<FilePreview[]>(props.initialFiles || []);
 
 const openMenu = ref<string | null>(null);
+
+const firstFrameInput = ref<HTMLInputElement | null>(null);
+const lastFrameInput = ref<HTMLInputElement | null>(null);
+
+const firstFrameImage = ref<FilePreview | null>(null);
+const lastFrameImage = ref<FilePreview | null>(null);
+
+const getFirstFrameImage = computed(() => {
+  if (referenceMode.value === 'first_last_frame') {
+    return firstFrameImage.value;
+  }
+  return null;
+});
+
+const getLastFrameImage = computed(() => {
+  if (referenceMode.value === 'first_last_frame') {
+    return lastFrameImage.value;
+  }
+  return null;
+});
+
+const triggerFileInput = (position: 'first' | 'last') => {
+  if (position === 'first' && firstFrameInput.value) {
+    firstFrameInput.value.click();
+  } else if (position === 'last' && lastFrameInput.value) {
+    lastFrameInput.value.click();
+  }
+};
+
+const handleFrameImageChange = (position: 'first' | 'last', event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file || !file.type.startsWith('image/')) return;
+
+  const filePreview: FilePreview = {
+    id: `${position}_frame_${Date.now()}`,
+    name: file.name,
+    type: 'image',
+    url: URL.createObjectURL(file),
+    file: file,
+  };
+
+  if (position === 'first') {
+    firstFrameImage.value = filePreview;
+  } else {
+    lastFrameImage.value = filePreview;
+  }
+
+  if (filePreview && !selectedFiles.value.find(f => f.id === filePreview.id)) {
+    selectedFiles.value.push(filePreview);
+  }
+
+  input.value = '';
+};
+
+const removeFrameImage = (position: 'first' | 'last') => {
+  const filePreview = position === 'first' ? firstFrameImage.value : lastFrameImage.value;
+  if (filePreview) {
+    selectedFiles.value = selectedFiles.value.filter(f => f.id !== filePreview.id);
+    if (position === 'first') {
+      firstFrameImage.value = null;
+    } else {
+      lastFrameImage.value = null;
+    }
+  }
+};
+
+const shouldShowAtButton = computed(() => {
+  return true;
+});
+
 const toggleMenu = (id: string) => { openMenu.value = openMenu.value === id ? null : id; };
 const closeMenus = () => { openMenu.value = null; };
 
@@ -93,13 +163,41 @@ const convertFilesToWorkflow = () => {
   const videos: VideoWorkflowVideo[] = [];
   const audios: VideoWorkflowAudio[] = [];
 
+  if (referenceMode.value === 'first_last_frame') {
+    if (firstFrameImage.value) {
+      images.push({
+        type: 'first_frame',
+        name: firstFrameImage.value.name,
+        file: firstFrameImage.value.file,
+      });
+    }
+    if (lastFrameImage.value) {
+      images.push({
+        type: 'last_frame',
+        name: lastFrameImage.value.name,
+        file: lastFrameImage.value.file,
+      });
+    }
+  }
+
   selectedFiles.value.forEach(file => {
     if (file.type === 'image') {
-      images.push({
-        type: 'reference',
-        name: file.name,
-        file: file.file,
-      });
+      if (referenceMode.value === 'first_last_frame') {
+        const isFirstOrLast = file.id === firstFrameImage.value?.id || file.id === lastFrameImage.value?.id;
+        if (!isFirstOrLast) {
+          images.push({
+            type: 'reference',
+            name: file.name,
+            file: file.file,
+          });
+        }
+      } else {
+        images.push({
+          type: 'reference',
+          name: file.name,
+          file: file.file,
+        });
+      }
     } else if (file.type === 'video') {
       videos.push({
         type: 'ref',
@@ -164,11 +262,100 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
             :textarea-class="'w-full min-h-[100px] text-sm leading-[1.6] bg-transparent border-0 outline-0 focus-visible:ring-0'"
             @files-change="handleFilesChange"
           >
+            <template #before-files>
+              <input
+                ref="firstFrameInput"
+                type="file"
+                accept="image/*"
+                class="hidden"
+                @change="handleFrameImageChange('first', $event)"
+              />
+              <input
+                ref="lastFrameInput"
+                type="file"
+                accept="image/*"
+                class="hidden"
+                @change="handleFrameImageChange('last', $event)"
+              />
+
+              <div
+                v-if="firstFrameImage"
+                class="relative h-28 w-20 origin-bottom transform -rotate-6 transition-transform duration-300 ease-out hover:scale-105 hover:translate-x-0 hover:rotate-0"
+                :style="{ zIndex: 100 }"
+                @mouseenter="($event) => ($event.currentTarget.style.zIndex = '1000')"
+                @mouseleave="($event) => ($event.currentTarget.style.zIndex = '100')"
+              >
+                <div
+                  class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
+                >
+                  <img :src="firstFrameImage.url" class="w-full h-full object-cover" alt="首帧" />
+                  <button
+                    @click.stop="removeFrameImage('first')"
+                    class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[10px] opacity-0 group-hover:opacity-100"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+
+              <div
+                v-if="lastFrameImage"
+                class="relative h-28 w-20 origin-bottom transform -rotate-3 transition-transform duration-300 ease-out hover:scale-105 hover:translate-x-0 hover:rotate-0"
+                :style="{ zIndex: 99 }"
+                @mouseenter="($event) => ($event.currentTarget.style.zIndex = '1000')"
+                @mouseleave="($event) => ($event.currentTarget.style.zIndex = '99')"
+              >
+                <div
+                  class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
+                >
+                  <img :src="lastFrameImage.url" class="w-full h-full object-cover" alt="尾帧" />
+                  <button
+                    @click.stop="removeFrameImage('last')"
+                    class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[10px] opacity-0 group-hover:opacity-100"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+
+              <div
+                v-if="!firstFrameImage && referenceMode === 'first_last_frame'"
+                class="relative h-28 w-20 origin-bottom transform -rotate-6 transition-transform duration-300 hover:scale-105 hover:rotate-0 cursor-pointer"
+                :style="{ zIndex: 100 }"
+                @click="triggerFileInput('first')"
+              >
+                <div
+                  class="absolute inset-0 rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg transition-all hover:border-gray-600 hover:shadow-xl"
+                >
+                  <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                    <div class="text-xl mb-0.5">首帧</div>
+                    <div class="text-[10px] font-medium">点击上传</div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                v-if="!lastFrameImage && referenceMode === 'first_last_frame'"
+                class="relative h-28 w-20 origin-bottom transform -rotate-3 -translate-x-2 transition-transform duration-300 hover:scale-105 hover:rotate-0 cursor-pointer"
+                :style="{ zIndex: 99 }"
+                @click="triggerFileInput('last')"
+              >
+                <div
+                  class="absolute inset-0 rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg transition-all hover:border-gray-600 hover:shadow-xl"
+                >
+                  <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                    <div class="text-xl mb-0.5">尾帧</div>
+                    <div class="text-[10px] font-medium">点击上传</div>
+                  </div>
+                </div>
+              </div>
+            </template>
             <template #actions="{ onMentionClick, onFilePickClick }">
               <div class="mt-3 flex flex-col gap-3 border-t border-[#f3f4f6] pt-2 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
                 <div class="relative flex min-h-[44px] flex-wrap content-start items-start gap-2 transition-all duration-200">
                   <div class="flex items-center gap-2">
                     <button
+                      v-show="shouldShowAtButton"
                       @click="onMentionClick"
                       class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-sm font-semibold text-gray-500 transition-all hover:bg-gray-50"
                       title="@提及文件"
@@ -176,6 +363,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
                       @
                     </button>
                     <button
+                      v-show="shouldShowAttachmentButton"
                       @click="onFilePickClick"
                       class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-base text-gray-500 transition-all hover:bg-gray-50"
                       title="添加文件"
@@ -189,6 +377,57 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
           </FileReferenceInput>
           <div class="mt-1 text-right">
             <span class="text-xs text-gray-300">{{ prompt.length }}/500</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reference Mode -->
+      <div data-menu>
+        <label class="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-400">参考模式</label>
+        <div class="relative" data-menu>
+          <button
+            @click.stop="toggleMenu('referenceMode')"
+            data-menu
+            class="flex h-[60px] w-full items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm transition hover:border-gray-400"
+            :class="{ 'border-gray-900 bg-white ring-1 ring-gray-900': openMenu === 'referenceMode' }"
+          >
+            <div class="flex items-center gap-2.5">
+              <span class="flex h-6 w-6 items-center justify-center rounded-md bg-gray-900 text-xs text-white font-bold">🎨</span>
+              <div class="text-left">
+                <div class="font-medium text-gray-900 leading-tight">{{ referenceMode === 'reference' ? '全能参考' : '首尾帧' }}</div>
+              </div>
+            </div>
+            <svg class="h-4 w-4 text-gray-400 transition-transform" :class="{ 'rotate-180': openMenu === 'referenceMode' }" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          <div
+            v-if="openMenu === 'referenceMode'"
+            data-menu
+            class="absolute bottom-full left-0 z-50 mb-1.5 w-full rounded-xl border border-gray-200 bg-white py-1.5 shadow-lg"
+          >
+            <button
+              @click.stop="referenceMode = 'reference'; closeMenus()"
+              data-menu
+              class="flex w-full items-center gap-3 px-3.5 py-2 text-left transition-colors hover:bg-gray-50"
+              :class="{ 'bg-gray-50': referenceMode === 'reference' }"
+            >
+              <div>
+                <div class="text-sm font-medium text-gray-900">全能参考</div>
+                <div class="text-xs text-gray-400">多图参考，支持最多6张参考图</div>
+              </div>
+            </button>
+            <button
+              @click.stop="referenceMode = 'first_last_frame'; closeMenus()"
+              data-menu
+              class="flex w-full items-center gap-3 px-3.5 py-2 text-left transition-colors hover:bg-gray-50"
+              :class="{ 'bg-gray-50': referenceMode === 'first_last_frame' }"
+            >
+              <div>
+                <div class="text-sm font-medium text-gray-900">首尾帧</div>
+                <div class="text-xs text-gray-400">指定首帧和尾帧生成视频</div>
+              </div>
+            </button>
           </div>
         </div>
       </div>

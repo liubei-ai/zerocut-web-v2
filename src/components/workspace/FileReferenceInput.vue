@@ -32,6 +32,10 @@ interface Props {
   showModeSelector?: boolean;
 }
 
+interface Slots {
+  'before-files': () => any;
+}
+
 interface Emits {
   (e: 'update:modelValue', value: string): void;
   (e: 'files-change', files: FilePreview[]): void;
@@ -391,6 +395,8 @@ const handleFileChange = async (e: Event) => {
   if (target) {
     target.value = '';
   }
+
+  reindexFiles();
 };
 
 defineExpose({
@@ -419,26 +425,70 @@ defineExpose({
       ]"
     />
 
-    <!-- File previews (only for Home.vue with allowFilePick) -->
-    <div v-if="allowFilePick && selectedFiles.length > 0" class="mt-3 flex flex-wrap gap-2">
-      <div
-        v-for="file in selectedFiles"
-        :key="file.id"
-        class="group relative flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white p-2 pr-8"
-      >
-        <img v-if="file.type === 'image'" :src="file.url" :alt="file.name" class="h-10 w-10 rounded object-cover" />
-        <div v-else class="flex h-10 w-10 items-center justify-center rounded bg-gray-100 text-lg">
-          {{ getFileIcon(file.type) }}
-        </div>
-        <div class="max-w-[150px] truncate text-sm text-gray-700" :title="file.name">
-          {{ file.name }}
-        </div>
-        <button
-          @click="removeFile(file.id)"
-          class="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-600"
+    <!-- File previews (only when allowFilePick is true) - always card mode -->
+    <div v-if="allowFilePick && selectedFiles.length >= 0" class="mt-3 group relative min-h-[120px] px-2 py-4">
+      <label class="mb-2 block text-xs font-medium uppercase tracking-wide text-gray-400">参考文件</label>
+      <div class="flex items-center justify-start">
+        <slot name="before-files" />
+        <!-- Existing files as stacked cards -->
+        <div
+          v-for="(file, index) in selectedFiles"
+          :key="file.id"
+          class="relative h-28 w-20 origin-bottom transform group-hover:translate-x-0 group-hover:rotate-0 hover:scale-105 transition-transform duration-300 ease-out"
+          :class="[
+            index === 0 ? '-rotate-6 -translate-x-0' :
+            index === 1 ? '-rotate-3 -translate-x-2' :
+            index === 2 ? 'rotate-0 -translate-x-4' :
+            index === 3 ? 'rotate-3 -translate-x-6' :
+            index === 4 ? 'rotate-6 -translate-x-8' :
+            'rotate-6 -translate-x-10'
+          ]"
+          :style="{
+            zIndex: selectedFiles.length - index
+          }"
+          @mouseenter="($event) => ($event.currentTarget.style.zIndex = '1000')"
+          @mouseleave="($event) => ($event.currentTarget.style.zIndex = (selectedFiles.length - index).toString())"
         >
-          ✕
-        </button>
+          <div
+            class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
+          >
+            <img
+              v-if="file.type === 'image'"
+              :src="file.url"
+              class="w-full h-full object-cover"
+              :alt="file.name"
+            />
+            <div v-else class="absolute inset-0 flex flex-col items-center justify-center bg-gray-100">
+              <div class="text-2xl mb-1">{{ getFileIcon(file.type) }}</div>
+              <div class="text-[8px] text-gray-500 text-center px-1 truncate w-full">{{ file.name }}</div>
+            </div>
+            <button
+              @click.stop="removeFile(file.id)"
+              class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[10px] opacity-0 group-hover:opacity-100"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        <!-- Add card (only show when there's space) -->
+        <div
+          v-if="selectedFiles.length < MAX_FILES"
+          class="relative h-28 w-20 origin-bottom transform -rotate-3 transition-transform duration-300 hover:scale-105 hover:rotate-0 cursor-pointer"
+          :class="[selectedFiles.length > 0 ? '-translate-x-' + (selectedFiles.length * 2) : '']"
+          :style="{ zIndex: selectedFiles.length + 1 }"
+          @click="handleFilePickClick"
+        >
+          <div
+            class="absolute inset-0 rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg transition-all hover:border-gray-600 hover:shadow-xl"
+          >
+            <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+              <div class="text-xl mb-0.5">➕</div>
+              <div class="text-[10px] font-medium">添加参考</div>
+              <div class="text-[8px] mt-0.5">支持图片/视频/音频</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 

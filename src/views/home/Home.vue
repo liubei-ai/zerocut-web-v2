@@ -378,7 +378,7 @@ const updateCreditsNeeded = async () => {
   creditsNeeded.value = null;
 
   try {
-  const durationSeconds = parseInt(videoDuration.value);
+    const durationSeconds = parseInt(videoDuration.value);
     creditsNeeded.value = await calculateVideoCredits(videoModel.value, durationSeconds, videoResolution.value, priceConfig.value, videoModels);
   } catch (error) {
     creditsError.value = error instanceof Error ? error.message : '获取价格失败';
