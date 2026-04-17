@@ -16,6 +16,7 @@ export interface VideoGenerationParams {
   resolution: '720p' | '1080p';
   aspectRatio: '16:9' | '9:16';
   duration: number;
+  referenceMode: 'reference' | 'first_last_frame';
   images?: VideoWorkflowImage[];
   videos?: VideoWorkflowVideo[];
   audios?: VideoWorkflowAudio[];
@@ -117,6 +118,10 @@ const removeFrameImage = (position: 'first' | 'last') => {
 };
 
 const shouldShowAtButton = computed(() => {
+  return true;
+});
+
+const shouldShowAttachmentButton = computed(() => {
   return true;
 });
 
@@ -282,8 +287,8 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
                 v-if="firstFrameImage"
                 class="relative h-28 w-20 origin-bottom transform -rotate-6 transition-transform duration-300 ease-out hover:scale-105 hover:translate-x-0 hover:rotate-0"
                 :style="{ zIndex: 100 }"
-                @mouseenter="($event) => ($event.currentTarget.style.zIndex = '1000')"
-                @mouseleave="($event) => ($event.currentTarget.style.zIndex = '100')"
+                @mouseenter="($event) => ($event.currentTarget as HTMLElement)?.style.setProperty('z-index', '1000')"
+                @mouseleave="($event) => ($event.currentTarget as HTMLElement)?.style.setProperty('z-index', '100')"
               >
                 <div
                   class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
@@ -302,8 +307,8 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
                 v-if="lastFrameImage"
                 class="relative h-28 w-20 origin-bottom transform -rotate-3 transition-transform duration-300 ease-out hover:scale-105 hover:translate-x-0 hover:rotate-0"
                 :style="{ zIndex: 99 }"
-                @mouseenter="($event) => ($event.currentTarget.style.zIndex = '1000')"
-                @mouseleave="($event) => ($event.currentTarget.style.zIndex = '99')"
+                @mouseenter="($event) => ($event.currentTarget as HTMLElement)?.style.setProperty('z-index', '1000')"
+                @mouseleave="($event) => ($event.currentTarget as HTMLElement)?.style.setProperty('z-index', '99')"
               >
                 <div
                   class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
@@ -618,74 +623,6 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
                 <div class="text-xs text-gray-400">{{ m.description }}</div>
               </div>
               <svg v-if="model === m.id" class="ml-auto h-4 w-4 text-gray-900" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </div>
-
-
-
-      <!-- Reference Mode -->
-      <div data-menu>
-        <label class="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-400">参考模式</label>
-        <div class="relative" data-menu>
-          <button
-            @click.stop="toggleMenu('referenceMode')"
-            data-menu
-            class="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm transition hover:border-gray-400"
-            :class="{ 'border-gray-900 bg-white ring-1 ring-gray-900': openMenu === 'referenceMode' }"
-          >
-            <div class="flex items-center gap-2.5">
-              <span class="flex h-6 w-6 items-center justify-center rounded-md bg-gray-900 text-xs text-white font-bold">🎨</span>
-              <div class="text-left">
-                <div class="font-medium text-gray-900 leading-tight">
-                  {{ referenceMode === 'reference' ? '全能参考' : '首尾帧' }}
-                </div>
-                <div class="text-xs text-gray-400">
-                  {{ referenceMode === 'reference' ? '多图参考，支持最多7张' : '指定首帧和尾帧' }}
-                </div>
-              </div>
-            </div>
-            <svg class="h-4 w-4 text-gray-400 transition-transform" :class="{ 'rotate-180': openMenu === 'referenceMode' }" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          <div
-            v-if="openMenu === 'referenceMode'"
-            data-menu
-            class="absolute bottom-full left-0 z-50 mb-1.5 w-full rounded-xl border border-gray-200 bg-white py-1.5 shadow-lg"
-          >
-            <button
-              @click.stop="referenceMode = 'reference'; closeMenus()"
-              data-menu
-              class="flex w-full items-center gap-3 px-3.5 py-2 text-left transition-colors hover:bg-gray-50"
-              :class="{ 'bg-gray-50': referenceMode === 'reference' }"
-            >
-              <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-bold"
-                :class="referenceMode === 'reference' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'">🎨</span>
-              <div>
-                <div class="text-sm font-medium text-gray-900">全能参考</div>
-                <div class="text-xs text-gray-400">多图参考，支持最多7张参考图</div>
-              </div>
-              <svg v-if="referenceMode === 'reference'" class="ml-auto h-4 w-4 text-gray-900" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            </button>
-            <button
-              @click.stop="referenceMode = 'first_last_frame'; closeMenus()"
-              data-menu
-              class="flex w-full items-center gap-3 px-3.5 py-2 text-left transition-colors hover:bg-gray-50"
-              :class="{ 'bg-gray-50': referenceMode === 'first_last_frame' }"
-            >
-              <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-bold"
-                :class="referenceMode === 'first_last_frame' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'">🎨</span>
-              <div>
-                <div class="text-sm font-medium text-gray-900">首尾帧</div>
-                <div class="text-xs text-gray-400">指定首帧和尾帧生成视频</div>
-              </div>
-              <svg v-if="referenceMode === 'first_last_frame'" class="ml-auto h-4 w-4 text-gray-900" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </button>
