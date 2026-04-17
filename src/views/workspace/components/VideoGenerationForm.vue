@@ -51,9 +51,6 @@ const selectedFiles = ref<FilePreview[]>(props.initialFiles || []);
 
 const openMenu = ref<string | null>(null);
 
-const firstFrameInput = ref<HTMLInputElement | null>(null);
-const lastFrameInput = ref<HTMLInputElement | null>(null);
-
 const firstFrameImage = ref<FilePreview | null>(null);
 const lastFrameImage = ref<FilePreview | null>(null);
 
@@ -70,52 +67,6 @@ const getLastFrameImage = computed(() => {
   }
   return null;
 });
-
-const triggerFileInput = (position: 'first' | 'last') => {
-  if (position === 'first' && firstFrameInput.value) {
-    firstFrameInput.value.click();
-  } else if (position === 'last' && lastFrameInput.value) {
-    lastFrameInput.value.click();
-  }
-};
-
-const handleFrameImageChange = (position: 'first' | 'last', event: Event) => {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file || !file.type.startsWith('image/')) return;
-
-  const filePreview: FilePreview = {
-    id: `${position}_frame_${Date.now()}`,
-    name: file.name,
-    type: 'image',
-    url: URL.createObjectURL(file),
-    file: file,
-  };
-
-  if (position === 'first') {
-    firstFrameImage.value = filePreview;
-  } else {
-    lastFrameImage.value = filePreview;
-  }
-
-  if (filePreview && !selectedFiles.value.find(f => f.id === filePreview.id)) {
-    selectedFiles.value.push(filePreview);
-  }
-
-  input.value = '';
-};
-
-const removeFrameImage = (position: 'first' | 'last') => {
-  const filePreview = position === 'first' ? firstFrameImage.value : lastFrameImage.value;
-  if (filePreview) {
-    selectedFiles.value = selectedFiles.value.filter(f => f.id !== filePreview.id);
-    if (position === 'first') {
-      firstFrameImage.value = null;
-    } else {
-      lastFrameImage.value = null;
-    }
-  }
-};
 
 const shouldShowAtButton = computed(() => {
   return true;
@@ -265,96 +216,12 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
             :placeholder="placeholderText"
             :allow-file-pick="true"
             :textarea-class="'w-full min-h-[100px] text-sm leading-[1.6] bg-transparent border-0 outline-0 focus-visible:ring-0'"
+            :enable-first-last-frame="true"
+            :first-last-frame-mode="referenceMode"
             @files-change="handleFilesChange"
+            @first-frame-change="firstFrameImage = $event"
+            @last-frame-change="lastFrameImage = $event"
           >
-            <template #before-files>
-              <input
-                ref="firstFrameInput"
-                type="file"
-                accept="image/*"
-                class="hidden"
-                @change="handleFrameImageChange('first', $event)"
-              />
-              <input
-                ref="lastFrameInput"
-                type="file"
-                accept="image/*"
-                class="hidden"
-                @change="handleFrameImageChange('last', $event)"
-              />
-
-              <div
-                v-if="firstFrameImage"
-                class="relative h-28 w-20 origin-bottom transform -rotate-6 transition-transform duration-300 ease-out hover:scale-105 hover:translate-x-0 hover:rotate-0"
-                :style="{ zIndex: 100 }"
-                @mouseenter="($event) => ($event.currentTarget as HTMLElement)?.style.setProperty('z-index', '1000')"
-                @mouseleave="($event) => ($event.currentTarget as HTMLElement)?.style.setProperty('z-index', '100')"
-              >
-                <div
-                  class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
-                >
-                  <img :src="firstFrameImage.url" class="w-full h-full object-cover" alt="首帧" />
-                  <button
-                    @click.stop="removeFrameImage('first')"
-                    class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[10px] opacity-0 group-hover:opacity-100"
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
-
-              <div
-                v-if="lastFrameImage"
-                class="relative h-28 w-20 origin-bottom transform -rotate-3 transition-transform duration-300 ease-out hover:scale-105 hover:translate-x-0 hover:rotate-0"
-                :style="{ zIndex: 99 }"
-                @mouseenter="($event) => ($event.currentTarget as HTMLElement)?.style.setProperty('z-index', '1000')"
-                @mouseleave="($event) => ($event.currentTarget as HTMLElement)?.style.setProperty('z-index', '99')"
-              >
-                <div
-                  class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
-                >
-                  <img :src="lastFrameImage.url" class="w-full h-full object-cover" alt="尾帧" />
-                  <button
-                    @click.stop="removeFrameImage('last')"
-                    class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[10px] opacity-0 group-hover:opacity-100"
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
-
-              <div
-                v-if="!firstFrameImage && referenceMode === 'first_last_frame'"
-                class="relative h-28 w-20 origin-bottom transform -rotate-6 transition-transform duration-300 hover:scale-105 hover:rotate-0 cursor-pointer"
-                :style="{ zIndex: 100 }"
-                @click="triggerFileInput('first')"
-              >
-                <div
-                  class="absolute inset-0 rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg transition-all hover:border-gray-600 hover:shadow-xl"
-                >
-                  <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-                    <div class="text-xl mb-0.5">首帧</div>
-                    <div class="text-[10px] font-medium">点击上传</div>
-                  </div>
-                </div>
-              </div>
-
-              <div
-                v-if="!lastFrameImage && referenceMode === 'first_last_frame'"
-                class="relative h-28 w-20 origin-bottom transform -rotate-3 -translate-x-2 transition-transform duration-300 hover:scale-105 hover:rotate-0 cursor-pointer"
-                :style="{ zIndex: 99 }"
-                @click="triggerFileInput('last')"
-              >
-                <div
-                  class="absolute inset-0 rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg transition-all hover:border-gray-600 hover:shadow-xl"
-                >
-                  <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-                    <div class="text-xl mb-0.5">尾帧</div>
-                    <div class="text-[10px] font-medium">点击上传</div>
-                  </div>
-                </div>
-              </div>
-            </template>
             <template #actions="{ onMentionClick, onFilePickClick }">
               <div class="mt-3 flex flex-col gap-3 border-t border-[#f3f4f6] pt-2 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
                 <div class="relative flex min-h-[44px] flex-wrap content-start items-start gap-2 transition-all duration-200">

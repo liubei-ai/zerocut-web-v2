@@ -30,6 +30,8 @@ interface Props {
   projectFiles?: ProjectFileReference[];
   textareaClass?: string;
   showModeSelector?: boolean;
+  enableFirstLastFrame?: boolean;
+  firstLastFrameMode?: 'reference' | 'first_last_frame';
 }
 
 interface Slots {
@@ -51,15 +53,29 @@ const props = withDefaults(defineProps<Props>(), {
   projectFiles: () => [],
   textareaClass: '',
   showModeSelector: false,
+  enableFirstLastFrame: false,
+  firstLastFrameMode: 'reference',
 });
+
+interface Emits {
+  (e: 'update:modelValue', value: string): void;
+  (e: 'files-change', files: FilePreview[]): void;
+  (e: 'video-total-duration', duration: number): void;
+  (e: 'first-frame-change', file: FilePreview | null): void;
+  (e: 'last-frame-change', file: FilePreview | null): void;
+}
 
 const emit = defineEmits<Emits>();
 
 const textareaRef = ref<HTMLTextAreaElement>();
 const fileInputRef = ref<HTMLInputElement>();
+const firstFrameInputRef = ref<HTMLInputElement>();
+const lastFrameInputRef = ref<HTMLInputElement>();
 const dropdownOpen = ref(false);
 const cursorPosition = ref({ top: 0, left: 0 });
 const selectedFiles = ref<FilePreview[]>([]);
+const firstFrameImage = ref<FilePreview | null>(null);
+const lastFrameImage = ref<FilePreview | null>(null);
 
 const reindexFiles = () => {
   let totalVideoDuration = 0;
@@ -81,6 +97,88 @@ const removeFile = (fileId: string) => {
     selectedFiles.value.splice(index, 1);
     reindexFiles();
     emit('files-change', selectedFiles.value);
+  }
+  if (firstFrameImage.value?.id === fileId) {
+    firstFrameImage.value = null;
+    emit('first-frame-change', null);
+  }
+  if (lastFrameImage.value?.id === fileId) {
+    lastFrameImage.value = null;
+    emit('last-frame-change', null);
+  }
+};
+
+const triggerFrameFileInput = (position: 'first' | 'last') => {
+  if (position === 'first' && firstFrameInputRef.value) {
+    firstFrameInputRef.value.click();
+  } else if (position === 'last' && lastFrameInputRef.value) {
+    lastFrameInputRef.value.click();
+  }
+};
+
+const handleFrameImageChange = (position: 'first' | 'last', event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file || !file.type.startsWith('image/')) return;
+
+  const filePreview: FilePreview = {
+    id: `${position}_frame_${Date.now()}`,
+    name: file.name,
+    type: 'image',
+    url: URL.createObjectURL(file),
+    file: file,
+  };
+
+  if (position === 'first') {
+    if (firstFrameImage.value) {
+      URL.revokeObjectURL(firstFrameImage.value.url);
+      const existingIndex = selectedFiles.value.findIndex(f => f.id === firstFrameImage.value!.id);
+      if (existingIndex !== -1) {
+        selectedFiles.value.splice(existingIndex, 1);
+      }
+    }
+    firstFrameImage.value = filePreview;
+    emit('first-frame-change', filePreview);
+  } else {
+    if (lastFrameImage.value) {
+      URL.revokeObjectURL(lastFrameImage.value.url);
+      const existingIndex = selectedFiles.value.findIndex(f => f.id === lastFrameImage.value!.id);
+      if (existingIndex !== -1) {
+        selectedFiles.value.splice(existingIndex, 1);
+      }
+    }
+    lastFrameImage.value = filePreview;
+    emit('last-frame-change', filePreview);
+  }
+
+  if (props.firstLastFrameMode !== 'first_last_frame' && filePreview && !selectedFiles.value.find(f => f.id === filePreview.id)) {
+    selectedFiles.value.push(filePreview);
+    emit('files-change', selectedFiles.value);
+  }
+
+  input.value = '';
+};
+
+const removeFrameImage = (position: 'first' | 'last') => {
+  const filePreview = position === 'first' ? firstFrameImage.value : lastFrameImage.value;
+  if (filePreview) {
+    if (props.firstLastFrameMode === 'first_last_frame') {
+      URL.revokeObjectURL(filePreview.url);
+      const existingIndex = selectedFiles.value.findIndex(f => f.id === filePreview.id);
+      if (existingIndex !== -1) {
+        selectedFiles.value.splice(existingIndex, 1);
+        emit('files-change', selectedFiles.value);
+      }
+      if (position === 'first') {
+        firstFrameImage.value = null;
+        emit('first-frame-change', null);
+      } else {
+        lastFrameImage.value = null;
+        emit('last-frame-change', null);
+      }
+    } else {
+      removeFile(filePreview.id);
+    }
   }
 };
 
@@ -401,6 +499,8 @@ const handleFileChange = async (e: Event) => {
 
 defineExpose({
   selectedFiles,
+  firstFrameImage,
+  lastFrameImage,
   focus: () => textareaRef.value?.focus(),
 });
 </script>
@@ -429,6 +529,95 @@ defineExpose({
     <div v-if="allowFilePick && selectedFiles.length >= 0" class="mt-3 group relative min-h-[120px] px-2 py-4">
       <label class="mb-2 block text-xs font-medium uppercase tracking-wide text-gray-400">参考文件</label>
       <div class="flex items-center justify-start">
+        <!-- Built-in first/last frame UI when enabled -->
+        <template v-if="enableFirstLastFrame">
+          <input
+            ref="firstFrameInputRef"
+            type="file"
+            accept="image/*"
+            class="hidden"
+            @change="handleFrameImageChange('first', $event)"
+          />
+          <input
+            ref="lastFrameInputRef"
+            type="file"
+            accept="image/*"
+            class="hidden"
+            @change="handleFrameImageChange('last', $event)"
+          />
+
+          <div
+            v-if="firstFrameImage"
+            class="relative h-28 w-20 origin-bottom transform -rotate-6 transition-transform duration-300 ease-out hover:scale-105 hover:translate-x-0 hover:rotate-0"
+            :style="{ zIndex: 100 }"
+            @mouseenter="($event) => ($event.currentTarget as HTMLElement)?.style.setProperty('z-index', '1000')"
+            @mouseleave="($event) => ($event.currentTarget as HTMLElement)?.style.setProperty('z-index', '100')"
+          >
+            <div
+              class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
+            >
+              <img :src="firstFrameImage.url" class="w-full h-full object-cover" alt="首帧" />
+              <button
+                @click.stop="removeFrameImage('first')"
+                class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[10px] opacity-0 group-hover:opacity-100"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+
+          <div
+            v-if="lastFrameImage"
+            class="relative h-28 w-20 origin-bottom transform -rotate-3 transition-transform duration-300 ease-out hover:scale-105 hover:translate-x-0 hover:rotate-0"
+            :style="{ zIndex: 99 }"
+            @mouseenter="($event) => ($event.currentTarget as HTMLElement)?.style.setProperty('z-index', '1000')"
+            @mouseleave="($event) => ($event.currentTarget as HTMLElement)?.style.setProperty('z-index', '99')"
+          >
+            <div
+              class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
+            >
+              <img :src="lastFrameImage.url" class="w-full h-full object-cover" alt="尾帧" />
+              <button
+                @click.stop="removeFrameImage('last')"
+                class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[10px] opacity-0 group-hover:opacity-100"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+
+          <div
+            v-if="!firstFrameImage && firstLastFrameMode === 'first_last_frame'"
+            class="relative h-28 w-20 origin-bottom transform -rotate-6 transition-transform duration-300 hover:scale-105 hover:rotate-0 cursor-pointer"
+            :style="{ zIndex: 100 }"
+            @click="triggerFrameFileInput('first')"
+          >
+            <div
+              class="absolute inset-0 rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg transition-all hover:border-gray-600 hover:shadow-xl"
+            >
+              <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                <div class="text-xl mb-0.5">首帧</div>
+                <div class="text-[10px] font-medium">点击上传</div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-if="!lastFrameImage && firstLastFrameMode === 'first_last_frame'"
+            class="relative h-28 w-20 origin-bottom transform -rotate-3 -translate-x-2 transition-transform duration-300 hover:scale-105 hover:rotate-0 cursor-pointer"
+            :style="{ zIndex: 99 }"
+            @click="triggerFrameFileInput('last')"
+          >
+            <div
+              class="absolute inset-0 rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg transition-all hover:border-gray-600 hover:shadow-xl"
+            >
+              <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                <div class="text-xl mb-0.5">尾帧</div>
+                <div class="text-[10px] font-medium">点击上传</div>
+              </div>
+            </div>
+          </div>
+        </template>
         <slot name="before-files" />
         <!-- Existing files as stacked cards -->
         <div
@@ -446,8 +635,8 @@ defineExpose({
           :style="{
             zIndex: selectedFiles.length - index
           }"
-          @mouseenter="($event) => ($event.currentTarget.style.zIndex = '1000')"
-          @mouseleave="($event) => ($event.currentTarget.style.zIndex = (selectedFiles.length - index).toString())"
+          @mouseenter="($event) => { const target = $event.currentTarget as HTMLElement | null; if (target) target.style.zIndex = '1000'; }"
+          @mouseleave="($event) => { const target = $event.currentTarget as HTMLElement | null; if (target) target.style.zIndex = (selectedFiles.length - index).toString(); }"
         >
           <div
             class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
@@ -471,9 +660,9 @@ defineExpose({
           </div>
         </div>
 
-        <!-- Add card (only show when there's space) -->
+        <!-- Add card (only show when there's space and not in first_last_frame mode) -->
         <div
-          v-if="selectedFiles.length < MAX_FILES"
+          v-if="selectedFiles.length < MAX_FILES && !(enableFirstLastFrame && firstLastFrameMode === 'first_last_frame')"
           class="relative h-28 w-20 origin-bottom transform -rotate-3 transition-transform duration-300 hover:scale-105 hover:rotate-0 cursor-pointer"
           :class="[selectedFiles.length > 0 ? '-translate-x-' + (selectedFiles.length * 2) : '']"
           :style="{ zIndex: selectedFiles.length + 1 }"
