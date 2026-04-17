@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick, computed } from 'vue';
+import { ref, nextTick, computed, watch } from 'vue';
 import {
   DropdownMenuRoot,
   DropdownMenuTrigger,
@@ -121,9 +121,13 @@ const handleFrameImageChange = (position: 'first' | 'last', event: Event) => {
   const file = input.files?.[0];
   if (!file || !file.type.startsWith('image/')) return;
 
+  const imageCount = selectedFiles.value.filter(f => f.type === 'image').length +
+    (firstFrameImage.value ? 1 : 0) + (lastFrameImage.value ? 1 : 0);
+  const renamedName = generateFileName(file.name, 'image', imageCount);
+
   const filePreview: FilePreview = {
     id: `${position}_frame_${Date.now()}`,
-    name: file.name,
+    name: renamedName,
     type: 'image',
     url: URL.createObjectURL(file),
     file: file,
@@ -497,6 +501,37 @@ const handleFileChange = async (e: Event) => {
   reindexFiles();
 };
 
+const visibleFiles = computed(() => {
+  if (props.enableFirstLastFrame && props.firstLastFrameMode === 'first_last_frame') {
+    return selectedFiles.value.filter(file => 
+      file.id === firstFrameImage.value?.id || file.id === lastFrameImage.value?.id
+    );
+  }
+  return selectedFiles.value;
+});
+
+watch(() => props.firstLastFrameMode, (newMode) => {
+  if (newMode === 'first_last_frame') {
+    const toRemove: string[] = [];
+    selectedFiles.value.forEach(file => {
+      if (file.id !== firstFrameImage.value?.id && file.id !== lastFrameImage.value?.id) {
+        toRemove.push(file.id);
+        URL.revokeObjectURL(file.url);
+      }
+    });
+    toRemove.forEach(id => {
+      const index = selectedFiles.value.findIndex(f => f.id === id);
+      if (index !== -1) {
+        selectedFiles.value.splice(index, 1);
+      }
+    });
+    if (toRemove.length > 0) {
+      emit('files-change', selectedFiles.value);
+      reindexFiles();
+    }
+  }
+});
+
 defineExpose({
   selectedFiles,
   firstFrameImage,
@@ -621,7 +656,7 @@ defineExpose({
         <slot name="before-files" />
         <!-- Existing files as stacked cards -->
         <div
-          v-for="(file, index) in selectedFiles"
+          v-for="(file, index) in visibleFiles"
           :key="file.id"
           class="relative h-28 w-20 origin-bottom transform group-hover:translate-x-0 group-hover:rotate-0 hover:scale-105 transition-transform duration-300 ease-out"
           :class="[
@@ -633,10 +668,10 @@ defineExpose({
             'rotate-6 -translate-x-10'
           ]"
           :style="{
-            zIndex: selectedFiles.length - index
+            zIndex: visibleFiles.length - index
           }"
           @mouseenter="($event) => { const target = $event.currentTarget as HTMLElement | null; if (target) target.style.zIndex = '1000'; }"
-          @mouseleave="($event) => { const target = $event.currentTarget as HTMLElement | null; if (target) target.style.zIndex = (selectedFiles.length - index).toString(); }"
+          @mouseleave="($event) => { const target = $event.currentTarget as HTMLElement | null; if (target) target.style.zIndex = (visibleFiles.length - index).toString(); }"
         >
           <div
             class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
@@ -683,7 +718,7 @@ defineExpose({
 
     <!-- Invisible positioned container for dropdown trigger at cursor -->
     <div
-      v-if="(projectFiles && projectFiles.length > 0) || (allowFilePick && selectedFiles.length > 0)"
+      v-if="(projectFiles && projectFiles.length > 0) || (allowFilePick && (selectedFiles.length > 0 || (enableFirstLastFrame && (firstFrameImage || lastFrameImage))))"
       class="pointer-events-none absolute top-0 left-0 h-full w-full overflow-hidden"
     >
       <DropdownMenuRoot v-model:open="dropdownOpen">
@@ -729,9 +764,60 @@ defineExpose({
             </template>
 
             <!-- Local Files (for Home.vue with allowFilePick) -->
-            <template v-else-if="allowFilePick && selectedFiles.length > 0">
+            <template v-else-if="allowFilePick">
+              <!-- First frame image -->
               <DropdownMenuItem
-                v-for="file in selectedFiles"
+                v-if="firstFrameImage"
+                :key="firstFrameImage.id"
+                @select="insertMention(firstFrameImage.name)"
+                class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
+              >
+                <div class="flex items-center gap-2">
+                  <img
+                    v-if="firstFrameImage.type === 'image'"
+                    :src="firstFrameImage.url"
+                    :alt="firstFrameImage.name"
+                    class="h-6 w-6 flex-shrink-0 rounded object-cover"
+                  />
+                  <div
+                    v-else
+                    class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-gray-100 text-sm"
+                  >
+                    {{ getFileIcon(firstFrameImage.type) }}
+                  </div>
+                  <div class="truncate" :title="firstFrameImage.name">
+                    {{ firstFrameImage.name }}
+                  </div>
+                </div>
+              </DropdownMenuItem>
+              <!-- Last frame image -->
+              <DropdownMenuItem
+                v-if="lastFrameImage"
+                :key="lastFrameImage.id"
+                @select="insertMention(lastFrameImage.name)"
+                class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
+              >
+                <div class="flex items-center gap-2">
+                  <img
+                    v-if="lastFrameImage.type === 'image'"
+                    :src="lastFrameImage.url"
+                    :alt="lastFrameImage.name"
+                    class="h-6 w-6 flex-shrink-0 rounded object-cover"
+                  />
+                  <div
+                    v-else
+                    class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-gray-100 text-sm"
+                  >
+                    {{ getFileIcon(lastFrameImage.type) }}
+                  </div>
+                  <div class="truncate" :title="lastFrameImage.name">
+                    {{ lastFrameImage.name }}
+                  </div>
+                </div>
+              </DropdownMenuItem>
+              <!-- Regular selected files - only show when not in first_last_frame mode -->
+              <DropdownMenuItem
+                v-for="file in visibleFiles"
                 :key="file.id"
                 @select="insertMention(file.name)"
                 class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
