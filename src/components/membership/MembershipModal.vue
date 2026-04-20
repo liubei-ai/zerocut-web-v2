@@ -94,6 +94,9 @@ const plans = computed(() => {
     const creditsText = `每月${plan.monthlyCredits.toLocaleString()}积分`;
     const allFeatures = [creditsText, ...features];
 
+    const firstMonthPriceYuan =
+      plan.firstMonthPriceCents != null ? plan.firstMonthPriceCents / 100 : null;
+
     const isCurrentSubscription =
       currentSubscription.value !== null &&
       currentSubscription.value.planCode === plan.code &&
@@ -105,6 +108,7 @@ const plans = computed(() => {
       icon: icons[plan.tier as keyof typeof icons],
       price: plan.priceYuan,
       monthlyPrice: isYearly ? monthlyPrice : undefined,
+      firstMonthPriceYuan,
       pricePerCredit,
       discount,
       features: allFeatures,
@@ -328,12 +332,19 @@ onMounted(() => {
               <div class="flex items-baseline gap-2">
                 <div class="flex items-baseline gap-1">
                   <span class="text-sm text-gray-500">¥</span>
-                  <span class="text-4xl font-bold text-gray-900">{{ plan.price }}</span>
-                  <span class="ml-1 text-sm text-gray-500">{{ plan.monthlyPrice ? '/年' : '/月' }}</span>
+                  <span class="text-4xl font-bold text-gray-900">{{
+                    plan.firstMonthPriceYuan != null ? plan.firstMonthPriceYuan : plan.price
+                  }}</span>
+                  <span class="ml-1 text-sm text-gray-500">{{
+                    plan.firstMonthPriceYuan != null ? '首月' : (plan.monthlyPrice ? '/年' : '/月')
+                  }}</span>
                 </div>
               </div>
 
-              <div v-if="plan.monthlyPrice" class="mt-1 text-xs text-gray-500">约¥{{ plan.monthlyPrice }}/月</div>
+              <div v-if="plan.firstMonthPriceYuan != null" class="mt-1 text-xs text-gray-500">
+                续费价格：¥{{ plan.price }}/月
+              </div>
+              <div v-else-if="plan.monthlyPrice" class="mt-1 text-xs text-gray-500">约¥{{ plan.monthlyPrice }}/月</div>
 
               <div v-if="plan.pricePerCredit" class="mt-1 text-xs text-gray-500">{{ plan.pricePerCredit }}元/积分</div>
 

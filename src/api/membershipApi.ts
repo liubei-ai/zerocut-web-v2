@@ -15,6 +15,7 @@ export interface MembershipPlanDto {
   billingIntervalMonths: number;
   isActive: boolean;
   wechatPapayPlanId?: string;
+  firstMonthPriceCents?: number | null;
   features: IMembershipPlanFeature[];
 }
 
