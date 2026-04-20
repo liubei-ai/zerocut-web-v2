@@ -73,7 +73,7 @@ const shouldShowAtButton = computed(() => {
 });
 
 const shouldShowAttachmentButton = computed(() => {
-  return true;
+  return false;
 });
 
 const toggleMenu = (id: string) => { openMenu.value = openMenu.value === id ? null : id; };
@@ -241,40 +241,12 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
             @first-frame-change="firstFrameImage = $event"
             @last-frame-change="lastFrameImage = $event"
           >
-            <template #actions="{ onMentionClick, onFilePickClick }">
-              <div class="mt-3 flex flex-col gap-3 border-t border-[#f3f4f6] pt-2 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
-                <div class="relative flex min-h-[44px] flex-wrap content-start items-start gap-2 transition-all duration-200">
-                  <div class="flex items-center gap-2">
-                    <button
-                      v-show="shouldShowAtButton"
-                      @click="onMentionClick"
-                      class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-sm font-semibold text-gray-500 transition-all hover:bg-gray-50"
-                      title="@提及文件"
-                    >
-                      @
-                    </button>
-                    <button
-                      v-show="shouldShowAttachmentButton"
-                      @click="onFilePickClick"
-                      class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-base text-gray-500 transition-all hover:bg-gray-50"
-                      title="添加文件"
-                    >
-                      📎
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </template>
           </FileReferenceInput>
-          <div class="mt-1 text-right">
-            <span class="text-xs text-gray-300">{{ prompt.length }}/500</span>
-          </div>
         </div>
       </div>
 
       <!-- Reference Mode -->
       <div data-menu>
-        <label class="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-400">参考模式</label>
         <div class="relative" data-menu>
           <button
             @click.stop="toggleMenu('referenceMode')"
@@ -327,7 +299,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
       <div class="grid grid-cols-3 gap-3">
         <!-- Aspect Ratio -->
         <div data-menu>
-          <label class="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-400">画面比例</label>
+          <!-- <label class="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-400">画面比例</label> -->
           <div class="relative" data-menu>
             <button
               @click.stop="showAspectRatioMenu"
@@ -375,7 +347,6 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
 
         <!-- Duration -->
         <div data-menu>
-          <label class="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-400">视频时长</label>
           <div class="relative" data-menu>
             <button
               @click.stop="showDurationMenu"
@@ -421,7 +392,6 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
 
         <!-- Resolution -->
         <div data-menu>
-          <label class="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-400">分辨率</label>
           <div class="relative" data-menu>
             <button
               @click.stop="showResolutionMenu"
@@ -470,7 +440,6 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
 
       <!-- Model -->
       <div data-menu>
-        <label class="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-400">生成模型</label>
         <div class="relative" data-menu>
           <button
             @click.stop="toggleMenu('model')"

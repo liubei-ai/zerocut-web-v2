@@ -561,8 +561,7 @@ defineExpose({
     />
 
     <!-- File previews (only when allowFilePick is true) - always card mode -->
-    <div v-if="allowFilePick && selectedFiles.length >= 0" class="mt-3 group relative min-h-[120px] px-2 py-4">
-      <label class="mb-2 block text-xs font-medium uppercase tracking-wide text-gray-400">参考文件</label>
+    <div v-if="allowFilePick && selectedFiles.length >= 0" class="mt-3 group relative min-h-[80px] px-2 py-2">
       <div class="flex items-center justify-start">
         <!-- Built-in first/last frame UI when enabled -->
         <template v-if="enableFirstLastFrame">
@@ -584,7 +583,7 @@ defineExpose({
           <div class="flex items-center gap-3">
             <div
               v-if="firstFrameImage"
-              class="relative h-28 w-20 transform transition-transform duration-300 ease-out hover:scale-105"
+              class="relative h-20 w-16 transform transition-transform duration-300 ease-out hover:scale-105"
             >
               <div
                  class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-blue-50 to-indigo-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
@@ -605,7 +604,7 @@ defineExpose({
 
             <div
                v-if="!firstFrameImage && firstLastFrameMode === 'first_last_frame'"
-               class="relative h-28 w-20 transform transition-transform duration-300 hover:scale-105 cursor-pointer"
+               class="relative h-20 w-16 transform transition-transform duration-300 hover:scale-105 cursor-pointer"
                @click="triggerFrameFileInput('first')"
             >
               <div
@@ -631,7 +630,7 @@ defineExpose({
 
             <div
               v-if="lastFrameImage"
-              class="relative h-28 w-20 transform transition-transform duration-300 ease-out hover:scale-105"
+              class="relative h-20 w-16 transform transition-transform duration-300 ease-out hover:scale-105"
             >
               <div
                  class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-purple-50 to-pink-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
@@ -652,7 +651,7 @@ defineExpose({
 
             <div
                v-if="!lastFrameImage && firstLastFrameMode === 'first_last_frame'"
-               class="relative h-28 w-20 transform transition-transform duration-300 hover:scale-105 cursor-pointer"
+               class="relative h-20 w-16 transform transition-transform duration-300 hover:scale-105 cursor-pointer"
                @click="triggerFrameFileInput('last')"
             >
               <div
@@ -672,7 +671,7 @@ defineExpose({
         <div
           v-for="(file, index) in visibleFiles"
           :key="file.id"
-          class="relative h-28 w-20 origin-bottom transform group-hover:translate-x-0 group-hover:rotate-0 hover:scale-105 transition-transform duration-300 ease-out"
+          class="relative h-20 w-16 origin-bottom transform group-hover:translate-x-0 group-hover:rotate-0 hover:scale-105 transition-transform duration-300 ease-out"
           :class="[
             index === 0 ? '-rotate-6 -translate-x-0' :
             index === 1 ? '-rotate-3 -translate-x-2' :
@@ -712,7 +711,7 @@ defineExpose({
         <!-- Add card (only show when there's space and not in first_last_frame mode) -->
         <div
           v-if="selectedFiles.length < MAX_FILES && !(enableFirstLastFrame && firstLastFrameMode === 'first_last_frame')"
-          class="relative h-28 w-20 origin-bottom transform -rotate-3 transition-transform duration-300 hover:scale-105 hover:rotate-0 cursor-pointer"
+          class="relative h-20 w-16 origin-bottom transform -rotate-3 transition-transform duration-300 hover:scale-105 hover:rotate-0 cursor-pointer"
           :class="[selectedFiles.length > 0 ? '-translate-x-' + (selectedFiles.length * 2) : '']"
           :style="{ zIndex: selectedFiles.length + 1 }"
           @click="handleFilePickClick"
@@ -723,7 +722,7 @@ defineExpose({
             <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
               <div class="text-xl mb-0.5">➕</div>
               <div class="text-[10px] font-medium">添加参考</div>
-              <div class="text-[8px] mt-0.5">支持图片/视频/音频</div>
+              <div class="text-[8px] mt-0.5">图片/视频/音频</div>
             </div>
           </div>
         </div>
