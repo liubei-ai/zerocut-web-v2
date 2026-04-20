@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { Button } from '@/components/ui/button';
 import { videoModels, videoDurations, videoAspectRatios, videoResolutions } from '@/config/videoGeneration';
 import { calculateVideoCredits } from '@/utils/videoPriceCalculator';
@@ -109,9 +109,28 @@ const placeholderText = computed(() => {
   return `上传1-${MAX_FILES}个参考素材、输入文字，自由组合图、文、音、视频多元素，定义精彩创意。例如：@图片1 模仿 @视频1 的动作，音色参考 @音频1。`;
 });
 
-const creditsNeeded = computed(() => {
-  return calculateVideoCredits(model.value, duration.value, resolution.value, props.priceConfig || null, videoModels);
-});
+const creditsNeeded = ref<number | null>(null);
+const creditsLoading = ref<boolean>(false);
+const creditsError = ref<string | null>(null);
+
+const updateCreditsNeeded = async () => {
+  creditsLoading.value = true;
+  creditsError.value = null;
+  creditsNeeded.value = null;
+
+  try {
+    creditsNeeded.value = await calculateVideoCredits(model.value, duration.value, resolution.value, props.priceConfig || null, videoModels);
+  } catch (error) {
+    creditsError.value = error instanceof Error ? error.message : '获取价格失败';
+    creditsNeeded.value = null;
+  } finally {
+    creditsLoading.value = false;
+  }
+};
+
+watch([model, duration, resolution], updateCreditsNeeded);
+
+updateCreditsNeeded();
 const canSubmit = computed(() => prompt.value.trim().length > 0 && !props.isLoading);
 
 const convertFilesToWorkflow = () => {
@@ -504,9 +523,11 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
       <!-- Credits -->
       <div class="mb-3 flex items-center justify-between rounded-lg bg-gray-50 px-3.5 py-2.5">
         <span class="text-xs text-gray-500">预计消耗积分</span>
-        <div class="flex items-center gap-1">
+        <div class="flex items-center gap-1" :title="creditsError || (creditsLoading ? '获取价格中...' : '')">
           <span class="text-base">💎</span>
-          <span class="text-sm font-semibold text-gray-900">{{ creditsNeeded }}</span>
+          <span class="text-sm font-semibold text-gray-900">
+            {{ creditsLoading || creditsError || creditsNeeded === null ? '-' : creditsNeeded }}
+          </span>
         </div>
       </div>
 

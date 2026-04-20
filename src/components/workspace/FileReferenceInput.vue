@@ -581,74 +581,88 @@ defineExpose({
             @change="handleFrameImageChange('last', $event)"
           />
 
-          <div
-            v-if="firstFrameImage"
-            class="relative h-28 w-20 origin-bottom transform -rotate-6 transition-transform duration-300 ease-out hover:scale-105 hover:translate-x-0 hover:rotate-0"
-            :style="{ zIndex: 100 }"
-            @mouseenter="($event) => ($event.currentTarget as HTMLElement)?.style.setProperty('z-index', '1000')"
-            @mouseleave="($event) => ($event.currentTarget as HTMLElement)?.style.setProperty('z-index', '100')"
-          >
+          <div class="flex items-center gap-3">
             <div
-              class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
+              v-if="firstFrameImage"
+              class="relative h-28 w-20 transform transition-transform duration-300 ease-out hover:scale-105"
             >
-              <img :src="firstFrameImage.url" class="w-full h-full object-cover" alt="首帧" />
-              <button
-                @click.stop="removeFrameImage('first')"
-                class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[10px] opacity-0 group-hover:opacity-100"
-              >
-                ×
-              </button>
+              <div
+                 class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-blue-50 to-indigo-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
+               >
+                 <div class="absolute top-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-[8px] font-medium z-10 flex items-center gap-0.5">
+                   <span>▶️</span>
+                   <span>首帧</span>
+                 </div>
+                 <img :src="firstFrameImage.url" class="w-full h-full object-cover pt-3" alt="首帧" />
+                 <button
+                   @click.stop="removeFrameImage('first')"
+                   class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[10px] opacity-0 group-hover:opacity-100"
+                 >
+                   ×
+                 </button>
+               </div>
             </div>
-          </div>
 
-          <div
-            v-if="lastFrameImage"
-            class="relative h-28 w-20 origin-bottom transform -rotate-3 transition-transform duration-300 ease-out hover:scale-105 hover:translate-x-0 hover:rotate-0"
-            :style="{ zIndex: 99 }"
-            @mouseenter="($event) => ($event.currentTarget as HTMLElement)?.style.setProperty('z-index', '1000')"
-            @mouseleave="($event) => ($event.currentTarget as HTMLElement)?.style.setProperty('z-index', '99')"
-          >
             <div
-              class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
+               v-if="!firstFrameImage && firstLastFrameMode === 'first_last_frame'"
+               class="relative h-28 w-20 transform transition-transform duration-300 hover:scale-105 cursor-pointer"
+               @click="triggerFrameFileInput('first')"
             >
-              <img :src="lastFrameImage.url" class="w-full h-full object-cover" alt="尾帧" />
-              <button
-                @click.stop="removeFrameImage('last')"
-                class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[10px] opacity-0 group-hover:opacity-100"
+              <div
+                class="absolute inset-0 rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-lg transition-all hover:border-blue-500 hover:shadow-xl"
               >
-                ×
-              </button>
-            </div>
-          </div>
-
-          <div
-            v-if="!firstFrameImage && firstLastFrameMode === 'first_last_frame'"
-            class="relative h-28 w-20 origin-bottom transform -rotate-6 transition-transform duration-300 hover:scale-105 hover:rotate-0 cursor-pointer"
-            :style="{ zIndex: 100 }"
-            @click="triggerFrameFileInput('first')"
-          >
-            <div
-              class="absolute inset-0 rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg transition-all hover:border-gray-600 hover:shadow-xl"
-            >
-              <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-                <div class="text-xl mb-0.5">首帧</div>
-                <div class="text-[10px] font-medium">点击上传</div>
+                <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                  <div class="text-2xl mb-1">▶️</div>
+                  <div class="text-sm mb-0.5 font-medium">首帧</div>
+                  <div class="text-[10px] font-medium">点击上传</div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div
-            v-if="!lastFrameImage && firstLastFrameMode === 'first_last_frame'"
-            class="relative h-28 w-20 origin-bottom transform -rotate-3 -translate-x-2 transition-transform duration-300 hover:scale-105 hover:rotate-0 cursor-pointer"
-            :style="{ zIndex: 99 }"
-            @click="triggerFrameFileInput('last')"
-          >
             <div
-              class="absolute inset-0 rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg transition-all hover:border-gray-600 hover:shadow-xl"
+              v-if="(firstLastFrameMode === 'first_last_frame') || (firstFrameImage && lastFrameImage)"
+              class="flex items-center justify-center text-gray-400"
             >
-              <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-                <div class="text-xl mb-0.5">尾帧</div>
-                <div class="text-[10px] font-medium">点击上传</div>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14"></path>
+                <polyline points="12 5 19 12 12 19"></polyline>
+              </svg>
+            </div>
+
+            <div
+              v-if="lastFrameImage"
+              class="relative h-28 w-20 transform transition-transform duration-300 ease-out hover:scale-105"
+            >
+              <div
+                 class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-purple-50 to-pink-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
+               >
+                 <div class="absolute top-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 text-white text-[8px] font-medium z-10 flex items-center gap-0.5">
+                   <span>⏹️</span>
+                   <span>尾帧</span>
+                 </div>
+                 <img :src="lastFrameImage.url" class="w-full h-full object-cover pt-3" alt="尾帧" />
+                 <button
+                   @click.stop="removeFrameImage('last')"
+                   class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[10px] opacity-0 group-hover:opacity-100"
+                 >
+                   ×
+                 </button>
+               </div>
+            </div>
+
+            <div
+               v-if="!lastFrameImage && firstLastFrameMode === 'first_last_frame'"
+               class="relative h-28 w-20 transform transition-transform duration-300 hover:scale-105 cursor-pointer"
+               @click="triggerFrameFileInput('last')"
+            >
+              <div
+                class="absolute inset-0 rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-purple-50 to-pink-50 shadow-lg transition-all hover:border-purple-500 hover:shadow-xl"
+              >
+                <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                  <div class="text-2xl mb-1">⏹️</div>
+                  <div class="text-sm mb-0.5 font-medium">尾帧</div>
+                  <div class="text-[10px] font-medium">点击上传</div>
+                </div>
               </div>
             </div>
           </div>
