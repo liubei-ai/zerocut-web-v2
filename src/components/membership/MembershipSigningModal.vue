@@ -1,8 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
+import { ref, watch, nextTick, onUnmounted } from 'vue';
 import { X } from 'lucide-vue-next';
 import QRCode from 'qrcode';
-import { createSigningSession, getSigningSessionStatus, closeSigningSession, type MembershipPlanDto } from '@/api/membershipApi';
+import {
+  createSigningSession,
+  getSigningSessionStatus,
+  closeSigningSession,
+  type MembershipPlanDto,
+  type PureSigningSessionResponse,
+  type SigningSessionStatus,
+} from '@/api/membershipApi';
 import { useAuthStore } from '@/stores/authStore';
 
 interface Props {
@@ -13,7 +20,7 @@ interface Props {
 
 interface Emits {
   (e: 'update:open', value: boolean): void;
-  (e: 'success', status: any): void;
+  (e: 'success', status: SigningSessionStatus): void;
   (e: 'cancel'): void;
 }
 
@@ -22,25 +29,35 @@ const emit = defineEmits<Emits>();
 
 const authStore = useAuthStore();
 
+type LocalStatus =
+  | 'creating'
+  | 'pending'
+  | 'signing_confirmed'
+  | 'success'
+  | 'failed'
+  | 'timeout';
+
 const qrCodeCanvas = ref<HTMLCanvasElement>();
-const sessionInfo = ref<any>(null);
-const signingStatus = ref<'creating' | 'pending' | 'success' | 'failed' | 'timeout'>('creating');
-const countdown = ref(300);
+const sessionInfo = ref<PureSigningSessionResponse | null>(null);
+const signingStatus = ref<LocalStatus>('creating');
+const countdown = ref(0);
 const errorMessage = ref('');
+const isWeChat = /MicroMessenger/i.test(navigator.userAgent);
 
 let statusCheckInterval: number | null = null;
 let countdownInterval: number | null = null;
 
 const formatCountdown = (seconds: number): string => {
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
+  const safe = Math.max(0, seconds);
+  const minutes = Math.floor(safe / 60);
+  const remainingSeconds = safe % 60;
   return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
 };
 
-const generateQRCode = async (qrUrl: string) => {
+const generateQRCode = async (url: string) => {
   if (!qrCodeCanvas.value) return;
   try {
-    await QRCode.toCanvas(qrCodeCanvas.value, qrUrl, {
+    await QRCode.toCanvas(qrCodeCanvas.value, url, {
       width: 200,
       margin: 2,
       color: { dark: '#000000', light: '#FFFFFF' }
@@ -50,10 +67,16 @@ const generateQRCode = async (qrUrl: string) => {
   }
 };
 
+const computeRemainingSeconds = (): number => {
+  if (!sessionInfo.value?.expiresAt) return 0;
+  const diffMs = new Date(sessionInfo.value.expiresAt).getTime() - Date.now();
+  return Math.max(0, Math.floor(diffMs / 1000));
+};
+
 const startCountdown = () => {
-  countdown.value = 300;
+  countdown.value = computeRemainingSeconds();
   countdownInterval = window.setInterval(() => {
-    countdown.value--;
+    countdown.value = computeRemainingSeconds();
     if (countdown.value <= 0) {
       signingStatus.value = 'timeout';
       stopCountdown();
@@ -71,15 +94,34 @@ const stopCountdown = () => {
 
 const checkSigningStatus = async () => {
   if (!sessionInfo.value?.signingSessionId) return;
-  
+  const workspaceId = authStore.currentWorkspaceId || '';
+  if (!workspaceId) return;
+
   try {
-    const status = await getSigningSessionStatus(sessionInfo.value.signingSessionId);
-    
+    const status = await getSigningSessionStatus(sessionInfo.value.signingSessionId, workspaceId);
+
+    if (status.latestOrderNo || status.latestOrderStatus) {
+      console.debug('[pure-signing] order', status.latestOrderNo, status.latestOrderStatus);
+    }
+
     if (status.status === 'signed') {
+      // 签约成功，正在首次扣费，继续轮询
+      if (signingStatus.value !== 'signing_confirmed') {
+        signingStatus.value = 'signing_confirmed';
+      }
+    } else if (status.status === 'active') {
       signingStatus.value = 'success';
       stopStatusCheck();
       stopCountdown();
       emit('success', status);
+    } else if (status.status === 'failed') {
+      signingStatus.value = 'failed';
+      errorMessage.value = status.failMessage || '签约或首次扣费失败，请重试';
+      if (status.failCode) {
+        console.warn('[pure-signing] failed', status.failCode, status.failMessage);
+      }
+      stopStatusCheck();
+      stopCountdown();
     } else if (status.status === 'expired') {
       signingStatus.value = 'timeout';
       stopStatusCheck();
@@ -103,6 +145,12 @@ const stopStatusCheck = () => {
   }
 };
 
+const handleVisibilityChange = () => {
+  if (document.visibilityState === 'visible' && statusCheckInterval) {
+    checkSigningStatus();
+  }
+};
+
 const createSession = async () => {
   if (!props.membershipPlan) return;
 
@@ -119,14 +167,20 @@ const createSession = async () => {
     sessionInfo.value = response;
     signingStatus.value = 'pending';
 
-    await nextTick();
-    await generateQRCode(response.qrUrl);
-
     startCountdown();
     startStatusCheck();
+
+    if (isWeChat) {
+      // 微信内置浏览器直接跳转至纯签约入口
+      window.location.href = response.entrustwebUrl;
+      return;
+    }
+
+    await nextTick();
+    await generateQRCode(response.entrustwebUrl);
   } catch (error: any) {
     signingStatus.value = 'failed';
-    errorMessage.value = error.message || '创建签约会话失败';
+    errorMessage.value = error?.message || '创建签约会话失败';
   }
 };
 
@@ -134,9 +188,13 @@ const handleCancel = async () => {
   stopStatusCheck();
   stopCountdown();
 
-  if (sessionInfo.value?.signingSessionId) {
+  // 仅在签约中且尚未 signed/active 时调用 close，避免 400
+  if (sessionInfo.value?.signingSessionId && signingStatus.value === 'pending') {
     try {
-      await closeSigningSession(sessionInfo.value.signingSessionId, authStore.currentWorkspaceId || '');
+      await closeSigningSession(
+        sessionInfo.value.signingSessionId,
+        authStore.currentWorkspaceId || '',
+      );
     } catch (error) {
       console.warn('Failed to close signing session:', error);
     }
@@ -160,7 +218,7 @@ const resetState = () => {
   sessionInfo.value = null;
   signingStatus.value = 'creating';
   errorMessage.value = '';
-  countdown.value = 300;
+  countdown.value = 0;
   stopStatusCheck();
   stopCountdown();
 };
@@ -168,16 +226,19 @@ const resetState = () => {
 watch(() => props.open, (newOpen) => {
   if (newOpen && props.membershipPlan) {
     resetState();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     createSession();
   } else if (!newOpen) {
     stopStatusCheck();
     stopCountdown();
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
   }
 });
 
 onUnmounted(() => {
   stopStatusCheck();
   stopCountdown();
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
 </script>
 
@@ -211,7 +272,14 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div class="flex justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-6">
+        <div v-if="isWeChat" class="flex justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-6">
+          <div class="text-center">
+            <div class="mb-2 text-sm text-gray-600">正在跳转至微信签约页面...</div>
+            <a :href="sessionInfo?.entrustwebUrl" class="text-sm text-teal-600 underline">未自动跳转？点此继续</a>
+            <div class="mt-2 text-sm text-gray-500">剩余时间：{{ formatCountdown(countdown) }}</div>
+          </div>
+        </div>
+        <div v-else class="flex justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-6">
           <div class="text-center">
             <canvas ref="qrCodeCanvas" class="mx-auto rounded-lg bg-white" />
             <div class="mt-3 text-sm text-gray-600">请使用微信扫码签约</div>
@@ -221,8 +289,15 @@ onUnmounted(() => {
 
         <div class="rounded-lg bg-yellow-50 p-3 text-xs text-yellow-800">
           <div class="font-medium">温馨提示：</div>
-          <div class="mt-1">签约后将按月自动扣费，您可以随时在订阅管理中取消自动续费</div>
+          <div class="mt-1">签约成功后将立即发起首次扣费，之后每月自动续费，您可以随时在订阅管理中取消自动续费</div>
         </div>
+      </div>
+
+      <!-- Signed, waiting for first deduction -->
+      <div v-else-if="signingStatus === 'signing_confirmed'" class="py-8 text-center">
+        <div class="mb-4 text-4xl">🔄</div>
+        <div class="mb-2 text-xl font-semibold text-teal-600">签约成功</div>
+        <div class="text-gray-600">正在完成首次扣费，请稍候...</div>
       </div>
 
       <!-- Success -->
