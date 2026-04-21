@@ -611,9 +611,9 @@ defineExpose({
                 class="absolute inset-0 rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-lg transition-all hover:border-blue-500 hover:shadow-xl"
               >
                 <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-                  <div class="text-2xl mb-1">▶️</div>
-                  <div class="text-sm mb-0.5 font-medium">首帧</div>
-                  <div class="text-[10px] font-medium">点击上传</div>
+                  <div class="text-xl mb-0.5">▶️</div>
+                  <div class="text-[10px] font-medium">首帧</div>
+                  <div class="text-[8px] mt-0.5">点击上传</div>
                 </div>
               </div>
             </div>
@@ -658,9 +658,9 @@ defineExpose({
                 class="absolute inset-0 rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-purple-50 to-pink-50 shadow-lg transition-all hover:border-purple-500 hover:shadow-xl"
               >
                 <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-                  <div class="text-2xl mb-1">⏹️</div>
-                  <div class="text-sm mb-0.5 font-medium">尾帧</div>
-                  <div class="text-[10px] font-medium">点击上传</div>
+                  <div class="text-xl mb-0.5">⏹️</div>
+                  <div class="text-[10px] font-medium">尾帧</div>
+                  <div class="text-[8px] mt-0.5">点击上传</div>
                 </div>
               </div>
             </div>

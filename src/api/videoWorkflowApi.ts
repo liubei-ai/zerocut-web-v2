@@ -1,4 +1,5 @@
 import apiClient from './client';
+import type { IRequestOptions } from './client';
 
 export interface VideoWorkflowImage {
   type: 'first_frame' | 'last_frame' | 'reference' | 'storyboard';
@@ -106,12 +107,12 @@ export interface VideoPricingResponse {
 }
 
 // Create Omni video workflow
-export async function createOmniVideo(data: CreateOmniVideoRequest) {
-  const response = await apiClient.post<CreateOmniVideoRequest, CreateOmniVideoResponse>(
+export function createOmniVideo(data: CreateOmniVideoRequest, options: IRequestOptions = {}) {
+  return apiClient.post<CreateOmniVideoRequest, CreateOmniVideoResponse>(
     '/video-workflow/omni/create',
-    data
+    data,
+    options
   );
-  return response.data;
 }
 
 // Get video workflow status
