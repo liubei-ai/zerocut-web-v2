@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import { X, Check, Sparkles, Crown, Gem, User } from 'lucide-vue-next';
-import { getMembershipPlans, getCurrentSubscription, type MembershipPlanDto } from '@/api/membershipApi';
+import { getMembershipPlans, getCurrentSubscription, type MembershipPlanDto, type SubscriptionDetails } from '@/api/membershipApi';
 import { useCreditsStore } from '@/stores/creditsStore';
 import { useAuthStore } from '@/stores/authStore';
 import MembershipPaymentModal from './MembershipPaymentModal.vue';
@@ -24,7 +24,7 @@ const authStore = useAuthStore();
 const billingCycle = ref<'subscription' | 'yearly' | 'monthly'>('subscription');
 const loading = ref(false);
 const rawPlans = ref<MembershipPlanDto[]>([]);
-const currentSubscription = ref<any>(null);
+const currentSubscription = ref<SubscriptionDetails | null>(null);
 
 const showPaymentModal = ref(false);
 const showSigningModal = ref(false);
@@ -59,8 +59,26 @@ const currentMembership = computed(() => {
 });
 
 const expiryDate = computed(() => {
-  if (!currentSubscription.value?.termEndAt) return '永久';
-  return new Date(currentSubscription.value.termEndAt).toLocaleDateString('zh-CN');
+  const sub = currentSubscription.value;
+  if (!sub) return null;
+
+  const isAutoRenew = sub.purchaseMode === 'auto_monthly' || sub.purchaseMode === 'auto_yearly';
+
+  if (isAutoRenew) {
+    if (sub.status === 'active' && sub.autoRenew === true) {
+      return '连续包月';
+    }
+    if (sub.status === 'canceled' && sub.autoRenew === false) {
+      const date = sub.currentPeriodEndAt || sub.termEndAt;
+      return date ? new Date(date).toLocaleDateString('zh-CN') : null;
+    }
+    // 其他状态兜底展示 currentPeriodEndAt
+    const date = sub.currentPeriodEndAt || sub.termEndAt;
+    return date ? new Date(date).toLocaleDateString('zh-CN') : null;
+  }
+
+  // one_time_month / one_time_year
+  return sub.termEndAt ? new Date(sub.termEndAt).toLocaleDateString('zh-CN') : null;
 });
 
 const currentPoints = computed(() => creditsStore.creditsBalance || 0);
@@ -225,7 +243,7 @@ onMounted(() => {
             </div>
           </div>
 
-          <div class="pl-13 text-xs text-gray-500 sm:pl-15 sm:text-sm">到期时间：{{ expiryDate }}</div>
+          <div v-if="expiryDate" class="pl-13 text-xs text-gray-500 sm:pl-15 sm:text-sm">到期时间：{{ expiryDate }}</div>
 
           <div class="rounded-lg bg-teal-50 p-3 sm:p-4">
             <div class="flex items-center justify-between">
@@ -257,8 +275,10 @@ onMounted(() => {
               <h2 class="text-lg font-semibold text-gray-900">{{ userName }}</h2>
               <div class="flex items-center gap-3 text-sm">
                 <span class="text-gray-600">{{ currentMembership }}</span>
-                <span class="text-gray-400">|</span>
-                <span class="text-gray-500">到期时间：{{ expiryDate }}</span>
+                <template v-if="expiryDate">
+                  <span class="text-gray-400">|</span>
+                  <span class="text-gray-500">到期时间：{{ expiryDate }}</span>
+                </template>
               </div>
             </div>
             <div class="ml-8 flex items-center gap-2">
