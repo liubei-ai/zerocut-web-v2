@@ -40,9 +40,20 @@ export interface CreateMembershipPaymentOrderParams {
 }
 
 export interface SigningSessionStatus {
-  status: 'signing' | 'paid' | 'signed' | 'expired';
+  status: 'signing' | 'signed' | 'active' | 'failed' | 'expired';
   contractId: string | null;
   subscriptionId: number | null;
+  latestOrderNo: string | null;
+  latestOrderStatus: 'created' | 'processing' | 'success' | 'failed' | null;
+  failCode: string | null;
+  failMessage: string | null;
+}
+
+export interface PureSigningSessionResponse {
+  signingSessionId: string;
+  entrustwebUrl: string;
+  createdAt: string;
+  expiresAt: string;
 }
 
 export type SubscriptionStatus =
@@ -99,14 +110,15 @@ export async function createSigningSession(params: {
 }) {
   const response = await client.post<
     { workspaceId: string; planCode: string; displayAccountName?: string },
-    { signingSessionId: string; qrUrl: string; expiresAt: string }
-  >('/subscriptions/signing-sessions', params);
+    PureSigningSessionResponse
+  >('/subscriptions/signing-sessions-pure', params);
   return response.data;
 }
 
-export async function getSigningSessionStatus(sessionId: string) {
+export async function getSigningSessionStatus(sessionId: string, workspaceId: string) {
   const response = await client.get<SigningSessionStatus>(
-    `/subscriptions/signing-sessions/${sessionId}`
+    `/subscriptions/signing-sessions-pure/${sessionId}`,
+    { workspaceId },
   );
   return response.data;
 }

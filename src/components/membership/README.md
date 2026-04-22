@@ -41,14 +41,16 @@ Handles one-time payment flow for membership plans.
 - `cancel` - Emitted when user cancels
 
 ### MembershipSigningModal.vue
-Handles auto-renewal signing flow for subscription plans.
+Handles pure signing + first-deduction flow for auto-renewal subscription plans.
 
 **Features:**
-- Creates signing session via API
-- Generates WeChat signing QR code
-- Polls signing status
-- Handles signing timeout and errors
-- 5-minute countdown timer
+- Creates a pure signing session via API (`/subscriptions/signing-sessions-pure`)
+- WeChat in-app: auto redirects to `entrustwebUrl`
+- Other environments: renders QR code of `entrustwebUrl`
+- Polls signing status until `active` (signed + first deduction succeeded)
+- Intermediate `signed` state shows "signed, waiting for first deduction"
+- Surfaces `failMessage` on failed first-deduction with retry option
+- Countdown dynamically derived from server `expiresAt` (30 minutes)
 
 **Props:**
 - `open: boolean` - Controls modal visibility
@@ -57,7 +59,7 @@ Handles auto-renewal signing flow for subscription plans.
 
 **Events:**
 - `update:open` - Emitted when modal should close
-- `success` - Emitted when signing succeeds
+- `success` - Emitted when subscription is fully active
 - `cancel` - Emitted when user cancels
 
 ## API
@@ -69,10 +71,10 @@ Provides API functions for membership operations.
 - `getMembershipPlans()` - Fetch all available plans
 - `getCurrentSubscription(workspaceId)` - Get user's current subscription
 - `purchaseOneTimeSubscription(params)` - Create one-time payment order
-- `createSigningSession(params)` - Create auto-renewal signing session
-- `getSigningSessionStatus(sessionId)` - Check signing status
+- `createSigningSession(params)` - Create pure signing (sign + first-deduction) session
+- `getSigningSessionStatus(sessionId, workspaceId)` - Check pure signing status
 - `closeOneTimeOrder(outTradeNo, workspaceId)` - Cancel payment order
-- `closeSigningSession(signingSessionId, workspaceId)` - Cancel signing session
+- `closeSigningSession(signingSessionId, workspaceId)` - Cancel pure signing session
 
 ## Usage
 
