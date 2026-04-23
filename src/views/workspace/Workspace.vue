@@ -817,46 +817,148 @@ const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
     const videos: VideoWorkflowVideo[] = [];
     const audios: VideoWorkflowAudio[] = [];
 
-    // Add local files from the form (uploaded in this session)
-    if (params.images) {
-      params.images.forEach((img, index) => {
-        let type: 'first_frame' | 'last_frame' | 'reference' = 'reference';
-        if (params.referenceMode === 'first_last_frame') {
-          const imageIndex = images.length;
-          if (imageIndex === 0) type = 'first_frame';
-          else if (imageIndex === 1) type = 'last_frame';
+    let hasLocalFiles = false;
+    if (params.images && params.images.length > 0) {
+      hasLocalFiles = true;
+    }
+    if (params.videos && params.videos.length > 0) {
+      hasLocalFiles = true;
+    }
+    if (params.audios && params.audios.length > 0) {
+      hasLocalFiles = true;
+    }
+
+    let uploadMessage: { id: string } | null = null;
+    if (hasLocalFiles) {
+      isUploading.value = true;
+      uploadMessage = addAssistantMessage('正在上传文件...');
+    }
+
+    try {
+      const { uploadMaterial } = await import('@/api/videoProjectApi');
+
+      const getUniqueFileName = (originalName: string): string => {
+        const existingNames = files.value.map(f => f.file_name);
+        if (!existingNames.includes(originalName)) {
+          return originalName;
         }
-        images.push({
-          type,
-          name: img.name,
-          file: img.file,
-        });
-      });
+
+        const extIndex = originalName.lastIndexOf('.');
+        const extension = extIndex > 0 ? originalName.substring(extIndex) : '';
+        let baseName = extIndex > 0 ? originalName.substring(0, extIndex) : originalName;
+
+        const numberMatch = baseName.match(/(\d+)$/);
+        if (numberMatch) {
+          const currentNumber = parseInt(numberMatch[1], 10);
+          baseName = baseName.slice(0, -numberMatch[1].length);
+          let nextNumber = currentNumber + 1;
+          let newName = `${baseName}${nextNumber}${extension}`;
+          while (existingNames.includes(newName)) {
+            nextNumber++;
+            newName = `${baseName}${nextNumber}${extension}`;
+          }
+          return newName;
+        }
+
+        let counter = 1;
+        let newName = `${baseName}${counter}${extension}`;
+        while (existingNames.includes(newName)) {
+          counter++;
+          newName = `${baseName}${counter}${extension}`;
+        }
+        return newName;
+      };
+
+      if (params.images) {
+        for (const img of params.images) {
+          let type: 'first_frame' | 'last_frame' | 'reference' = 'reference';
+          if (params.referenceMode === 'first_last_frame') {
+            const imageIndex = images.length;
+            if (imageIndex === 0) type = 'first_frame';
+            else if (imageIndex === 1) type = 'last_frame';
+          }
+          if (img.file) {
+            const fileName = img.name ? getUniqueFileName(img.name) : undefined;
+            const response = await uploadMaterial(projectId.value, img.file, fileName);
+            images.push({
+              type,
+              name: fileName ? fileName.split('.')[0] : undefined,
+              url: encodeURI(response.url),
+            });
+          } else if (img.url) {
+            images.push({
+              type,
+              name: img.name ? img.name.split('.')[0] : undefined,
+              url: img.url,
+            });
+          }
+        }
+      }
+
+      if (params.videos) {
+        for (const video of params.videos) {
+          if (video.file) {
+            const fileName = video.name ? getUniqueFileName(video.name) : undefined;
+            const response = await uploadMaterial(projectId.value, video.file, fileName);
+            videos.push({
+              type: 'ref',
+              name: fileName ? fileName.split('.')[0] : undefined,
+              url: encodeURI(response.url),
+              duration: video.duration,
+            });
+          } else if (video.url) {
+            videos.push({
+              type: 'ref',
+              name: video.name ? video.name.split('.')[0] : undefined,
+              url: video.url,
+              duration: video.duration,
+            });
+          }
+        }
+      }
+
+      if (params.audios) {
+        for (const audio of params.audios) {
+          if (audio.file) {
+            const fileName = audio.name ? getUniqueFileName(audio.name) : undefined;
+            const response = await uploadMaterial(projectId.value, audio.file, fileName);
+            audios.push({
+              type: 'reference',
+              name: fileName ? fileName.split('.')[0] : undefined,
+              url: encodeURI(response.url),
+              duration: audio.duration,
+            });
+          } else if (audio.url) {
+            audios.push({
+              type: 'reference',
+              name: audio.name ? audio.name.split('.')[0] : undefined,
+              url: audio.url,
+              duration: audio.duration,
+            });
+          }
+        }
+      }
+
+      if (uploadMessage) {
+        removeMessage(uploadMessage.id);
+      }
+      console.log('✅ 本地文件上传成功');
+
+      await loadOssMapping();
+    } catch (uploadError) {
+      console.error('❌ 文件上传失败:', uploadError);
+      if (uploadMessage) {
+        removeMessage(uploadMessage.id);
+      }
+      videoGenerationState.value = 'failed';
+      videoGenerationError.value = uploadError instanceof Error ? uploadError.message : '文件上传失败';
+      toast.error('文件上传失败，请重试');
+      isUploading.value = false;
+      return;
+    } finally {
+      isUploading.value = false;
     }
 
-    if (params.videos) {
-      params.videos.forEach(video => {
-        videos.push({
-          type: 'ref',
-          name: video.name,
-          file: video.file,
-          duration: video.duration,
-        });
-      });
-    }
-
-    if (params.audios) {
-      params.audios.forEach(audio => {
-        audios.push({
-          type: 'reference',
-          name: audio.name,
-          file: audio.file,
-          duration: audio.duration,
-        });
-      });
-    }
-
-    // Add existing files from current workspace
     files.value.forEach(file => {
       if (file.file_type === 'image') {
         let type: 'first_frame' | 'last_frame' | 'reference' = 'reference';

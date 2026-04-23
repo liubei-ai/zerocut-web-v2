@@ -33,14 +33,14 @@ const priceConfig = ref<any>(null);
 const { toast } = useToast();
 
 // Free creation mode options
-const freeCreationMode = ref('video_generation'); // 'agent' or 'video_generation' or 'image_generation'
+const freeCreationMode = ref('agent'); // 'agent' or 'video_generation' or 'image_generation'
 
 // Video generation reference mode
 const videoReferenceMode = ref<'reference' | 'first_last_frame'>('reference'); // 'reference' 全能参考, 'first_last_frame' 首尾帧
 
 const videoModel = ref('seedance-2.0');
 
-const videoDuration = ref('15s');
+const videoDuration = ref('5s');
 const videoAspectRatio = ref('9:16');
 const videoResolution = ref<'720p' | '1080p'>('720p');
 const showFreeCreationModeMenu = ref(false);
@@ -97,6 +97,13 @@ const shouldShowAttachmentButton = computed(() => {
   return freeCreationMode.value === 'agent' || freeCreationMode.value === 'image_generation';
 });
 
+const shouldAllowFilePick = computed(() => {
+  if (selectedMode.value !== 'free_creation') {
+    return true;
+  }
+  return freeCreationMode.value === 'video_generation';
+});
+
 const shouldShowAtButton = computed(() => {
   return true;
 });
@@ -132,11 +139,12 @@ const freeCreationModes = [
   { id: 'agent', label: 'Agent模式' },
 ];
 
-const imageModel = ref('banana2');
+const imageModel = ref('gpt-image-2');
 const showImageModelMenu = ref(false);
 const imageModelMenuRef = ref<HTMLElement | null>(null);
 
 const imageModels = [
+  { id: 'gpt-image-2', label: 'GPT-image2' },
   { id: 'banana2', label: 'Banana 2' },
   { id: 'banana-pro', label: 'Banana Pro' },
   { id: 'seedream-pro', label: 'Seedream Pro' },
@@ -504,9 +512,9 @@ const loadSystemConfig = async () => {
             <FileReferenceInput
               v-model="videoPrompt"
               :placeholder="currentPlaceholder"
-              :allow-file-pick="true"
+              :allow-file-pick="shouldAllowFilePick"
               :show-mode-selector="true"
-              :enable-first-last-frame="true"
+              :enable-first-last-frame="shouldAllowFilePick"
               :first-last-frame-mode="videoReferenceMode"
               @files-change="handleFilesChange"
               @first-frame-change="firstFrameImage = $event"
