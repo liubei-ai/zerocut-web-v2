@@ -207,6 +207,23 @@ const availableImageAspectRatios = computed(() => {
   return baseAll;
 });
 
+const availableVideoAspectRatios = computed(() => {
+  const allRatios = [
+    { id: '1:1', label: '1:1', description: '正方形' },
+    { id: '9:16', label: '9:16', description: '竖屏' },
+    { id: '16:9', label: '16:9', description: '横屏' },
+    { id: '3:4', label: '3:4', description: '竖屏' },
+    { id: '4:3', label: '4:3', description: '横屏' },
+    { id: '21:9', label: '21:9', description: '宽屏' },
+  ];
+
+  if (videoModel.value.startsWith('zerocut3.0')) {
+    return allRatios.filter(ratio => ['1:1', '16:9', '9:16'].includes(ratio.id));
+  }
+
+  return allRatios;
+});
+
 // Derive duration map from videoDurations array
 const durationMap = videoDurations.reduce(
   (acc, item) => {
@@ -453,7 +470,7 @@ const updateCreditsNeeded = async () => {
   }
 };
 
-watch([videoModel, videoDuration, videoResolution, priceConfig], updateCreditsNeeded);
+watch([videoModel, videoDuration, videoResolution, priceConfig, freeCreationMode], updateCreditsNeeded);
 
 updateCreditsNeeded();
 
@@ -876,7 +893,7 @@ const loadSystemConfig = async () => {
                             class="absolute bottom-full left-0 z-[1000] mb-2 min-w-[180px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
                           >
                             <Button
-                              v-for="ratio in videoAspectRatios"
+                              v-for="ratio in availableVideoAspectRatios"
                               :key="ratio.id"
                               variant="ghost"
                               @click="selectVideoAspectRatio(ratio.id)"

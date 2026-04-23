@@ -40,8 +40,12 @@ export const videoDurations: VideoDurationItem[] = [
 ];
 
 export const videoAspectRatios: VideoAspectRatioItem[] = [
+  { id: '1:1', label: '1:1', description: '正方形' },
   { id: '9:16', label: '9:16', description: '竖屏' },
   { id: '16:9', label: '16:9', description: '横屏' },
+  { id: '3:4', label: '3:4', description: '竖屏' },
+  { id: '4:3', label: '4:3', description: '横屏' },
+  { id: '21:9', label: '21:9', description: '宽屏' },
 ];
 
 export const videoResolutions: VideoResolutionItem[] = [
