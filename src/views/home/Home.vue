@@ -179,6 +179,34 @@ const selectImageModel = (model: string) => {
   showImageModelMenu.value = false;
 };
 
+const availableImageAspectRatios = computed(() => {
+  const baseAll = [
+    { id: '1:1', label: '1:1', description: '正方形' },
+    { id: '9:16', label: '9:16', description: '竖屏' },
+    { id: '16:9', label: '16:9', description: '横屏' },
+    { id: '3:4', label: '3:4', description: '竖屏' },
+    { id: '4:3', label: '4:3', description: '横屏' },
+    { id: '21:9', label: '21:9', description: '宽屏' },
+  ];
+
+  const extended = [
+    { id: '1:4', label: '1:4', description: '超长竖屏' },
+    { id: '4:1', label: '4:1', description: '超长横屏' },
+    { id: '1:8', label: '1:8', description: '极长竖屏' },
+    { id: '8:1', label: '8:1', description: '极长横屏' },
+  ];
+
+  if (imageModel.value === 'gpt-image-2') {
+    return baseAll.slice(0, 3);
+  }
+
+  if (imageModel.value === 'banana2' || imageModel.value === 'seedream-5.0-lite') {
+    return [...baseAll, ...extended];
+  }
+
+  return baseAll;
+});
+
 // Derive duration map from videoDurations array
 const durationMap = videoDurations.reduce(
   (acc, item) => {
@@ -290,10 +318,18 @@ const handleSubmit = () => {
         chatMessage = `${videoPrompt.value}`;
       } else if (freeCreationMode.value === 'image_generation') {
         const aspectRatioMap: Record<string, string> = {
+          '1:1': '正方形1:1',
           '9:16': '竖屏9:16',
           '16:9': '横屏16:9',
+          '3:4': '竖屏3:4',
+          '4:3': '横屏4:3',
+          '21:9': '宽屏21:9',
+          '1:4': '超长竖屏1:4',
+          '4:1': '超长横屏4:1',
+          '1:8': '极长竖屏1:8',
+          '8:1': '极长横屏8:1',
         };
-        chatMessage = `请使用${imageModels.find(m => m.id === imageModel.value)?.id || imageModel.value}模型生成图片，${aspectRatioMap[videoAspectRatio.value]}，内容为：${videoPrompt.value}`;
+        chatMessage = `请使用${imageModels.find(m => m.id === imageModel.value)?.id || imageModel.value}模型生成图片，${aspectRatioMap[videoAspectRatio.value] || videoAspectRatio.value}，内容为：${videoPrompt.value}`;
       } else {
         // Video generation mode - use workflow API instead of chat
         chatMessage = videoPrompt.value;
@@ -932,7 +968,7 @@ const loadSystemConfig = async () => {
                           </div>
                         </div>
 
-                        <!-- Aspect Ratio Selector (reuse videoAspectRatio) -->
+                        <!-- Aspect Ratio Selector (dynamic based on model) -->
                         <div ref="videoAspectRatioMenuRef" class="relative">
                           <Button
                             variant="ghost"
@@ -954,7 +990,7 @@ const loadSystemConfig = async () => {
                             class="absolute bottom-full left-0 z-[1000] mb-2 min-w-[180px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
                           >
                             <Button
-                              v-for="ratio in videoAspectRatios"
+                              v-for="ratio in availableImageAspectRatios"
                               :key="ratio.id"
                               variant="ghost"
                               @click="selectVideoAspectRatio(ratio.id)"

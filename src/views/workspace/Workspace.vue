@@ -959,35 +959,6 @@ const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
       isUploading.value = false;
     }
 
-    files.value.forEach(file => {
-      if (file.file_type === 'image') {
-        let type: 'first_frame' | 'last_frame' | 'reference' = 'reference';
-        if (params.referenceMode === 'first_last_frame') {
-          const imageIndex = images.length;
-          if (imageIndex === 0) type = 'first_frame';
-          else if (imageIndex === 1) type = 'last_frame';
-        }
-        const imageIndex = images.length + 1;
-        images.push({
-          type,
-          name: `图片${imageIndex}`,
-          url: encodeURI(file.file_url),
-        });
-      } else if (file.file_type === 'video') {
-        videos.push({
-          type: 'ref',
-          name: `视频${videos.length + 1}`,
-          url: encodeURI(file.file_url),
-        });
-      } else if (file.file_type === 'audio') {
-        audios.push({
-          type: 'reference',
-          name: `音频${audios.length + 1}`,
-          url: encodeURI(file.file_url),
-        });
-      }
-    });
-
     try {
        createOmniVideoRequest = createOmniVideo({
          projectId: Number(projectId.value),
