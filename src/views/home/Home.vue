@@ -472,6 +472,23 @@ const updateCreditsNeeded = async () => {
 
 watch([videoModel, videoDuration, videoResolution, priceConfig, freeCreationMode], updateCreditsNeeded);
 
+watch(freeCreationMode, (newMode) => {
+  if (newMode !== 'video_generation') {
+    if (firstFrameImage.value) {
+      if (firstFrameImage.value.url) {
+        URL.revokeObjectURL(firstFrameImage.value.url);
+      }
+      firstFrameImage.value = null;
+    }
+    if (lastFrameImage.value) {
+      if (lastFrameImage.value.url) {
+        URL.revokeObjectURL(lastFrameImage.value.url);
+      }
+      lastFrameImage.value = null;
+    }
+  }
+});
+
 updateCreditsNeeded();
 
 // Handle click outside to close menus
@@ -588,7 +605,7 @@ const loadSystemConfig = async () => {
               :placeholder="currentPlaceholder"
               :allow-file-pick="shouldAllowFilePick"
               :show-mode-selector="true"
-              :enable-first-last-frame="shouldAllowFilePick"
+              :enable-first-last-frame="selectedMode === 'free_creation' && freeCreationMode === 'video_generation'"
               :first-last-frame-mode="videoReferenceMode"
               :accept="acceptFileTypes"
               :add-button-text="addButtonText"

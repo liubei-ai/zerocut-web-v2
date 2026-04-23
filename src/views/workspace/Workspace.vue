@@ -1286,7 +1286,7 @@ const handleRetryVideoGeneration = () => {
             </div>
 
             <!-- Mobile: Video Generation Tab -->
-            <div v-show="workspaceTab === 'video'" class="flex-1 overflow-hidden md:hidden">
+            <div v-show="workspaceTab === 'video'" class="flex-1 overflow-hidden pb-16 md:hidden">
               <VideoGenerationForm
                 v-if="videoGenerationState === 'idle'"
                 :initial-prompt="initialPrompt"
@@ -1313,7 +1313,7 @@ const handleRetryVideoGeneration = () => {
             </div>
 
             <!-- Mobile: Agent Mode Tab -->
-            <div v-show="workspaceTab === 'agent'" class="h-full md:hidden">
+            <div v-show="workspaceTab === 'agent'" class="h-full pb-16 md:hidden">
               <ChatBox
                 :files="files"
                 :messages="messages"

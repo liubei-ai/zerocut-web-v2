@@ -595,14 +595,14 @@ defineExpose({
               <div
                  class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-blue-50 to-indigo-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
                >
-                 <div class="absolute top-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-[8px] font-medium z-10 flex items-center gap-0.5">
+                 <div class="absolute top-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-[12px] font-medium z-10 flex items-center gap-0.5 origin-center scale-[0.667]">
                    <span>▶️</span>
                    <span>首帧</span>
                  </div>
                  <img :src="firstFrameImage.url" class="w-full h-full object-cover pt-3" alt="首帧" />
                  <button
                    @click.stop="removeFrameImage('first')"
-                   class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[10px] opacity-0 group-hover:opacity-100"
+                   class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[12px] opacity-0 group-hover:opacity-100 origin-center scale-[0.833]"
                  >
                    ×
                  </button>
@@ -619,8 +619,8 @@ defineExpose({
               >
                 <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
                   <div class="text-xl mb-0.5">▶️</div>
-                  <div class="text-[10px] font-medium">首帧</div>
-                  <div class="text-[8px] mt-0.5">点击上传</div>
+                  <div class="origin-center scale-[0.833]"><div class="text-[12px] font-medium whitespace-nowrap">首帧</div></div>
+                  <div class="mt-0.5 origin-center scale-[0.667]"><div class="text-[12px] whitespace-nowrap">点击上传</div></div>
                 </div>
               </div>
             </div>
@@ -642,14 +642,14 @@ defineExpose({
               <div
                  class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-purple-50 to-pink-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
                >
-                 <div class="absolute top-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 text-white text-[8px] font-medium z-10 flex items-center gap-0.5">
+                 <div class="absolute top-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 text-white text-[12px] font-medium z-10 flex items-center gap-0.5 origin-center scale-[0.667]">
                    <span>⏹️</span>
                    <span>尾帧</span>
                  </div>
                  <img :src="lastFrameImage.url" class="w-full h-full object-cover pt-3" alt="尾帧" />
                  <button
                    @click.stop="removeFrameImage('last')"
-                   class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[10px] opacity-0 group-hover:opacity-100"
+                   class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[12px] opacity-0 group-hover:opacity-100 origin-center scale-[0.833]"
                  >
                    ×
                  </button>
@@ -666,8 +666,8 @@ defineExpose({
               >
                 <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
                   <div class="text-xl mb-0.5">⏹️</div>
-                  <div class="text-[10px] font-medium">尾帧</div>
-                  <div class="text-[8px] mt-0.5">点击上传</div>
+                  <div class="origin-center scale-[0.833]"><div class="text-[12px] font-medium whitespace-nowrap">尾帧</div></div>
+                  <div class="mt-0.5 origin-center scale-[0.667]"><div class="text-[12px] whitespace-nowrap">点击上传</div></div>
                 </div>
               </div>
             </div>
@@ -704,11 +704,11 @@ defineExpose({
             />
             <div v-else class="absolute inset-0 flex flex-col items-center justify-center bg-gray-100">
               <div class="text-2xl mb-1">{{ getFileIcon(file.type) }}</div>
-              <div class="text-[8px] text-gray-500 text-center px-1 truncate w-full">{{ file.name }}</div>
+              <div class="text-[12px] text-gray-500 text-center px-1 truncate w-full origin-center scale-[0.667]">{{ file.name }}</div>
             </div>
             <button
               @click.stop="removeFile(file.id)"
-              class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[10px] opacity-0 group-hover:opacity-100"
+              class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[12px] opacity-0 group-hover:opacity-100 origin-center scale-[0.833]"
             >
               ×
             </button>
@@ -728,8 +728,8 @@ defineExpose({
           >
             <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
               <div class="text-xl mb-0.5">➕</div>
-              <div class="text-[10px] font-medium">{{ addButtonText }}</div>
-              <div class="text-[8px] mt-0.5">{{ addButtonSubtext }}</div>
+              <div class="origin-center scale-[0.833]"><div class="text-[12px] font-medium whitespace-nowrap">{{ addButtonText }}</div></div>
+              <div class="mt-0.5 origin-center scale-[0.667]"><div class="text-[12px] whitespace-nowrap">{{ addButtonSubtext }}</div></div>
             </div>
           </div>
         </div>
