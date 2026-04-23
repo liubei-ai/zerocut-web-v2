@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue';
+import axios from 'axios';
 import { useRoute, useRouter } from 'vue-router';
 import MainLayout from '@/components/layout/MainLayout.vue';
 import FileList from './components/FileList.vue';
 import PreviewArea from './components/PreviewArea.vue';
 import ChatBox from './components/ChatBox.vue';
+import VideoGenerationForm from './components/VideoGenerationForm.vue';
+import VideoGenerationProgress from './components/VideoGenerationProgress.vue';
+import type { VideoGenerationParams } from './components/VideoGenerationForm.vue';
 import {
   createVideoProject,
   createVideo,
@@ -14,8 +18,21 @@ import {
   abortVideoCreation,
   updateVideoProject,
 } from '@/api/videoProjectApi';
+import { cancelRequest } from '@/api/client';
+import {
+  createOmniVideo,
+  getVideoWorkflow,
+  deleteVideoWorkflow,
+  type VideoWorkflowResponse,
+  type VideoWorkflowImage,
+  type VideoWorkflowVideo,
+  type VideoWorkflowAudio,
+} from '@/api/videoWorkflowApi';
 import { useChatMessages } from '@/composables';
 import { useToast } from '@/composables/useToast';
+import { getSystemConfig } from '@/api/systemApi';
+import { videoModels } from '@/config/videoGeneration';
+import type { FilePreview } from '@/types/fileReference';
 
 export interface WorkspaceFile {
   id: string;
@@ -25,14 +42,6 @@ export interface WorkspaceFile {
   thumbnail_url?: string;
   file_size?: number;
   created_at: string;
-}
-
-interface FilePreview {
-  id: string;
-  name: string;
-  type: string;
-  url: string;
-  file: File;
 }
 
 const route = useRoute();
@@ -55,11 +64,53 @@ const projectCreated = ref(false);
 const pollingTimer = ref<NodeJS.Timeout | null>(null);
 const isAborting = ref(false);
 const isPolling = ref(false);
+const isVideoPolling = ref(false);
 const projectId = ref<string>('');
 const activeTab = ref<'files' | 'preview' | 'chat'>('chat');
 const isOwner = ref<boolean>(true);
 const isShared = ref<boolean>(false);
 const isCancelling = ref(false);
+
+// Video generation mode (passed from home page)
+const generationMode = ref<'agent' | 'video_generation'>('agent');
+
+// Workspace tabs
+const workspaceTab = ref<'agent' | 'video'>('agent');
+
+// Video generation state
+const videoGenerationState = ref<'idle' | 'generating' | 'completed' | 'failed'>('idle');
+const videoWorkflowId = ref<string | number>('');
+const videoWorkflowData = ref<VideoWorkflowResponse | null>(null);
+const videoGenerationError = ref('');
+const initialPrompt = ref('');
+import type { ICommonResponse } from '@/api/client';
+import type { CreateOmniVideoResponse } from '@/api/videoWorkflowApi';
+let createOmniVideoRequest: Promise<ICommonResponse<CreateOmniVideoResponse>> | null = null;
+
+// Video params passed from home page
+const initialVideoModel = ref('seedance-2.0');
+const initialVideoDuration = ref(15);
+const initialVideoAspectRatio = ref<'16:9' | '9:16'>('9:16');
+const initialVideoResolution = ref<'720p' | '1080p'>('720p');
+const initialVideoReferenceMode = ref<'reference' | 'first_last_frame'>('reference');
+
+// Price configuration from system config
+const priceConfig = ref<any>(null);
+
+// Load system config for pricing
+const loadSystemConfig = async () => {
+  try {
+    const config = await getSystemConfig(['web_price']);
+    if (config.webPrice) {
+      priceConfig.value = config.webPrice;
+    }
+  } catch (error) {
+    console.error('Failed to load system config:', error);
+  }
+};
+
+// Video generation polling
+let videoPollingTimer: NodeJS.Timeout | null = null;
 
 const tabs = [
   { id: 'files' as const, label: '文件', icon: '📁' },
@@ -73,6 +124,26 @@ const selectedFile = computed(() => {
 
 onMounted(async () => {
   projectId.value = route.params.projectId as string;
+
+  // Check generation mode from router state
+  const modeFromState = history.state?.generationMode as 'agent' | 'video_generation';
+  if (modeFromState) {
+    generationMode.value = modeFromState;
+    workspaceTab.value = modeFromState === 'video_generation' ? 'video' : 'agent';
+  }
+
+  // Get initial prompt from state
+  const promptFromState = history.state?.prompt as string;
+  if (promptFromState) {
+    initialPrompt.value = promptFromState;
+  }
+
+  // Get video params from state (passed from home page)
+  if (history.state?.videoModel) initialVideoModel.value = history.state.videoModel;
+  if (history.state?.videoDuration) initialVideoDuration.value = history.state.videoDuration;
+  if (history.state?.videoAspectRatio) initialVideoAspectRatio.value = history.state.videoAspectRatio;
+  if (history.state?.videoResolution) initialVideoResolution.value = history.state.videoResolution;
+  if (history.state?.videoReferenceMode) initialVideoReferenceMode.value = history.state.videoReferenceMode;
 
   // Handle new workspace creation
   if (projectId.value === 'new' || route.path === '/workspace/new') {
@@ -96,7 +167,14 @@ onMounted(async () => {
       delete (window as any).__pendingFiles;
     }
 
+    await loadSystemConfig();
     await loadProject();
+
+    // If in video generation mode, auto-create project then let user submit the form
+    if (generationMode.value === 'video_generation') {
+      await autoCreateProjectForVideoGeneration();
+      return;
+    }
 
     // Auto-send initial message if it exists
     if (initialUserInput.value && initialUserInput.value.trim()) {
@@ -110,12 +188,14 @@ onMounted(async () => {
     return;
   }
 
+  loadSystemConfig();
   loadProject();
 });
 
 // Clean up timer when component is unmounted
 onUnmounted(() => {
   stopPolling();
+  stopVideoPolling();
 });
 
 const loadProject = async () => {
@@ -598,6 +678,417 @@ const handleAbortTask = async () => {
     isCancelling.value = false;
   }
 };
+
+// Video generation functions
+const autoCreateProjectForVideoGeneration = async () => {
+  if (projectCreated.value || !isNewProject.value) return;
+
+  // Immediately show the progress UI
+  videoGenerationState.value = 'generating';
+
+  try {
+    // Step 1: create project
+    const projectData = await createVideoProject({
+      prompt: initialPrompt.value,
+    });
+
+    const newProjectId = projectData.id.toString();
+    await router.replace(`/workspace/${newProjectId}`);
+
+    projectId.value = newProjectId;
+    projectTitle.value = projectData.project_name;
+    projectCreated.value = true;
+    isNewProject.value = false;
+
+    console.log('✅ 视频生成项目创建成功:', projectData);
+
+    // Step 2: upload files if any and build params directly from upload response
+    const images: VideoWorkflowImage[] = [];
+    const videos: VideoWorkflowVideo[] = [];
+    const audios: VideoWorkflowAudio[] = [];
+
+    if (initialFiles.value.length > 0) {
+      isUploading.value = true;
+      const uploadMessage = addAssistantMessage('正在上传文件...');
+
+      try {
+        // Import the upload function
+        const { uploadMaterial } = await import('@/api/videoProjectApi');
+
+        // Upload each file with renamed name and build params directly from response
+        for (const filePreview of initialFiles.value) {
+          const response = await uploadMaterial(projectId.value, filePreview.file, filePreview.name);
+          const uploadedUrl = response.url;
+
+          if (filePreview.type === 'image') {
+            let type: 'first_frame' | 'last_frame' | 'reference' = 'reference';
+            if (initialVideoReferenceMode.value === 'first_last_frame') {
+              const imageIndex = images.length;
+              if (imageIndex === 0) type = 'first_frame';
+              else if (imageIndex === 1) type = 'last_frame';
+            }
+            images.push({
+              type,
+              name: filePreview.name.split('.')[0],
+              url: encodeURI(uploadedUrl),
+            });
+          } else if (filePreview.type === 'video') {
+            videos.push({
+              type: 'ref',
+              name: filePreview.name.split('.')[0],
+              url: encodeURI(uploadedUrl),
+            });
+          } else if (filePreview.type === 'audio') {
+            audios.push({
+              type: 'reference',
+              name: filePreview.name.split('.')[0],
+              url: encodeURI(uploadedUrl),
+            });
+          }
+        }
+
+        // Refresh file list
+        await loadOssMapping();
+
+        removeMessage(uploadMessage.id);
+        console.log('✅ 文件上传成功');
+
+        // Clear initial files after upload
+        initialFiles.value = [];
+      } catch (uploadError) {
+        console.error('❌ 文件上传失败:', uploadError);
+        removeMessage(uploadMessage.id);
+        videoGenerationState.value = 'failed';
+        videoGenerationError.value = uploadError instanceof Error ? uploadError.message : '文件上传失败';
+        toast.error('文件上传失败，请重试');
+        isUploading.value = false;
+        return;
+      } finally {
+        isUploading.value = false;
+      }
+    }
+
+    // Step 4: call createOmniVideo with params from home
+    videoGenerationError.value = '';
+    try {
+      createOmniVideoRequest = createOmniVideo({
+        projectId: Number(newProjectId),
+        model: initialVideoModel.value,
+        prompt: initialPrompt.value,
+        aspect_ratio: initialVideoAspectRatio.value,
+        resolution: initialVideoResolution.value,
+        duration: initialVideoDuration.value,
+        images: images.length > 0 ? images : undefined,
+        videos: videos.length > 0 ? videos : undefined,
+        audios: audios.length > 0 ? audios : undefined,
+      });
+      const response = await createOmniVideoRequest;
+      videoWorkflowId.value = response.data.workflowId;
+      console.log('✅ 视频生成任务已启动:', response.data);
+      startVideoPolling();
+    } finally {
+      createOmniVideoRequest = null;
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'CanceledError' || axios.isCancel(error)) {
+      console.log('🔄 createOmniVideo 请求已被取消');
+      return;
+    }
+    console.error('❌ 自动视频生成失败:', error);
+    videoGenerationState.value = 'failed';
+    videoGenerationError.value = error instanceof Error ? error.message : '启动视频生成失败';
+    toast.error('启动视频生成失败');
+  } finally {
+    createOmniVideoRequest = null;
+  }
+};
+
+const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
+  if (!projectId.value || projectId.value === 'new') {
+    toast.error('请先创建项目');
+    return;
+  }
+
+  try {
+    videoGenerationState.value = 'generating';
+    videoGenerationError.value = '';
+
+    const images: VideoWorkflowImage[] = [];
+    const videos: VideoWorkflowVideo[] = [];
+    const audios: VideoWorkflowAudio[] = [];
+
+    let hasLocalFiles = false;
+    if (params.images && params.images.length > 0) {
+      hasLocalFiles = true;
+    }
+    if (params.videos && params.videos.length > 0) {
+      hasLocalFiles = true;
+    }
+    if (params.audios && params.audios.length > 0) {
+      hasLocalFiles = true;
+    }
+
+    let uploadMessage: { id: string } | null = null;
+    if (hasLocalFiles) {
+      isUploading.value = true;
+      uploadMessage = addAssistantMessage('正在上传文件...');
+    }
+
+    try {
+      const { uploadMaterial } = await import('@/api/videoProjectApi');
+
+      const getUniqueFileName = (originalName: string): string => {
+        const existingNames = files.value.map(f => f.file_name);
+        if (!existingNames.includes(originalName)) {
+          return originalName;
+        }
+
+        const extIndex = originalName.lastIndexOf('.');
+        const extension = extIndex > 0 ? originalName.substring(extIndex) : '';
+        let baseName = extIndex > 0 ? originalName.substring(0, extIndex) : originalName;
+
+        const numberMatch = baseName.match(/(\d+)$/);
+        if (numberMatch) {
+          const currentNumber = parseInt(numberMatch[1], 10);
+          baseName = baseName.slice(0, -numberMatch[1].length);
+          let nextNumber = currentNumber + 1;
+          let newName = `${baseName}${nextNumber}${extension}`;
+          while (existingNames.includes(newName)) {
+            nextNumber++;
+            newName = `${baseName}${nextNumber}${extension}`;
+          }
+          return newName;
+        }
+
+        let counter = 1;
+        let newName = `${baseName}${counter}${extension}`;
+        while (existingNames.includes(newName)) {
+          counter++;
+          newName = `${baseName}${counter}${extension}`;
+        }
+        return newName;
+      };
+
+      if (params.images) {
+        for (const img of params.images) {
+          let type: 'first_frame' | 'last_frame' | 'reference' = 'reference';
+          if (params.referenceMode === 'first_last_frame') {
+            const imageIndex = images.length;
+            if (imageIndex === 0) type = 'first_frame';
+            else if (imageIndex === 1) type = 'last_frame';
+          }
+          if (img.file) {
+            const fileName = img.name ? getUniqueFileName(img.name) : undefined;
+            const response = await uploadMaterial(projectId.value, img.file, fileName);
+            images.push({
+              type,
+              name: fileName ? fileName.split('.')[0] : undefined,
+              url: encodeURI(response.url),
+            });
+          } else if (img.url) {
+            images.push({
+              type,
+              name: img.name ? img.name.split('.')[0] : undefined,
+              url: img.url,
+            });
+          }
+        }
+      }
+
+      if (params.videos) {
+        for (const video of params.videos) {
+          if (video.file) {
+            const fileName = video.name ? getUniqueFileName(video.name) : undefined;
+            const response = await uploadMaterial(projectId.value, video.file, fileName);
+            videos.push({
+              type: 'ref',
+              name: fileName ? fileName.split('.')[0] : undefined,
+              url: encodeURI(response.url),
+              duration: video.duration,
+            });
+          } else if (video.url) {
+            videos.push({
+              type: 'ref',
+              name: video.name ? video.name.split('.')[0] : undefined,
+              url: video.url,
+              duration: video.duration,
+            });
+          }
+        }
+      }
+
+      if (params.audios) {
+        for (const audio of params.audios) {
+          if (audio.file) {
+            const fileName = audio.name ? getUniqueFileName(audio.name) : undefined;
+            const response = await uploadMaterial(projectId.value, audio.file, fileName);
+            audios.push({
+              type: 'reference',
+              name: fileName ? fileName.split('.')[0] : undefined,
+              url: encodeURI(response.url),
+              duration: audio.duration,
+            });
+          } else if (audio.url) {
+            audios.push({
+              type: 'reference',
+              name: audio.name ? audio.name.split('.')[0] : undefined,
+              url: audio.url,
+              duration: audio.duration,
+            });
+          }
+        }
+      }
+
+      if (uploadMessage) {
+        removeMessage(uploadMessage.id);
+      }
+      console.log('✅ 本地文件上传成功');
+
+      await loadOssMapping();
+    } catch (uploadError) {
+      console.error('❌ 文件上传失败:', uploadError);
+      if (uploadMessage) {
+        removeMessage(uploadMessage.id);
+      }
+      videoGenerationState.value = 'failed';
+      videoGenerationError.value = uploadError instanceof Error ? uploadError.message : '文件上传失败';
+      toast.error('文件上传失败，请重试');
+      isUploading.value = false;
+      return;
+    } finally {
+      isUploading.value = false;
+    }
+
+    try {
+       createOmniVideoRequest = createOmniVideo({
+         projectId: Number(projectId.value),
+         model: params.model,
+         prompt: params.prompt,
+         aspect_ratio: params.aspectRatio,
+         resolution: params.resolution,
+         duration: params.duration,
+         images: images.length > 0 ? images : undefined,
+         videos: videos.length > 0 ? videos : undefined,
+         audios: audios.length > 0 ? audios : undefined,
+       });
+       const response = await createOmniVideoRequest;
+       videoWorkflowId.value = response.data.workflowId;
+       console.log('✅ 视频生成任务已启动:', response.data);
+       startVideoPolling();
+     } finally {
+       createOmniVideoRequest = null;
+     }
+   } catch (error) {
+     if (error instanceof Error && error.name === 'CanceledError' || axios.isCancel(error)) {
+       console.log('🔄 createOmniVideo 请求已被取消');
+       return;
+     }
+     console.error('❌ 视频生成任务启动失败:', error);
+     videoGenerationState.value = 'failed';
+     videoGenerationError.value = error instanceof Error ? error.message : '启动视频生成失败';
+     toast.error('启动视频生成失败');
+   } finally {
+     createOmniVideoRequest = null;
+   }
+};
+
+const stopVideoPolling = () => {
+  if (videoPollingTimer) {
+    clearTimeout(videoPollingTimer);
+    videoPollingTimer = null;
+  }
+  isVideoPolling.value = false;
+};
+
+const scheduleNextVideoPoll = (delay: number = 3000) => {
+  if (isVideoPolling.value) {
+    videoPollingTimer = setTimeout(async () => {
+      if (!isVideoPolling.value) return;
+
+      try {
+        await pollVideoWorkflowStatus();
+        if (isVideoPolling.value) {
+          scheduleNextVideoPoll(delay);
+        }
+      } catch (error) {
+        console.error('❌ 轮询视频生成状态失败:', error);
+        if (isVideoPolling.value) {
+          scheduleNextVideoPoll(delay);
+        }
+      }
+    }, delay);
+  }
+};
+
+const startVideoPolling = () => {
+  stopVideoPolling();
+  isVideoPolling.value = true;
+  scheduleNextVideoPoll();
+};
+
+const pollVideoWorkflowStatus = async () => {
+  if (!videoWorkflowId.value) return;
+
+  try {
+    const data = await getVideoWorkflow(videoWorkflowId.value);
+    videoWorkflowData.value = data;
+
+    if (data.status === 'SUCCESS') {
+      videoGenerationState.value = 'completed';
+      stopVideoPolling();
+      // Refresh file list to show new video
+      await loadOssMapping();
+      toast.success('视频生成完成');
+    } else if (data.status === 'FAILED') {
+      videoGenerationState.value = 'failed';
+      videoGenerationError.value = data.output?.errorMessage || data.output?.error || '视频生成失败';
+      stopVideoPolling();
+      toast.error(videoGenerationError.value);
+    }
+  } catch (error) {
+    console.error('❌ 轮询视频生成状态失败:', error);
+  }
+};
+
+const handleCancelVideoGeneration = async () => {
+      console.log('createOmniVideoRequest: ', createOmniVideoRequest);
+
+  try {
+    if (createOmniVideoRequest) {
+      cancelRequest(createOmniVideoRequest);
+      createOmniVideoRequest = null;
+    }
+    if (videoWorkflowId.value) {
+      await deleteVideoWorkflow(videoWorkflowId.value);
+    }
+    stopVideoPolling();
+    videoGenerationState.value = 'idle';
+    videoWorkflowId.value = '';
+    videoWorkflowData.value = null;
+    videoGenerationError.value = '';
+    toast.success('已取消视频生成');
+  } catch (error) {
+    console.error('❌ 取消视频生成失败:', error);
+
+    if (createOmniVideoRequest) {
+      cancelRequest(createOmniVideoRequest);
+      createOmniVideoRequest = null;
+    }
+    stopVideoPolling();
+    videoGenerationState.value = 'idle';
+    videoWorkflowId.value = '';
+    videoWorkflowData.value = null;
+    videoGenerationError.value = '';
+    toast.error('取消视频生成失败，已返回表单');
+  }
+};
+
+const handleRetryVideoGeneration = () => {
+  videoGenerationState.value = 'idle';
+  videoGenerationError.value = '';
+  videoWorkflowId.value = '';
+  videoWorkflowData.value = null;
+};
 </script>
 
 <template>
@@ -649,20 +1140,84 @@ const handleAbortTask = async () => {
           @show-prompt="handleShowPrompt"
         />
 
-        <ChatBox
-          :files="files"
-          :messages="messages"
-          :project-id="projectId"
-          :is-running="isRunning"
-          :is-uploading="isUploading"
-          :is-owner="isOwner"
-          :is-cancelling="isCancelling"
-          @send-message="handleSendMessage"
-          @abort-task="handleAbortTask"
-          @file-uploaded="handleFileUploaded"
-          @upload-start="handleUploadStart"
-          @upload-end="handleUploadEnd"
-        />
+        <!-- Desktop: Chat/Video Generation Area with Tabs -->
+        <div class="hidden h-full w-[320px] flex-col border-l border-gray-200 bg-white lg:w-[400px] xl:w-[480px] md:flex">
+          <!-- Tab Navigation -->
+          <div class="flex border-b border-gray-200">
+            <button
+              @click="workspaceTab = 'video'"
+              class="flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
+              :class="[
+                workspaceTab === 'video'
+                  ? 'border-b-2 border-gray-900 text-gray-900'
+                  : 'text-gray-500 hover:text-gray-700',
+              ]"
+            >
+              <span>🎬</span>
+              <span>视频生成</span>
+            </button>
+            <button
+              @click="workspaceTab = 'agent'"
+              class="flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
+              :class="[
+                workspaceTab === 'agent'
+                  ? 'border-b-2 border-gray-900 text-gray-900'
+                  : 'text-gray-500 hover:text-gray-700',
+              ]"
+            >
+              <span>🤖</span>
+              <span>Agent模式</span>
+            </button>
+          </div>
+
+          <!-- Tab Content -->
+          <div class="flex-1 overflow-hidden">
+            <!-- Video Generation Tab -->
+            <div v-show="workspaceTab === 'video'" class="h-full">
+              <VideoGenerationForm
+                v-if="videoGenerationState === 'idle'"
+                :initial-prompt="initialPrompt"
+                :initial-model="initialVideoModel"
+                :initial-duration="initialVideoDuration"
+                :initial-aspect-ratio="initialVideoAspectRatio"
+                :initial-resolution="initialVideoResolution"
+                :initial-reference-mode="initialVideoReferenceMode"
+                :initial-files="initialFiles"
+                :price-config="priceConfig"
+                :is-loading="isRunning"
+                @submit="handleVideoGenerationSubmit"
+              />
+              <VideoGenerationProgress
+                v-else
+                :status="videoGenerationState === 'failed' ? 'FAILED' : (videoWorkflowData?.status || 'PENDING')"
+                :progress="videoWorkflowData?.output?.progress"
+                :result-url="videoWorkflowData?.output?.videoUrl || videoWorkflowData?.output?.videoUrls?.[0]"
+                :error-message="videoGenerationError"
+                :workflow-id="Number(videoWorkflowId)"
+                @cancel="handleCancelVideoGeneration"
+                @retry="handleRetryVideoGeneration"
+              />
+            </div>
+
+            <!-- Agent Mode Tab -->
+            <div v-show="workspaceTab === 'agent'" class="h-full">
+              <ChatBox
+                :files="files"
+                :messages="messages"
+                :project-id="projectId"
+                :is-running="isRunning"
+                :is-uploading="isUploading"
+                :is-owner="isOwner"
+                :is-cancelling="isCancelling"
+                @send-message="handleSendMessage"
+                @abort-task="handleAbortTask"
+                @file-uploaded="handleFileUploaded"
+                @upload-start="handleUploadStart"
+                @upload-end="handleUploadEnd"
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Mobile Layout -->
@@ -700,20 +1255,81 @@ const handleAbortTask = async () => {
         </div>
 
         <div v-show="activeTab === 'chat'" class="h-full overflow-hidden pb-16">
-          <ChatBox
-            :files="files"
-            :messages="messages"
-            :project-id="projectId"
-            :is-running="isRunning"
-            :is-uploading="isUploading"
-            :is-owner="isOwner"
-            :is-cancelling="isCancelling"
-            @send-message="handleSendMessage"
-            @abort-task="handleAbortTask"
-            @file-uploaded="handleFileUploaded"
-            @upload-start="handleUploadStart"
-            @upload-end="handleUploadEnd"
-          />
+          <!-- Mobile: Show tabs inside chat tab -->
+          <div class="flex h-full flex-col">
+            <!-- Tab Navigation (Mobile) -->
+            <div class="flex border-b border-gray-200 md:hidden">
+              <button
+                @click="workspaceTab = 'video'"
+                class="flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
+                :class="[
+                  workspaceTab === 'video'
+                    ? 'border-b-2 border-gray-900 text-gray-900'
+                    : 'text-gray-500 hover:text-gray-700',
+                ]"
+              >
+                <span>🎬</span>
+                <span>视频生成</span>
+              </button>
+              <button
+                @click="workspaceTab = 'agent'"
+                class="flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
+                :class="[
+                  workspaceTab === 'agent'
+                    ? 'border-b-2 border-gray-900 text-gray-900'
+                    : 'text-gray-500 hover:text-gray-700',
+                ]"
+              >
+                <span>🤖</span>
+                <span>Agent模式</span>
+              </button>
+            </div>
+
+            <!-- Mobile: Video Generation Tab -->
+            <div v-show="workspaceTab === 'video'" class="flex-1 overflow-hidden pb-16 md:hidden">
+              <VideoGenerationForm
+                v-if="videoGenerationState === 'idle'"
+                :initial-prompt="initialPrompt"
+                :initial-model="initialVideoModel"
+                :initial-duration="initialVideoDuration"
+                :initial-aspect-ratio="initialVideoAspectRatio"
+                :initial-resolution="initialVideoResolution"
+                :initial-reference-mode="initialVideoReferenceMode"
+                :initial-files="initialFiles"
+                :price-config="priceConfig"
+                :is-loading="isRunning"
+                @submit="handleVideoGenerationSubmit"
+              />
+              <VideoGenerationProgress
+                v-else
+                :status="videoGenerationState === 'failed' ? 'FAILED' : (videoWorkflowData?.status || 'PENDING')"
+                :progress="videoWorkflowData?.output?.progress"
+                :result-url="videoWorkflowData?.output?.videoUrl || videoWorkflowData?.output?.videoUrls?.[0]"
+                :error-message="videoGenerationError"
+                :workflow-id="Number(videoWorkflowId)"
+                @cancel="handleCancelVideoGeneration"
+                @retry="handleRetryVideoGeneration"
+              />
+            </div>
+
+            <!-- Mobile: Agent Mode Tab -->
+            <div v-show="workspaceTab === 'agent'" class="h-full pb-16 md:hidden">
+              <ChatBox
+                :files="files"
+                :messages="messages"
+                :project-id="projectId"
+                :is-running="isRunning"
+                :is-uploading="isUploading"
+                :is-owner="isOwner"
+                :is-cancelling="isCancelling"
+                @send-message="handleSendMessage"
+                @abort-task="handleAbortTask"
+                @file-uploaded="handleFileUploaded"
+                @upload-start="handleUploadStart"
+                @upload-end="handleUploadEnd"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>

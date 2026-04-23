@@ -190,7 +190,7 @@ class HttpRequest {
     });
   }
 
-  private async request<RES = any>(options: IRequestOptions & { method: string; url: string }): Promise<ICommonResponse<RES>> {
+  private request<RES = any>(options: IRequestOptions & { method: string; url: string }): Promise<ICommonResponse<RES>> {
     const requestOptions = this.mergeOptions(options);
     const authStore = useAuthStore();
 
@@ -221,98 +221,114 @@ class HttpRequest {
     const abortController = new AbortController();
     requestOptions.signal = abortController.signal;
 
-    try {
-      const axiosInstance = this.createAxiosInstance();
-      const requestPromise = axiosInstance.request<ICommonResponse<RES>>(requestOptions);
+    const axiosInstance = this.createAxiosInstance();
+    const axiosRequestPromise = axiosInstance.request<ICommonResponse<RES>>(requestOptions);
 
-      // Store abort controller for potential cancellation
-      cancelTokenMap.set(requestPromise, abortController);
+    const wrappedPromise = (async () => {
+      try {
+        const response = await axiosRequestPromise;
 
-      const response = await requestPromise;
+        // Clean up
+        cancelTokenMap.delete(wrappedPromise!);
 
-      // Clean up
-      cancelTokenMap.delete(requestPromise);
+         // Handle raw response option
+         if (options.rawResponse) {
+           return response.data;
+         }
 
-      // Handle raw response option
-      if (options.rawResponse) {
-        return response.data;
-      }
+         // Handle response based on status and custom options
+         if (options.noLoginModal) {
+           return response.data;
+         }
 
-      // Handle response based on status and custom options
-      if (options.noLoginModal) {
-        return response.data;
-      }
+         const { code, message, data } = response.data;
 
-      const { code, message, data } = response.data;
+         if (response.status === 401 || code === 401) {
+           // if (!options.noErrorAlert) {
+           //   this.toast.error('登录已过期，请重新登录');
+           // }
+           authStore.clearAuthState();
+           if (!options.noLoginModal) {
+             showLoginModal();
+           }
+           throw new ApiError(401, 'Authentication failed', response);
+         }
 
-      if (response.status === 401 || code === 401) {
-        // if (!options.noErrorAlert) {
-        //   this.toast.error('登录已过期，请重新登录');
-        // }
-        authStore.clearAuthState();
-        if (!options.noLoginModal) {
-          showLoginModal();
-        }
-        throw new ApiError(401, 'Authentication failed', response);
-      }
+         if (!isHttpStatusOk(response.status) || (code && !isHttpStatusOk(code))) {
+           if (!options.noErrorAlert) {
+             this.toast.error(`请求失败，请稍后再试:${message}`);
+           }
+           throw new ApiError(code || response.status, message || 'Request failed', response);
+         }
 
-      if (!isHttpStatusOk(response.status) || (code && !isHttpStatusOk(code))) {
-        if (!options.noErrorAlert) {
-          this.toast.error(`请求失败，请稍后再试:${message}`);
-        }
-        throw new ApiError(code || response.status, message || 'Request failed', response);
-      }
+         return response.data;
 
-      return response.data;
+       } catch (error) {
+         console.log('error: ', error);
+         if (axios.isCancel(error)) {
+           // Request was cancelled, don't show error
+           throw error;
+         }
 
-    } catch (error) {
-      if (axios.isCancel(error)) {
-        // Request was cancelled, don't show error
-        throw error;
-      }
+         if ((error as any).status === 401) {
+           // if (!options.noErrorAlert) {
+           //   this.toast.error('登录已过期，请重新登录');
+           // }
+           authStore.clearAuthState();
+           if (!options.noLoginModal) {
+             showLoginModal();
+           }
+           throw new ApiError(401, 'Authentication failed', error);
+         }
 
-      if (error instanceof ApiError) {
-        throw error;
-      }
+         if (error instanceof ApiError) {
+           throw error;
+         }
 
-      if (axios.isAxiosError(error)) {
-        const axiosError = error as AxiosError<ICommonResponse>;
+         if (axios.isAxiosError(error)) {
+           const axiosError = error as AxiosError<ICommonResponse>;
 
-        if (axiosError.response) {
-          const { status, data } = axiosError.response;
-          const errorMessage = data?.message || data?.error?.message
-            || axiosError.message || 'Request failed';
+           if (axiosError.response) {
+             const { status, data } = axiosError.response;
+             const errorMessage = data?.message || data?.error?.message
+               || axiosError.message || 'Request failed';
 
-          if (!options.noErrorAlert) {
-            this.toast.error(errorMessage);
-          }
+             if (!options.noErrorAlert) {
+               this.toast.error(errorMessage);
+             }
 
-          throw new ApiError(status, errorMessage, axiosError.response);
-        } else if (axiosError.request) {
-          const errorMessage = axiosError.message || 'Network error, please check your connection';
-          if (!options.noErrorAlert) {
-            this.toast.error(errorMessage);
-          }
-          throw new ApiError(0, errorMessage, axiosError.request);
-        }
-      }
+             throw new ApiError(status, errorMessage, axiosError.response);
+           } else if (axiosError.request) {
+             const errorMessage = axiosError.message || 'Network error, please check your connection';
+             if (!options.noErrorAlert) {
+               this.toast.error(errorMessage);
+             }
+             throw new ApiError(0, errorMessage, axiosError.request);
+           }
+         }
 
-      // Unknown error
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      if (!options.noErrorAlert) {
-        this.toast.error(errorMessage);
-      }
-      throw new ApiError(-1, errorMessage, error);
+         // Unknown error
+         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+         if (!options.noErrorAlert) {
+           this.toast.error(errorMessage);
+         }
+         throw new ApiError(-1, errorMessage, error);
 
-    } finally {
-      // Clean up loading
-      if (hasShowLoading) {
-        hideLoading();
-      }
-      if (loadingTimeout) {
-        clearTimeout(loadingTimeout);
-      }
-    }
+       } finally {
+         // Clean up loading
+         if (hasShowLoading) {
+           hideLoading();
+         }
+         if (loadingTimeout) {
+           clearTimeout(loadingTimeout);
+         }
+       }
+     })();
+
+    // Store abort controller for potential cancellation
+    cancelTokenMap.set(wrappedPromise, abortController);
+
+     return wrappedPromise;
   }
 
   private mergeOptions(options: IRequestOptions & { method: string; url: string }): AxiosRequestConfig {
@@ -363,6 +379,7 @@ class HttpRequest {
 // Request cancellation utility
 export function cancelRequest(requestPromise: Promise<any>): void {
   const abortController = cancelTokenMap.get(requestPromise);
+  console.log('abortController: ', abortController);
   if (abortController) {
     abortController.abort();
     cancelTokenMap.delete(requestPromise);
