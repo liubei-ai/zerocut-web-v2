@@ -33,7 +33,7 @@ const priceConfig = ref<any>(null);
 const { toast } = useToast();
 
 // Free creation mode options
-const freeCreationMode = ref('agent'); // 'agent' or 'video_generation' or 'image_generation'
+const freeCreationMode = ref('image_generation'); // 'agent' or 'video_generation' or 'image_generation'
 
 // Video generation reference mode
 const videoReferenceMode = ref<'reference' | 'first_last_frame'>('reference'); // 'reference' 全能参考, 'first_last_frame' 首尾帧
@@ -293,7 +293,7 @@ const handleSubmit = () => {
           '9:16': '竖屏9:16',
           '16:9': '横屏16:9',
         };
-        chatMessage = `请使用${imageModels.find(m => m.id === imageModel.value)?.label || imageModel.value}模型生成图片，${aspectRatioMap[videoAspectRatio.value]}，内容为：${videoPrompt.value}`;
+        chatMessage = `请使用${imageModels.find(m => m.id === imageModel.value)?.id || imageModel.value}模型生成图片，${aspectRatioMap[videoAspectRatio.value]}，内容为：${videoPrompt.value}`;
       } else {
         // Video generation mode - use workflow API instead of chat
         chatMessage = videoPrompt.value;
