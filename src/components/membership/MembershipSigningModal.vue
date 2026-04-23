@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, onUnmounted } from 'vue';
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
 import { X } from 'lucide-vue-next';
 import QRCode from 'qrcode';
 import {
@@ -46,6 +46,31 @@ const isWeChat = /MicroMessenger/i.test(navigator.userAgent);
 
 let statusCheckInterval: number | null = null;
 let countdownInterval: number | null = null;
+let closingRequested = false;
+
+const firstMonthPriceYuan = computed<number | null>(() => {
+  const cents = props.membershipPlan?.firstMonthPriceCents;
+  return cents != null ? cents / 100 : null;
+});
+
+// 本地中止（取消 / 超时 / 直接关闭弹窗）时通知后端关闭签约会话，避免会话悬挂。
+// 仅在 pending / timeout 状态下调用，避免命中 signed/active/failed/expired 的 400。
+const closeSessionIfNeeded = async () => {
+  if (closingRequested) return;
+  const sessionId = sessionInfo.value?.signingSessionId;
+  if (!sessionId) return;
+  if (signingStatus.value !== 'pending' && signingStatus.value !== 'timeout') return;
+
+  const workspaceId = authStore.currentWorkspaceId || '';
+  if (!workspaceId) return;
+
+  closingRequested = true;
+  try {
+    await closeSigningSession(sessionId, workspaceId);
+  } catch (error) {
+    console.warn('Failed to close signing session:', error);
+  }
+};
 
 const formatCountdown = (seconds: number): string => {
   const safe = Math.max(0, seconds);
@@ -81,6 +106,7 @@ const startCountdown = () => {
       signingStatus.value = 'timeout';
       stopCountdown();
       stopStatusCheck();
+      closeSessionIfNeeded();
     }
   }, 1000);
 };
@@ -187,26 +213,15 @@ const createSession = async () => {
 const handleCancel = async () => {
   stopStatusCheck();
   stopCountdown();
-
-  // 仅在签约中且尚未 signed/active 时调用 close，避免 400
-  if (sessionInfo.value?.signingSessionId && signingStatus.value === 'pending') {
-    try {
-      await closeSigningSession(
-        sessionInfo.value.signingSessionId,
-        authStore.currentWorkspaceId || '',
-      );
-    } catch (error) {
-      console.warn('Failed to close signing session:', error);
-    }
-  }
-
+  await closeSessionIfNeeded();
   emit('cancel');
   emit('update:open', false);
 };
 
-const handleClose = () => {
+const handleClose = async () => {
   stopStatusCheck();
   stopCountdown();
+  await closeSessionIfNeeded();
   emit('update:open', false);
 };
 
@@ -219,6 +234,7 @@ const resetState = () => {
   signingStatus.value = 'creating';
   errorMessage.value = '';
   countdown.value = 0;
+  closingRequested = false;
   stopStatusCheck();
   stopCountdown();
 };
@@ -231,6 +247,8 @@ watch(() => props.open, (newOpen) => {
   } else if (!newOpen) {
     stopStatusCheck();
     stopCountdown();
+    // 父组件直接关闭弹窗（例如 v-model:open = false）时也需通知后端关闭签约会话
+    closeSessionIfNeeded();
     document.removeEventListener('visibilitychange', handleVisibilityChange);
   }
 });
@@ -267,8 +285,12 @@ onUnmounted(() => {
             <span class="text-sm text-gray-500">{{ membershipPlan?.monthlyCredits }} 积分/月</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-sm text-gray-600">每月扣费</span>
-            <span class="text-xl font-bold text-teal-600">¥{{ membershipPlan?.priceYuan }}</span>
+            <span class="text-sm text-gray-600">{{ firstMonthPriceYuan != null ? '首月扣费' : '每月扣费' }}</span>
+            <span class="text-xl font-bold text-teal-600">¥{{ firstMonthPriceYuan != null ? firstMonthPriceYuan : membershipPlan?.priceYuan }}</span>
+          </div>
+          <div v-if="firstMonthPriceYuan != null" class="mt-2 flex items-center justify-between text-xs text-gray-500">
+            <span>之后每月</span>
+            <span>¥{{ membershipPlan?.priceYuan }}</span>
           </div>
         </div>
 
@@ -289,7 +311,10 @@ onUnmounted(() => {
 
         <div class="rounded-lg bg-yellow-50 p-3 text-xs text-yellow-800">
           <div class="font-medium">温馨提示：</div>
-          <div class="mt-1">签约成功后将立即发起首次扣费，之后每月自动续费，您可以随时在订阅管理中取消自动续费</div>
+          <div v-if="firstMonthPriceYuan != null" class="mt-1">
+            签约成功后将立即发起首月扣费（¥{{ firstMonthPriceYuan }}），之后每月按 ¥{{ membershipPlan?.priceYuan }} 自动续费，您可以随时在订阅管理中取消自动续费
+          </div>
+          <div v-else class="mt-1">签约成功后将立即发起首次扣费，之后每月自动续费，您可以随时在订阅管理中取消自动续费</div>
         </div>
       </div>
 
