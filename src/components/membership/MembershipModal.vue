@@ -83,6 +83,21 @@ const expiryDate = computed(() => {
 
 const currentPoints = computed(() => creditsStore.creditsBalance || 0);
 
+// 用户当前是否持有处于有效期内的订阅：
+// - auto_monthly / auto_yearly：status === 'active' 即视为有效（含已取消但未到期的情况）
+// - one_time_month / one_time_year：status === 'active' 且 termEndAt 在未来
+const hasActiveSubscription = computed(() => {
+  const sub = currentSubscription.value;
+  if (!sub) return false;
+  if (sub.status !== 'active') return false;
+  const isOneTime = sub.purchaseMode === 'one_time_month' || sub.purchaseMode === 'one_time_year';
+  if (isOneTime) {
+    if (!sub.termEndAt) return false;
+    return new Date(sub.termEndAt).getTime() > Date.now();
+  }
+  return true;
+});
+
 const plans = computed(() => {
   const cycleMap = {
     monthly: 'one_time_month',
@@ -120,6 +135,9 @@ const plans = computed(() => {
       currentSubscription.value.planCode === plan.code &&
       currentSubscription.value.status === 'active';
 
+    // 在有效订阅期内禁用其他订阅的购买入口
+    const isDisabledByActiveSubscription = hasActiveSubscription.value && !isCurrentSubscription;
+
     return {
       id: plan.code,
       name: tierNames[plan.tier as keyof typeof tierNames] || plan.name,
@@ -132,6 +150,7 @@ const plans = computed(() => {
       features: allFeatures,
       popular: plan.tier === 'premium',
       isCurrentSubscription,
+      isDisabledByActiveSubscription,
       planData: plan,
     };
   });
@@ -373,15 +392,25 @@ onMounted(() => {
               </div>
             </div>
             <!-- Button -->
-            <button @click="handlePurchase(plan.id)" :disabled="plan.isCurrentSubscription" :class="[
-              'mb-6 w-full rounded-lg py-3 font-medium transition-all',
-              plan.isCurrentSubscription
-                ? 'cursor-not-allowed bg-gray-200 text-gray-500'
-                : plan.popular
-                  ? 'bg-gradient-to-r from-teal-400 to-teal-500 text-white hover:from-teal-500 hover:to-teal-600'
-                  : 'bg-black text-white hover:bg-gray-800',
-            ]">
-              {{ plan.isCurrentSubscription ? '当前计划' : '购买' }}
+            <button
+              @click="handlePurchase(plan.id)"
+              :disabled="plan.isCurrentSubscription || plan.isDisabledByActiveSubscription"
+              :class="[
+                'mb-6 w-full rounded-lg py-3 font-medium transition-all',
+                plan.isCurrentSubscription || plan.isDisabledByActiveSubscription
+                  ? 'cursor-not-allowed bg-gray-200 text-gray-500'
+                  : plan.popular
+                    ? 'bg-gradient-to-r from-teal-400 to-teal-500 text-white hover:from-teal-500 hover:to-teal-600'
+                    : 'bg-black text-white hover:bg-gray-800',
+              ]"
+            >
+              {{
+                plan.isCurrentSubscription
+                  ? '当前计划'
+                  : plan.isDisabledByActiveSubscription
+                    ? '订阅生效中'
+                    : '购买'
+              }}
             </button>
 
             <!-- Features -->
