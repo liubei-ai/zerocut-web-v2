@@ -996,7 +996,6 @@ const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
          aspect_ratio: params.aspectRatio,
          resolution: params.resolution,
          duration: params.duration,
-         referenceMode: params.referenceMode,
          images: images.length > 0 ? images : undefined,
          videos: videos.length > 0 ? videos : undefined,
          audios: audios.length > 0 ? audios : undefined,
