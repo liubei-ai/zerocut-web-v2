@@ -537,6 +537,7 @@ defineExpose({
   firstFrameImage,
   lastFrameImage,
   focus: () => textareaRef.value?.focus(),
+  handleFilePickClick,
 });
 </script>
 
@@ -859,9 +860,8 @@ defineExpose({
       </DropdownMenuRoot>
     </div>
 
-    <!-- Hidden file input (only for Home.vue with allowFilePick) -->
+    <!-- Hidden file input -->
     <input
-      v-if="allowFilePick"
       ref="fileInputRef"
       type="file"
       @change="handleFileChange"
