@@ -101,11 +101,32 @@ const shouldAllowFilePick = computed(() => {
   if (selectedMode.value !== 'free_creation') {
     return true;
   }
-  return freeCreationMode.value === 'video_generation';
+  return freeCreationMode.value === 'video_generation' || freeCreationMode.value === 'agent' || freeCreationMode.value === 'image_generation';
 });
 
 const shouldShowAtButton = computed(() => {
   return true;
+});
+
+const acceptFileTypes = computed(() => {
+  if (selectedMode.value === 'free_creation' && freeCreationMode.value === 'image_generation') {
+    return 'image/*';
+  }
+  return 'image/*,video/*,audio/*';
+});
+
+const addButtonText = computed(() => {
+  if (selectedMode.value === 'free_creation' && freeCreationMode.value === 'image_generation') {
+    return '添加参考';
+  }
+  return '添加参考';
+});
+
+const addButtonSubtext = computed(() => {
+  if (selectedMode.value === 'free_creation' && freeCreationMode.value === 'image_generation') {
+    return '仅支持图片';
+  }
+  return '图片/视频/音频';
 });
 
 const modes = [
@@ -516,6 +537,9 @@ const loadSystemConfig = async () => {
               :show-mode-selector="true"
               :enable-first-last-frame="shouldAllowFilePick"
               :first-last-frame-mode="videoReferenceMode"
+              :accept="acceptFileTypes"
+              :add-button-text="addButtonText"
+              :add-button-subtext="addButtonSubtext"
               @files-change="handleFilesChange"
               @first-frame-change="firstFrameImage = $event"
               @last-frame-change="lastFrameImage = $event"
@@ -963,14 +987,14 @@ const loadSystemConfig = async () => {
                       </button>
 
                       <!-- File Pick Button -->
-                      <button
+                      <!-- <button
                         v-show="shouldShowAttachmentButton"
                         @click="onFilePickClick"
                         class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-base text-gray-500 transition-all hover:bg-gray-50"
                         title="选择文件"
                       >
                         📎
-                      </button>
+                      </button> -->
                     </div>
 
                     <!-- Right side: Credits and Submit button -->

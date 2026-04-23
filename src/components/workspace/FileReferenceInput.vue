@@ -32,6 +32,9 @@ interface Props {
   showModeSelector?: boolean;
   enableFirstLastFrame?: boolean;
   firstLastFrameMode?: 'reference' | 'first_last_frame';
+  accept?: string;
+  addButtonText?: string;
+  addButtonSubtext?: string;
 }
 
 interface Slots {
@@ -55,6 +58,9 @@ const props = withDefaults(defineProps<Props>(), {
   showModeSelector: false,
   enableFirstLastFrame: false,
   firstLastFrameMode: 'reference',
+  accept: 'image/*,video/*,audio/*',
+  addButtonText: '添加参考',
+  addButtonSubtext: '图片/视频/音频',
 });
 
 interface Emits {
@@ -722,8 +728,8 @@ defineExpose({
           >
             <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
               <div class="text-xl mb-0.5">➕</div>
-              <div class="text-[10px] font-medium">添加参考</div>
-              <div class="text-[8px] mt-0.5">图片/视频/音频</div>
+              <div class="text-[10px] font-medium">{{ addButtonText }}</div>
+              <div class="text-[8px] mt-0.5">{{ addButtonSubtext }}</div>
             </div>
           </div>
         </div>
@@ -866,7 +872,7 @@ defineExpose({
       type="file"
       @change="handleFileChange"
       class="hidden"
-      accept="image/*,video/*,audio/*"
+      :accept="accept"
       multiple
     />
 
