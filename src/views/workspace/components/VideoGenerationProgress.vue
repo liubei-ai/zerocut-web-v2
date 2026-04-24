@@ -91,13 +91,13 @@ const statusSub = computed(() => {
         </div>
       </div>
 
-      <!-- Cancel -->
-      <button
+      <!-- Cancel Hide it for now -->
+      <!-- <button
         @click="emit('cancel')"
         class="relative z-10 mt-2 rounded-lg border border-gray-200 px-5 py-2 text-sm text-gray-500 transition-colors hover:border-gray-400 hover:text-gray-700"
       >
         取消生成
-      </button>
+      </button> -->
     </div>
 
     <!-- SUCCESS state -->
