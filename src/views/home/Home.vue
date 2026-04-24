@@ -297,20 +297,15 @@ const handleSubmit = () => {
     authStore.openLoginModal();
     return;
   }
-
   // Check if user has enough credits for video generation
   if (
-    selectedMode.value === 'free_creation' &&
-    freeCreationMode.value === 'video_generation' &&
     creditsStore.creditsBalance !== null &&
     creditsNeeded.value !== null &&
     creditsNeeded.value > 0 &&
     creditsNeeded.value > creditsStore.creditsBalance.valueOf()
   ) {
     toast.error(`积分不足！需要 ${creditsNeeded.value} 积分，当前余额 ${creditsStore.creditsBalance} 积分`, '积分不足');
-    if (debugStore.isDebugMode) {
-      membershipModalStore.openMembershipModal();
-    }
+    membershipModalStore.openMembershipModal();
     return;
   }
 

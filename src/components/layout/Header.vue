@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useCreditsStore } from '@/stores/creditsStore';
 import { useMembershipModalStore } from '@/stores/membershipModalStore';
 import { useDebugStore } from '@/stores/debugStore';
+import { getCurrentSubscription, type SubscriptionDetails } from '@/api/membershipApi';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 
@@ -14,6 +15,37 @@ const membershipModalStore = useMembershipModalStore();
 const debugStore = useDebugStore();
 const showUserMenu = ref(false);
 const userMenuRef = ref<HTMLElement | null>(null);
+const currentSubscription = ref<SubscriptionDetails | null>(null);
+
+const hasActiveSubscription = computed(() => {
+  return currentSubscription.value?.status === 'active';
+});
+
+const loadSubscriptionInfo = async () => {
+  if (!authStore.isAuthenticated) return;
+  const workspaceId = authStore.currentWorkspaceId || '';
+  if (!workspaceId) return;
+
+  try {
+    currentSubscription.value = await getCurrentSubscription(workspaceId);
+  } catch (error) {
+    console.error('Failed to load subscription info:', error);
+    currentSubscription.value = null;
+  }
+};
+
+watch(
+  () => authStore.isAuthenticated,
+  isAuthenticated => {
+    if (isAuthenticated) {
+      creditsStore.startCreditsUpdateTimer();
+      loadSubscriptionInfo();
+    } else {
+      creditsStore.resetCredits();
+      currentSubscription.value = null;
+    }
+  },
+);
 
 const workspaceUrl = import.meta.env.VITE_WORKSPACE_URL;
 
@@ -55,24 +87,13 @@ const handleClickOutside = (event: MouseEvent) => {
   }
 };
 
-// Watch authentication state changes
-watch(
-  () => authStore.isAuthenticated,
-  isAuthenticated => {
-    if (isAuthenticated) {
-      creditsStore.startCreditsUpdateTimer();
-    } else {
-      creditsStore.resetCredits();
-    }
-  },
-);
-
 onMounted(() => {
   document.addEventListener('click', handleClickOutside);
 
   // Start wallet balance updates if user is logged in
   if (authStore.isAuthenticated) {
     creditsStore.startCreditsUpdateTimer();
+    loadSubscriptionInfo();
   }
 });
 
@@ -108,28 +129,27 @@ onUnmounted(() => {
         <template v-else>
           <!-- Show button in debug mode, link otherwise -->
           <button
-            v-if="debugStore.isDebugMode"
-            title="会员中心"
+            :title="hasActiveSubscription ? '尊贵的会员' : '会员中心'"
             @click="membershipModalStore.openMembershipModal()"
             class="flex items-center gap-2 rounded-[20px] border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2 transition-colors hover:bg-[#f3f4f6]"
           >
-            <span class="text-base">💎</span>
+            <span class="text-base">{{ hasActiveSubscription ? '👑' : '�' }}</span>
             <span class="text-sm font-semibold text-[#111827]">
               {{ creditsStore.creditsBalance || 0 }}
             </span>
           </button>
-          <a
+          <!-- <a
             v-else
-            title="剩余积分"
+            :title="hasActiveSubscription ? '尊贵的会员' : '剩余积分'"
             :href="workspaceUrl + 'membership'"
             target="_blank"
             class="flex items-center gap-2 rounded-[20px] border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2"
           >
-            <span class="text-base">💎</span>
+            <span class="text-base">{{ hasActiveSubscription ? '👑' : '💎' }}</span>
             <span class="text-sm font-semibold text-[#111827]">
               {{ creditsStore.creditsBalance || 0 }}
             </span>
-          </a>
+          </a> -->
 
           <!-- <Button size="sm" class="bg-[#111827] text-white hover:bg-black rounded-[20px] px-4 py-2 text-sm font-medium">
             升级
