@@ -32,7 +32,7 @@ export const videoModels: VideoModelItem[] = [
   { id: 'zerocut3.0-pro', label: 'ZeroCut 3.0 Pro', description: 'ZeroCut 专业版', priceId: 'zerocut3.0-pro' },
   { id: 'zerocut3.0-pro-fast', label: 'ZeroCut 3.0 Pro Fast', description: 'ZeroCut 专业快速', priceId: 'zerocut3.0-pro-fast' },
   { id: 'zerocut3.0-turbo', label: 'ZeroCut 3.0 Turbo', description: 'ZeroCut 性价比之王', priceId: 'zerocut3.0-turbo' },
-  { id: 'HappyHorse', label: 'HappyHorse', description: '阿里快乐马', priceId: 'happyhorse', isNew: true },
+  { id: 'happyhorse', label: 'HappyHorse', description: '阿里快乐马', priceId: 'happyhorse', isNew: true },
 ];
 
 export const videoDurations: VideoDurationItem[] = [
