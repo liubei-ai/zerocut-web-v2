@@ -488,8 +488,11 @@ const handleFileChange = async (e: Event) => {
     }
   }
 
-  selectedFiles.value.push(...filesToAdd);
-  emit('files-change', selectedFiles.value);
+  // Only emit files-change if files were actually added
+  if (filesToAdd.length > 0) {
+    selectedFiles.value.push(...filesToAdd);
+    emit('files-change', selectedFiles.value);
+  }
 
   // Show feedback messages
   if (duplicateCount > 0) {

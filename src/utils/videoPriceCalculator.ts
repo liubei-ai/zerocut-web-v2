@@ -28,10 +28,16 @@ export async function calculateVideoCredits(
   resolution: string,
   priceConfig: PriceConfigItem[] | null,
   videoModels: VideoModelItem[],
+  inputVideoDuration?: number,
 ): Promise<number> {
   const currentModelInfo = videoModels.find(m => m.id === modelId);
   const targetPriceId = currentModelInfo?.priceId || 'zerocut3.0';
-  const apiUrl = `https://sd2mfo025ni4n75n9r5p0.apigateway-cn-beijing.volceapi.com/models/pricing?model=${encodeURIComponent(targetPriceId)}&duration=${durationSeconds}&resolution=${encodeURIComponent(resolution)}`;
+  
+  let apiUrl = `https://sd2mfo025ni4n75n9r5p0.apigateway-cn-beijing.volceapi.com/models/pricing?model=${encodeURIComponent(targetPriceId)}&duration=${durationSeconds}&resolution=${encodeURIComponent(resolution)}`;
+  
+  if (modelId === 'seedance-2.0' && inputVideoDuration !== undefined && inputVideoDuration > 0) {
+    apiUrl += `&input_video_duration=${inputVideoDuration}`;
+  }
 
   const response = await fetch(apiUrl);
   if (!response.ok) {

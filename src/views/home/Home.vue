@@ -289,6 +289,13 @@ const currentPlaceholder = computed(() => {
 
 const handleFilesChange = (files: FilePreview[]) => {
   selectedFiles.value = files;
+  updateCreditsNeeded();
+};
+
+const getInputVideoDuration = () => {
+  return selectedFiles.value
+    .filter(f => f.type === 'video')
+    .reduce((sum, file) => sum + (file.duration || 0), 0);
 };
 
 const handleSubmit = () => {
@@ -456,7 +463,8 @@ const updateCreditsNeeded = async () => {
 
   try {
     const durationSeconds = parseInt(videoDuration.value);
-    creditsNeeded.value = await calculateVideoCredits(videoModel.value, durationSeconds, videoResolution.value, priceConfig.value, videoModels);
+    const inputVideoDuration = getInputVideoDuration();
+    creditsNeeded.value = await calculateVideoCredits(videoModel.value, durationSeconds, videoResolution.value, priceConfig.value, videoModels, inputVideoDuration);
   } catch (error) {
     creditsError.value = error instanceof Error ? error.message : '获取价格失败';
     creditsNeeded.value = null;

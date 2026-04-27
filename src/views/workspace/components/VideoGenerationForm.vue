@@ -100,6 +100,13 @@ const selectResolution = (res: '720p' | '1080p') => {
 
 const handleFilesChange = (files: FilePreview[]) => {
   selectedFiles.value = files;
+  updateCreditsNeeded();
+};
+
+const getInputVideoDuration = () => {
+  return selectedFiles.value
+    .filter(f => f.type === 'video')
+    .reduce((sum, file) => sum + (file.duration || 0), 0);
 };
 
 const placeholderText = computed(() => {
@@ -119,7 +126,8 @@ const updateCreditsNeeded = async () => {
   creditsNeeded.value = null;
 
   try {
-    creditsNeeded.value = await calculateVideoCredits(model.value, duration.value, resolution.value, props.priceConfig || null, videoModels);
+    const inputVideoDuration = getInputVideoDuration();
+    creditsNeeded.value = await calculateVideoCredits(model.value, duration.value, resolution.value, props.priceConfig || null, videoModels, inputVideoDuration);
   } catch (error) {
     creditsError.value = error instanceof Error ? error.message : '获取价格失败';
     creditsNeeded.value = null;
