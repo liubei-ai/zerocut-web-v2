@@ -794,7 +794,10 @@ const loadSystemConfig = async () => {
                                 videoModel === model.id ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]',
                               ]"
                             >
-                              <span class="text-sm font-medium text-[#111827]">{{ model.label }}</span>
+                              <div class="flex items-center gap-2">
+                                <span class="text-sm font-medium text-[#111827]">{{ model.label }}</span>
+                                <span v-if="model.isNew" class="new-tag-swing shrink-0 rounded-full bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-600">New</span>
+                              </div>
                               <span class="text-xs text-[#9ca3af]">{{ model.description }}</span>
                             </Button>
                           </div>
@@ -1125,3 +1128,22 @@ const loadSystemConfig = async () => {
     <ProjectGrid :is-in-home-page="true" v-if="authStore.isAuthenticated" />
   </MainLayout>
 </template>
+
+<style scoped>
+@keyframes swing {
+  0%, 100% { transform: rotate(0deg); }
+  10% { transform: rotate(-10deg); }
+  20% { transform: rotate(10deg); }
+  30% { transform: rotate(-8deg); }
+  40% { transform: rotate(8deg); }
+  50% { transform: rotate(-6deg); }
+  60% { transform: rotate(6deg); }
+  70% { transform: rotate(-4deg); }
+  80% { transform: rotate(4deg); }
+  90% { transform: rotate(-2deg); }
+}
+
+.new-tag-swing {
+  animation: swing 1s ease-in-out 1;
+}
+</style>

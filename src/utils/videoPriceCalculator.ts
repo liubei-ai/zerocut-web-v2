@@ -35,7 +35,7 @@ export async function calculateVideoCredits(
   
   let apiUrl = `https://sd2mfo025ni4n75n9r5p0.apigateway-cn-beijing.volceapi.com/models/pricing?model=${encodeURIComponent(targetPriceId)}&duration=${durationSeconds}&resolution=${encodeURIComponent(resolution)}`;
   
-  if (modelId === 'seedance-2.0' && inputVideoDuration !== undefined && inputVideoDuration > 0) {
+  if (inputVideoDuration !== undefined && inputVideoDuration > 0) {
     apiUrl += `&input_video_duration=${inputVideoDuration}`;
   }
 

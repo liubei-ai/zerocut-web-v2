@@ -481,8 +481,11 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
             >
               <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-bold"
                 :class="model === m.id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'">AI</span>
-              <div>
-                <div class="text-sm font-medium text-gray-900">{{ m.label }}</div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-medium text-gray-900">{{ m.label }}</span>
+                  <span v-if="m.isNew" class="new-tag-swing shrink-0 rounded-full bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-600">New</span>
+                </div>
                 <div class="text-xs text-gray-400">{{ m.description }}</div>
               </div>
               <svg v-if="model === m.id" class="ml-auto h-4 w-4 text-gray-900" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -529,3 +532,22 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
 
   </div>
 </template>
+
+<style scoped>
+@keyframes swing {
+  0%, 100% { transform: rotate(0deg); }
+  10% { transform: rotate(-10deg); }
+  20% { transform: rotate(10deg); }
+  30% { transform: rotate(-8deg); }
+  40% { transform: rotate(8deg); }
+  50% { transform: rotate(-6deg); }
+  60% { transform: rotate(6deg); }
+  70% { transform: rotate(-4deg); }
+  80% { transform: rotate(4deg); }
+  90% { transform: rotate(-2deg); }
+}
+
+.new-tag-swing {
+  animation: swing 1s ease-in-out 1;
+}
+</style>
