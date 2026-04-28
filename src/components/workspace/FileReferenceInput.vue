@@ -88,7 +88,7 @@ const reindexFiles = () => {
 
   selectedFiles.value.forEach(file => {
     if (file.duration) {
-      totalVideoDuration += file.duration;
+      totalVideoDuration += Math.round(file.duration);
     }
   });
   
@@ -368,7 +368,7 @@ const handleFileChange = async (e: Event) => {
   let currentVideoCount = selectedFiles.value.filter(f => f.type === 'video').length;
   let totalVideoDuration = selectedFiles.value
     .filter(f => f.type === 'video')
-    .reduce((sum, file) => sum + (file.duration || 0), 0);
+    .reduce((sum, file) => sum + Math.round(file.duration || 0), 0);
 
   const imageCount = selectedFiles.value.filter(f => f.type === 'image').length;
   const videoCount = selectedFiles.value.filter(f => f.type === 'video').length;
@@ -406,21 +406,22 @@ const handleFileChange = async (e: Event) => {
       }
 
       const duration = await checkVideoDuration(file);
-      if (duration < MIN_VIDEO_DURATION || duration > MAX_VIDEO_DURATION) {
+      const roundedDuration = Math.round(duration);
+      if (roundedDuration < MIN_VIDEO_DURATION || roundedDuration > MAX_VIDEO_DURATION) {
         console.log(duration, MAX_VIDEO_DURATION);
-        toast.error(`视频时长 ${duration} 秒不符合要求，单个视频需要 ${MIN_VIDEO_DURATION}～${MAX_VIDEO_DURATION} 秒`);
+        toast.error(`视频时长 ${roundedDuration} 秒不符合要求，单个视频需要 ${MIN_VIDEO_DURATION}～${MAX_VIDEO_DURATION} 秒`);
         invalidDurationCount++;
         continue;
       }
 
-      if (totalVideoDuration + duration > MAX_VIDEO_TOTAL_DURATION) {
-        toast.error(`添加此视频后总时长 ${(totalVideoDuration + duration).toFixed(1)} 秒超过限制，总时长不能超过 ${MAX_VIDEO_TOTAL_DURATION} 秒`);
+      if (totalVideoDuration + roundedDuration > MAX_VIDEO_TOTAL_DURATION) {
+        toast.error(`添加此视频后总时长 ${totalVideoDuration + roundedDuration} 秒超过限制，总时长不能超过 ${MAX_VIDEO_TOTAL_DURATION} 秒`);
         invalidDurationCount++;
         continue;
       }
 
       currentVideoCount++;
-      totalVideoDuration += duration;
+      totalVideoDuration += roundedDuration;
 
       const renamedName = generateFileName(file.name, fileType, videoCount + filesToAdd.filter(f => f.type === 'video').length);
 
@@ -430,7 +431,7 @@ const handleFileChange = async (e: Event) => {
         type: fileType,
         url: URL.createObjectURL(file),
         file,
-        duration,
+        duration: roundedDuration,
       };
 
       filesToAdd.push(filePreview);
@@ -443,13 +444,14 @@ const handleFileChange = async (e: Event) => {
       }
 
       const duration = await checkVideoDuration(file);
-      if (totalVideoDuration + duration > MAX_VIDEO_TOTAL_DURATION) {
-        toast.error(`添加此音频后总时长 ${(totalVideoDuration + duration).toFixed(1)} 秒超过限制，总时长不能超过 ${MAX_VIDEO_TOTAL_DURATION} 秒`);
+      const roundedDuration = Math.round(duration);
+      if (totalVideoDuration + roundedDuration > MAX_VIDEO_TOTAL_DURATION) {
+        toast.error(`添加此音频后总时长 ${totalVideoDuration + roundedDuration} 秒超过限制，总时长不能超过 ${MAX_VIDEO_TOTAL_DURATION} 秒`);
         invalidDurationCount++;
         continue;
       }
 
-      totalVideoDuration += duration;
+      totalVideoDuration += roundedDuration;
 
       const renamedName = generateFileName(file.name, fileType, audioCount + filesToAdd.filter(f => f.type === 'audio').length);
 
@@ -459,7 +461,7 @@ const handleFileChange = async (e: Event) => {
         type: fileType,
         url: URL.createObjectURL(file),
         file,
-        duration,
+        duration: roundedDuration,
       };
 
       filesToAdd.push(filePreview);

@@ -18,8 +18,8 @@ export interface ProjectFileReference {
 export const MAX_FILES = 6;
 export const MAX_VIDEO_TOTAL_DURATION = 15;
 export const MAX_VIDEO_COUNT = 3;
-export const MIN_VIDEO_DURATION = 3;
-export const MAX_VIDEO_DURATION = 10;
+export const MIN_VIDEO_DURATION = 2;
+export const MAX_VIDEO_DURATION = 15;
 export const MAX_FILE_SIZE = 200 * 1024 * 1024;
 
 export function checkVideoDuration(file: File): Promise<number> {
@@ -139,9 +139,11 @@ export async function processFiles(
     }
 
     let duration: number | undefined;
+    let roundedDuration: number | undefined;
     if (fileType === 'video' && includeDurationCheck) {
       duration = await checkVideoDuration(file);
-      if (duration < MIN_VIDEO_DURATION || duration > MAX_VIDEO_DURATION) {
+      roundedDuration = Math.round(duration);
+      if (roundedDuration < MIN_VIDEO_DURATION || roundedDuration > MAX_VIDEO_DURATION) {
         result.invalidDurationCount++;
         continue;
       }
@@ -158,7 +160,7 @@ export async function processFiles(
       type: fileType,
       url: URL.createObjectURL(file),
       file,
-      duration,
+      duration: roundedDuration,
     };
 
     result.filesToAdd.push(filePreview);
