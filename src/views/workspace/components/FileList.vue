@@ -84,7 +84,7 @@ const handleFileUpload = () => {
 const onFileChange = (e: Event) => {
   if (!props.projectId) return;
   
-  handleFileChange(e, props.projectId, () => {
+  handleFileChange(e, props.projectId, props.files, () => {
     // Notify parent to refresh the file list
     emit('file-uploaded');
   });
