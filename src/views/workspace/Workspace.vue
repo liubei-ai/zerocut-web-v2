@@ -405,9 +405,9 @@ const handleSendMessage = async (content: string) => {
           // Import the upload function
           const { uploadMaterial } = await import('@/api/videoProjectApi');
 
-          // Upload each file
+          // Upload each file with renamed name
           for (const filePreview of initialFiles.value) {
-            await uploadMaterial(projectId.value, filePreview.file);
+            await uploadMaterial(projectId.value, filePreview.file, filePreview.name);
           }
 
           // Refresh file list

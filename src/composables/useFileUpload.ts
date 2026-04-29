@@ -1,6 +1,7 @@
 import { ref, type Ref } from 'vue';
 import { uploadMaterial } from '@/api/videoProjectApi';
 import { useToast } from '@/composables/useToast';
+import { generateFileName } from '@/types/fileReference';
 
 export function useFileUpload(
   isUploading: Ref<boolean>,
@@ -27,6 +28,7 @@ export function useFileUpload(
   const handleFileChange = async (
     e: Event,
     projectId: string | number,
+    existingFiles: Array<{ file_name: string; file_type?: string }> = [],
     onSuccess?: () => void
   ) => {
     const target = e.target as HTMLInputElement;
@@ -39,17 +41,28 @@ export function useFileUpload(
     try {
       onUploadStart?.();
 
-      await uploadMaterial(projectId, file);
+      const fileType = file.type.startsWith('image/') ? 'image' :
+        file.type.startsWith('video/') ? 'video' :
+        file.type.startsWith('audio/') ? 'audio' : 'other';
+
+      const existingCount = existingFiles.filter(f => {
+        if (fileType === 'image' && f.file_type === 'image') return true;
+        if (fileType === 'video' && f.file_type === 'video') return true;
+        if (fileType === 'audio' && f.file_type === 'audio') return true;
+        return false;
+      }).length;
+
+      const renamedName = generateFileName(file.name, fileType, existingCount);
+
+      await uploadMaterial(projectId, file, renamedName);
 
       toast({
         title: '上传成功',
-        description: `文件 ${file.name} 已上传`,
+        description: `文件 ${renamedName} 已上传`,
       });
 
-      // Call success callback if provided
       onSuccess?.();
 
-      // Clear the input so the same file can be uploaded again if needed
       if (target) {
         target.value = '';
       }
