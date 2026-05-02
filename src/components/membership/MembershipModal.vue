@@ -113,9 +113,12 @@ const plans = computed(() => {
 
   return sorted.map(plan => {
     const isYearly = plan.purchaseMode === 'one_time_year' || plan.purchaseMode === 'auto_yearly';
-    const monthlyPrice = isYearly ? (plan.priceYuan / 12).toFixed(2) : plan.priceYuan;
-    const pricePerCredit = (plan.unitPriceYuanPer100 / 100).toFixed(4);
-    const discount = plan.discountZhe > 0 && plan.discountZhe < 10 ? `${plan.discountZhe.toFixed(1)}折` : '';
+    const priceYuanNum = Number(plan.priceYuan);
+    const unitPriceYuanPer100Num = Number(plan.unitPriceYuanPer100);
+    const discountZheNum = Number(plan.discountZhe);
+    const monthlyPrice = isYearly ? (priceYuanNum / 12).toFixed(2) : priceYuanNum.toString();
+    const pricePerCredit = (unitPriceYuanPer100Num / 100).toFixed(4);
+    const discount = discountZheNum > 0 && discountZheNum < 10 ? `${discountZheNum.toFixed(1)}折` : '';
 
     const tierNames = { basic: '基础会员', standard: '标准会员', premium: '高级会员' };
     const icons = { basic: Sparkles, standard: Crown, premium: Gem };
@@ -124,7 +127,7 @@ const plans = computed(() => {
       .sort((a, b) => (a.order || 0) - (b.order || 0))
       .map(f => f.label || featureTranslations[f.i18nKey] || f.key);
 
-    const creditsText = `每月${plan.monthlyCredits.toLocaleString()}积分`;
+    const creditsText = `每月${Number(plan.monthlyCredits).toLocaleString()}积分`;
     const allFeatures = [creditsText, ...features];
 
     const firstMonthPriceYuan =

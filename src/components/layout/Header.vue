@@ -133,7 +133,7 @@ onUnmounted(() => {
             @click="membershipModalStore.openMembershipModal()"
             class="flex items-center gap-2 rounded-[20px] border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2 transition-colors hover:bg-[#f3f4f6]"
           >
-            <span class="text-base">{{ hasActiveSubscription ? '👑' : '�' }}</span>
+            <span class="text-base">{{ hasActiveSubscription ? '👑' : '💎' }}</span>
             <span class="text-sm font-semibold text-[#111827]">
               {{ creditsStore.creditsBalance || 0 }}
             </span>

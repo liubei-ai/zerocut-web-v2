@@ -6,16 +6,19 @@ export interface MembershipPlanDto {
   tier: 'basic' | 'standard' | 'premium';
   purchaseMode: 'auto_monthly' | 'auto_yearly' | 'one_time_month' | 'one_time_year';
   priceCents: number;
-  priceYuan: number;
+  priceYuan: string;
   currency: string;
-  monthlyCredits: number;
-  discountZhe: number;
-  unitPriceYuanPer100: number;
-  baseUnitPriceYuanPer100: number;
+  monthlyCredits: string;
+  discountZhe: string;
+  unitPriceYuanPer100: string;
+  baseUnitPriceYuanPer100: string;
   billingIntervalMonths: number;
   isActive: boolean;
   wechatPapayPlanId?: string;
   firstMonthPriceCents?: number | null;
+  firstMonthPriceYuan?: string;
+  monthlyEquivalentYuan?: string;
+  yearlyDiscountPercent?: number;
   features: IMembershipPlanFeature[];
 }
 
