@@ -96,7 +96,7 @@ const createPaymentOrder = async () => {
 
     const response = await purchaseOneTimeSubscription({
       planCode: props.membershipPlan.code,
-      totalAmount: props.membershipPlan.priceYuan,
+      totalAmount: Number(props.membershipPlan.priceYuan),
       workspaceId: authStore.currentWorkspaceId || ''
     });
 
