@@ -8,6 +8,8 @@ import {
   DropdownMenuPortal,
 } from 'reka-ui';
 import { useToast } from '@/composables/useToast';
+
+const { toast } = useToast();
 import type { FilePreview, ProjectFileReference } from '@/types/fileReference';
 import {
   MAX_FILES,
