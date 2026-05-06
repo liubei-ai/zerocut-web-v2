@@ -1,5 +1,5 @@
 <template>
-  <div class="mx-auto max-w-7xl px-4 pb-15 sm:px-15 lg:px-20">
+  <div class="mx-auto max-w-7xl pb-15">
     <div v-if="isInHomePage" class="mb-8 flex items-center justify-between">
       <h2 class="text-3xl font-bold text-gray-900">我的创作</h2>
       <div class="flex gap-3">
@@ -120,6 +120,19 @@
           </button>
         </div>
       </div>
+    </div>
+
+    <!-- View All Projects Button (only show on home page and when there are projects) -->
+    <div v-if="isInHomePage && projects.length > 0" class="mt-8 flex justify-center">
+      <button
+        class="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-600 transition-all duration-200 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900"
+        @click="goToAllProjects"
+      >
+        <span>查看全部项目</span>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m9 18 6-6-6-6" />
+        </svg>
+      </button>
     </div>
 
     <!-- Loading More Indicator -->

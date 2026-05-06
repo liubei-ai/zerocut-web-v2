@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useCreditsStore } from '@/stores/creditsStore';
 import FileReferenceInput from '@/components/workspace/FileReferenceInput.vue';
 import type { VideoWorkflowImage, VideoWorkflowVideo, VideoWorkflowAudio } from '@/api/videoWorkflowApi';
-import type { FilePreview } from '@/types/fileReference';
+import type { FilePreview, ProjectFileReference } from '@/types/fileReference';
 import { MAX_FILES } from '@/types/fileReference';
 
 export interface VideoGenerationParams {
@@ -32,6 +32,7 @@ interface Props {
   initialReferenceMode?: 'reference' | 'first_last_frame';
   priceConfig?: any;
   initialFiles?: FilePreview[];
+  projectFiles?: ProjectFileReference[];
 }
 
 interface Emits {
@@ -245,6 +246,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
             :textarea-class="'w-full min-h-[100px] text-sm leading-[1.6] bg-transparent border-0 outline-0 focus-visible:ring-0'"
             :enable-first-last-frame="true"
             :first-last-frame-mode="referenceMode"
+            :project-files="projectFiles"
             @files-change="handleFilesChange"
             @first-frame-change="firstFrameImage = $event"
             @last-frame-change="lastFrameImage = $event"

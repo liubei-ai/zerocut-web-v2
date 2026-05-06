@@ -1,7 +1,7 @@
 import { ref, type Ref } from 'vue';
 import { uploadMaterial } from '@/api/videoProjectApi';
 import { useToast } from '@/composables/useToast';
-import { generateFileName } from '@/types/fileReference';
+import { generateFileName, removeFileExtension } from '@/utils/fileUtils';
 
 export function useFileUpload(
   isUploading: Ref<boolean>,
@@ -45,6 +45,12 @@ export function useFileUpload(
         file.type.startsWith('video/') ? 'video' :
         file.type.startsWith('audio/') ? 'audio' : 'other';
 
+      const existingNames: string[] = [];
+      existingFiles.forEach(f => {
+        existingNames.push(f.file_name);
+        existingNames.push(removeFileExtension(f.file_name));
+      });
+
       const existingCount = existingFiles.filter(f => {
         if (fileType === 'image' && f.file_type === 'image') return true;
         if (fileType === 'video' && f.file_type === 'video') return true;
@@ -52,7 +58,7 @@ export function useFileUpload(
         return false;
       }).length;
 
-      const renamedName = generateFileName(file.name, fileType, existingCount);
+      const renamedName = generateFileName(file.name, fileType, existingCount, existingNames);
 
       await uploadMaterial(projectId, file, renamedName);
 

@@ -1125,7 +1125,9 @@ const loadSystemConfig = async () => {
     </div>
 
     <!-- Project Grid Section -->
-    <ProjectGrid :is-in-home-page="true" v-if="authStore.isAuthenticated" />
+    <div class="px-4 sm:px-20 lg:px-20">
+      <ProjectGrid :is-in-home-page="true" v-if="authStore.isAuthenticated" />
+    </div>
   </MainLayout>
 </template>
 

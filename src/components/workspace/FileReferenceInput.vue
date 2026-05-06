@@ -16,11 +16,14 @@ import {
   MIN_VIDEO_DURATION,
   MAX_VIDEO_DURATION,
   MAX_FILE_SIZE,
+} from '@/types/fileReference';
+import {
   checkVideoDuration,
   getFileType,
   getFileIcon,
   generateFileName,
-} from '@/types/fileReference';
+  removeFileExtension,
+} from '@/utils/fileUtils';
 
 interface Props {
   modelValue: string;
@@ -129,7 +132,7 @@ const handleFrameImageChange = (position: 'first' | 'last', event: Event) => {
 
   const imageCount = selectedFiles.value.filter(f => f.type === 'image').length +
     (firstFrameImage.value ? 1 : 0) + (lastFrameImage.value ? 1 : 0);
-  const renamedName = generateFileName(file.name, 'image', imageCount);
+  const renamedName = generateFileName(file.name, 'image', imageCount, existingFileNames.value);
 
   const filePreview: FilePreview = {
     id: `${position}_frame_${Date.now()}`,
@@ -282,6 +285,8 @@ const handleInput = (e: Event) => {
 const insertMention = (name: string) => {
   if (!textareaRef.value) return;
 
+  const displayName = removeFileExtension(name);
+
   const position = textareaRef.value.selectionStart || 0;
   const textBeforeCursor = inputValue.value.substring(0, position);
   const lastAtIndex = textBeforeCursor.lastIndexOf('@');
@@ -289,11 +294,11 @@ const insertMention = (name: string) => {
   if (lastAtIndex !== -1) {
     const beforeAt = inputValue.value.substring(0, lastAtIndex);
     const afterCursor = inputValue.value.substring(position);
-    inputValue.value = beforeAt + name + ' ' + afterCursor;
+    inputValue.value = beforeAt + displayName + ' ' + afterCursor;
 
     nextTick(() => {
       if (textareaRef.value) {
-        const newPosition = beforeAt.length + name.length + 1;
+        const newPosition = beforeAt.length + displayName.length + 1;
         textareaRef.value.selectionStart = newPosition;
         textareaRef.value.selectionEnd = newPosition;
         textareaRef.value.focus();
@@ -302,11 +307,11 @@ const insertMention = (name: string) => {
   } else {
     const beforeCursor = inputValue.value.substring(0, position);
     const afterCursor = inputValue.value.substring(position);
-    inputValue.value = beforeCursor + name + ' ' + afterCursor;
+    inputValue.value = beforeCursor + displayName + ' ' + afterCursor;
 
     nextTick(() => {
       if (textareaRef.value) {
-        const newPosition = beforeCursor.length + name.length + 1;
+        const newPosition = beforeCursor.length + displayName.length + 1;
         textareaRef.value.selectionStart = newPosition;
         textareaRef.value.selectionEnd = newPosition;
         textareaRef.value.focus();
@@ -423,7 +428,7 @@ const handleFileChange = async (e: Event) => {
       currentVideoCount++;
       totalVideoDuration += roundedDuration;
 
-      const renamedName = generateFileName(file.name, fileType, videoCount + filesToAdd.filter(f => f.type === 'video').length);
+      const renamedName = generateFileName(file.name, fileType, videoCount + filesToAdd.filter(f => f.type === 'video').length, existingFileNames.value);
 
       const filePreview: FilePreview = {
         id: `file-${Date.now()}-${Math.random()}`,
@@ -453,7 +458,7 @@ const handleFileChange = async (e: Event) => {
 
       totalVideoDuration += roundedDuration;
 
-      const renamedName = generateFileName(file.name, fileType, audioCount + filesToAdd.filter(f => f.type === 'audio').length);
+      const renamedName = generateFileName(file.name, fileType, audioCount + filesToAdd.filter(f => f.type === 'audio').length, existingFileNames.value);
 
       const filePreview: FilePreview = {
         id: `file-${Date.now()}-${Math.random()}`,
@@ -475,7 +480,7 @@ const handleFileChange = async (e: Event) => {
 
       let renamedName = file.name;
       if (fileType === 'image') {
-        renamedName = generateFileName(file.name, fileType, imageCount + filesToAdd.filter(f => f.type === 'image').length);
+        renamedName = generateFileName(file.name, fileType, imageCount + filesToAdd.filter(f => f.type === 'image').length, existingFileNames.value);
       }
 
       const filePreview: FilePreview = {
@@ -511,6 +516,22 @@ const handleFileChange = async (e: Event) => {
 
   reindexFiles();
 };
+
+const existingFileNames = computed(() => {
+  const names: string[] = [];
+  props.projectFiles.forEach(f => {
+    names.push(f.file_name);
+    names.push(removeFileExtension(f.file_name));
+  });
+  selectedFiles.value.forEach(f => names.push(f.name));
+  if (firstFrameImage.value) {
+    names.push(firstFrameImage.value.name);
+  }
+  if (lastFrameImage.value) {
+    names.push(lastFrameImage.value.name);
+  }
+  return names;
+});
 
 const visibleFiles = computed(() => {
   if (props.enableFirstLastFrame && props.firstLastFrameMode === 'first_last_frame') {
@@ -760,7 +781,7 @@ defineExpose({
             :align-offset="0"
             :collision-padding="10"
           >
-            <!-- Project Files (for ChatBox.vue) -->
+            <!-- Project Files -->
             <template v-if="projectFiles && projectFiles.length > 0">
               <DropdownMenuItem
                 v-for="file in projectFiles"
@@ -781,15 +802,15 @@ defineExpose({
                   >
                     {{ getFileIcon(file.file_type) }}
                   </div>
-                  <div class="truncate" :title="file.file_name">
-                    {{ file.file_name }}
+                  <div class="truncate" :title="removeFileExtension(file.file_name)">
+                    {{ removeFileExtension(file.file_name) }}
                   </div>
                 </div>
               </DropdownMenuItem>
             </template>
 
             <!-- Local Files (for Home.vue with allowFilePick) -->
-            <template v-else-if="allowFilePick">
+            <template v-if="allowFilePick">
               <!-- First frame image -->
               <DropdownMenuItem
                 v-if="firstFrameImage"

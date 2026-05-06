@@ -33,6 +33,7 @@ import { useToast } from '@/composables/useToast';
 import { getSystemConfig } from '@/api/systemApi';
 import { videoModels } from '@/config/videoGeneration';
 import type { FilePreview } from '@/types/fileReference';
+import { getReferencedFiles } from '@/utils/fileUtils';
 
 export interface WorkspaceFile {
   id: string;
@@ -396,8 +397,9 @@ const handleSendMessage = async (content: string) => {
 
       console.log('✅ 项目创建成功:', projectData);
 
-      // Upload files if any
-      if (initialFiles.value.length > 0) {
+      // Upload referenced files if any
+      const referencedFiles = getReferencedFiles(initialUserInput.value || '', initialFiles.value);
+      if (referencedFiles.length > 0) {
         const uploadMessage = addAssistantMessage('正在上传文件...');
         isUploading.value = true;
 
@@ -405,8 +407,8 @@ const handleSendMessage = async (content: string) => {
           // Import the upload function
           const { uploadMaterial } = await import('@/api/videoProjectApi');
 
-          // Upload each file with renamed name
-          for (const filePreview of initialFiles.value) {
+          // Upload each referenced file with renamed name
+          for (const filePreview of referencedFiles) {
             await uploadMaterial(projectId.value, filePreview.file, filePreview.name);
           }
 
@@ -414,7 +416,7 @@ const handleSendMessage = async (content: string) => {
           await loadOssMapping();
 
           removeMessage(uploadMessage.id);
-          console.log('✅ 文件上传成功');
+          console.log('✅ 已引用的文件上传成功');
 
           // Clear initial files after upload
           initialFiles.value = [];
@@ -425,6 +427,10 @@ const handleSendMessage = async (content: string) => {
         } finally {
           isUploading.value = false;
         }
+      } else if (initialFiles.value.length > 0) {
+        // No referenced files, just clear the initial files
+        console.log('⚠️ 没有在prompt中引用的文件，跳过上传');
+        initialFiles.value = [];
       }
     } catch (error) {
       console.error('❌ 创建项目失败:', error);
@@ -702,12 +708,13 @@ const autoCreateProjectForVideoGeneration = async () => {
 
     console.log('✅ 视频生成项目创建成功:', projectData);
 
-    // Step 2: upload files if any and build params directly from upload response
+    // Step 2: upload referenced files if any and build params directly from upload response
     const images: VideoWorkflowImage[] = [];
     const videos: VideoWorkflowVideo[] = [];
     const audios: VideoWorkflowAudio[] = [];
 
-    if (initialFiles.value.length > 0) {
+    const referencedFiles = getReferencedFiles(initialPrompt.value || '', initialFiles.value);
+    if (referencedFiles.length > 0) {
       isUploading.value = true;
       const uploadMessage = addAssistantMessage('正在上传文件...');
 
@@ -715,8 +722,8 @@ const autoCreateProjectForVideoGeneration = async () => {
         // Import the upload function
         const { uploadMaterial } = await import('@/api/videoProjectApi');
 
-        // Upload each file with renamed name and build params directly from response
-        for (const filePreview of initialFiles.value) {
+        // Upload each referenced file with renamed name and build params directly from response
+        for (const filePreview of referencedFiles) {
           const response = await uploadMaterial(projectId.value, filePreview.file, filePreview.name);
           const uploadedUrl = response.url;
 
@@ -751,7 +758,7 @@ const autoCreateProjectForVideoGeneration = async () => {
         await loadOssMapping();
 
         removeMessage(uploadMessage.id);
-        console.log('✅ 文件上传成功');
+        console.log('✅ 已引用的文件上传成功');
 
         // Clear initial files after upload
         initialFiles.value = [];
@@ -765,6 +772,42 @@ const autoCreateProjectForVideoGeneration = async () => {
         return;
       } finally {
         isUploading.value = false;
+      }
+    } else if (initialFiles.value.length > 0) {
+      // No referenced files, just clear the initial files
+      console.log('⚠️ 没有在prompt中引用的文件，跳过上传');
+      initialFiles.value = [];
+    }
+
+    // Step 3: add referenced media from OSS files
+    const { buildReferencedMediaFromProjectFiles } = await import('@/utils/fileUtils');
+    const ossMedia = buildReferencedMediaFromProjectFiles(
+      initialPrompt.value || '',
+      files.value,
+      initialVideoReferenceMode.value
+    );
+
+    // Get uploaded file names to avoid duplicates
+    const uploadedNames = new Set([
+      ...images.map(img => img.name),
+      ...videos.map(video => video.name),
+      ...audios.map(audio => audio.name),
+    ]);
+
+    // Add OSS files that weren't just uploaded
+    for (const img of ossMedia.images) {
+      if (!uploadedNames.has(img.name)) {
+        images.push(img as VideoWorkflowImage);
+      }
+    }
+    for (const video of ossMedia.videos) {
+      if (!uploadedNames.has(video.name)) {
+        videos.push(video as VideoWorkflowVideo);
+      }
+    }
+    for (const audio of ossMedia.audios) {
+      if (!uploadedNames.has(audio.name)) {
+        audios.push(audio as VideoWorkflowAudio);
       }
     }
 
@@ -817,14 +860,27 @@ const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
     const videos: VideoWorkflowVideo[] = [];
     const audios: VideoWorkflowAudio[] = [];
 
+    // Filter files that are referenced in prompt
+    const { isFileReferencedInPrompt, removeFileExtension } = await import('@/utils/fileUtils');
+
+    const referencedImages = (params.images || []).filter(img => 
+      !img.file || isFileReferencedInPrompt(params.prompt, img.name || '')
+    );
+    const referencedVideos = (params.videos || []).filter(video => 
+      !video.file || isFileReferencedInPrompt(params.prompt, video.name || '')
+    );
+    const referencedAudios = (params.audios || []).filter(audio => 
+      !audio.file || isFileReferencedInPrompt(params.prompt, audio.name || '')
+    );
+
     let hasLocalFiles = false;
-    if (params.images && params.images.length > 0) {
+    if (referencedImages.some(img => img.file)) {
       hasLocalFiles = true;
     }
-    if (params.videos && params.videos.length > 0) {
+    if (referencedVideos.some(video => video.file)) {
       hasLocalFiles = true;
     }
-    if (params.audios && params.audios.length > 0) {
+    if (referencedAudios.some(audio => audio.file)) {
       hasLocalFiles = true;
     }
 
@@ -832,6 +888,8 @@ const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
     if (hasLocalFiles) {
       isUploading.value = true;
       uploadMessage = addAssistantMessage('正在上传文件...');
+    } else if ((params.images?.length || 0) > 0 || (params.videos?.length || 0) > 0 || (params.audios?.length || 0) > 0) {
+      console.log('⚠️ 没有在prompt中引用的本地文件，跳过上传');
     }
 
     try {
@@ -869,82 +927,108 @@ const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
         return newName;
       };
 
-      if (params.images) {
-        for (const img of params.images) {
-          let type: 'first_frame' | 'last_frame' | 'reference' = 'reference';
-          if (params.referenceMode === 'first_last_frame') {
-            const imageIndex = images.length;
-            if (imageIndex === 0) type = 'first_frame';
-            else if (imageIndex === 1) type = 'last_frame';
-          }
-          if (img.file) {
-            const fileName = img.name ? getUniqueFileName(img.name) : undefined;
-            const response = await uploadMaterial(projectId.value, img.file, fileName);
-            images.push({
-              type,
-              name: fileName ? fileName.split('.')[0] : undefined,
-              url: encodeURI(response.url),
-            });
-          } else if (img.url) {
-            images.push({
-              type,
-              name: img.name ? img.name.split('.')[0] : undefined,
-              url: img.url,
-            });
-          }
+      for (const img of referencedImages) {
+        let type: 'first_frame' | 'last_frame' | 'reference' = 'reference';
+        if (params.referenceMode === 'first_last_frame') {
+          const imageIndex = images.length;
+          if (imageIndex === 0) type = 'first_frame';
+          else if (imageIndex === 1) type = 'last_frame';
+        }
+        if (img.file) {
+          const fileName = img.name ? getUniqueFileName(img.name) : undefined;
+          const response = await uploadMaterial(projectId.value, img.file, fileName);
+          images.push({
+            type,
+            name: fileName ? removeFileExtension(fileName) : undefined,
+            url: encodeURI(response.url),
+          });
+        } else if (img.url) {
+          images.push({
+            type,
+            name: img.name ? removeFileExtension(img.name) : undefined,
+            url: img.url,
+          });
         }
       }
 
-      if (params.videos) {
-        for (const video of params.videos) {
-          if (video.file) {
-            const fileName = video.name ? getUniqueFileName(video.name) : undefined;
-            const response = await uploadMaterial(projectId.value, video.file, fileName);
-            videos.push({
-              type: 'ref',
-              name: fileName ? fileName.split('.')[0] : undefined,
-              url: encodeURI(response.url),
-              duration: video.duration,
-            });
-          } else if (video.url) {
-            videos.push({
-              type: 'ref',
-              name: video.name ? video.name.split('.')[0] : undefined,
-              url: video.url,
-              duration: video.duration,
-            });
-          }
+      for (const video of referencedVideos) {
+        if (video.file) {
+          const fileName = video.name ? getUniqueFileName(video.name) : undefined;
+          const response = await uploadMaterial(projectId.value, video.file, fileName);
+          videos.push({
+            type: 'ref',
+            name: fileName ? removeFileExtension(fileName) : undefined,
+            url: encodeURI(response.url),
+            duration: video.duration,
+          });
+        } else if (video.url) {
+          videos.push({
+            type: 'ref',
+            name: video.name ? removeFileExtension(video.name) : undefined,
+            url: video.url,
+            duration: video.duration,
+          });
         }
       }
 
-      if (params.audios) {
-        for (const audio of params.audios) {
-          if (audio.file) {
-            const fileName = audio.name ? getUniqueFileName(audio.name) : undefined;
-            const response = await uploadMaterial(projectId.value, audio.file, fileName);
-            audios.push({
-              type: 'reference',
-              name: fileName ? fileName.split('.')[0] : undefined,
-              url: encodeURI(response.url),
-              duration: audio.duration,
-            });
-          } else if (audio.url) {
-            audios.push({
-              type: 'reference',
-              name: audio.name ? audio.name.split('.')[0] : undefined,
-              url: audio.url,
-              duration: audio.duration,
-            });
-          }
+      for (const audio of referencedAudios) {
+        if (audio.file) {
+          const fileName = audio.name ? getUniqueFileName(audio.name) : undefined;
+          const response = await uploadMaterial(projectId.value, audio.file, fileName);
+          audios.push({
+            type: 'reference',
+            name: fileName ? removeFileExtension(fileName) : undefined,
+            url: encodeURI(response.url),
+            duration: audio.duration,
+          });
+        } else if (audio.url) {
+          audios.push({
+            type: 'reference',
+            name: audio.name ? removeFileExtension(audio.name) : undefined,
+            url: audio.url,
+            duration: audio.duration,
+          });
         }
       }
 
       if (uploadMessage) {
         removeMessage(uploadMessage.id);
       }
-      console.log('✅ 本地文件上传成功');
+      console.log('✅ 已引用的本地文件上传成功');
 
       await loadOssMapping();
+
+      // Add referenced media from OSS files
+      const { buildReferencedMediaFromProjectFiles } = await import('@/utils/fileUtils');
+      const ossMedia = buildReferencedMediaFromProjectFiles(
+        params.prompt,
+        files.value,
+        params.referenceMode
+      );
+
+      // Get uploaded file names to avoid duplicates
+      const uploadedNames = new Set([
+        ...images.map(img => img.name),
+        ...videos.map(video => video.name),
+        ...audios.map(audio => audio.name),
+      ]);
+
+      // Add OSS files that weren't just uploaded
+      for (const img of ossMedia.images) {
+        if (!uploadedNames.has(img.name)) {
+          images.push(img as VideoWorkflowImage);
+        }
+      }
+      for (const video of ossMedia.videos) {
+        if (!uploadedNames.has(video.name)) {
+          videos.push(video as VideoWorkflowVideo);
+        }
+      }
+      for (const audio of ossMedia.audios) {
+        if (!uploadedNames.has(audio.name)) {
+          audios.push(audio as VideoWorkflowAudio);
+        }
+      }
     } catch (uploadError) {
       console.error('❌ 文件上传失败:', uploadError);
       if (uploadMessage) {
@@ -957,6 +1041,26 @@ const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
       return;
     } finally {
       isUploading.value = false;
+    }
+
+    // Add referenced media from OSS files even if no upload happened
+    if (!hasLocalFiles) {
+      const { buildReferencedMediaFromProjectFiles } = await import('@/utils/fileUtils');
+      const ossMedia = buildReferencedMediaFromProjectFiles(
+        params.prompt,
+        files.value,
+        params.referenceMode
+      );
+
+      for (const img of ossMedia.images) {
+        images.push(img as VideoWorkflowImage);
+      }
+      for (const video of ossMedia.videos) {
+        videos.push(video as VideoWorkflowVideo);
+      }
+      for (const audio of ossMedia.audios) {
+        audios.push(audio as VideoWorkflowAudio);
+      }
     }
 
     try {
@@ -1185,6 +1289,7 @@ const handleRetryVideoGeneration = () => {
                 :initial-files="initialFiles"
                 :price-config="priceConfig"
                 :is-loading="isRunning"
+                :project-files="files"
                 @submit="handleVideoGenerationSubmit"
               />
               <VideoGenerationProgress
@@ -1298,6 +1403,7 @@ const handleRetryVideoGeneration = () => {
                 :initial-files="initialFiles"
                 :price-config="priceConfig"
                 :is-loading="isRunning"
+                :project-files="files"
                 @submit="handleVideoGenerationSubmit"
               />
               <VideoGenerationProgress
