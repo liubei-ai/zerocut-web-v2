@@ -71,12 +71,29 @@ export function generateFileName(
     audio: '音频',
   };
 
-  let counter = existingCount + 1;
-  let candidateName = `${typeNames[fileType]}${counter}${extension}`;
+  const typePrefix = typeNames[fileType];
+  
+  let maxCounter = 0;
+  const numberPattern = new RegExp(`^${typePrefix}(\\d+)$`);
+  for (const existingName of existingFileNames) {
+    const nameWithoutExt = removeFileExtension(existingName);
+    if (nameWithoutExt.startsWith(typePrefix)) {
+      const numberMatch = nameWithoutExt.match(numberPattern);
+      if (numberMatch) {
+        const counter = parseInt(numberMatch[1], 10);
+        if (counter > maxCounter) {
+          maxCounter = counter;
+        }
+      }
+    }
+  }
+
+  let counter = Math.max(existingCount + 1, maxCounter + 1);
+  let candidateName = `${typePrefix}${counter}${extension}`;
 
   while (existingFileNames.includes(candidateName)) {
     counter++;
-    candidateName = `${typeNames[fileType]}${counter}${extension}`;
+    candidateName = `${typePrefix}${counter}${extension}`;
   }
 
   return candidateName;
