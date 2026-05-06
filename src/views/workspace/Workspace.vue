@@ -787,26 +787,26 @@ const autoCreateProjectForVideoGeneration = async () => {
       initialVideoReferenceMode.value
     );
 
-    // Get uploaded file names to avoid duplicates
-    const uploadedNames = new Set([
-      ...images.map(img => img.name),
-      ...videos.map(video => video.name),
-      ...audios.map(audio => audio.name),
+    // Get uploaded file URLs to avoid duplicates (more reliable than name)
+    const uploadedUrls = new Set([
+      ...images.map(img => img.url),
+      ...videos.map(video => video.url),
+      ...audios.map(audio => audio.url),
     ]);
 
     // Add OSS files that weren't just uploaded
     for (const img of ossMedia.images) {
-      if (!uploadedNames.has(img.name)) {
+      if (!uploadedUrls.has(img.url)) {
         images.push(img as VideoWorkflowImage);
       }
     }
     for (const video of ossMedia.videos) {
-      if (!uploadedNames.has(video.name)) {
+      if (!uploadedUrls.has(video.url)) {
         videos.push(video as VideoWorkflowVideo);
       }
     }
     for (const audio of ossMedia.audios) {
-      if (!uploadedNames.has(audio.name)) {
+      if (!uploadedUrls.has(audio.url)) {
         audios.push(audio as VideoWorkflowAudio);
       }
     }
@@ -1006,26 +1006,26 @@ const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
         params.referenceMode
       );
 
-      // Get uploaded file names to avoid duplicates
-      const uploadedNames = new Set([
-        ...images.map(img => img.name),
-        ...videos.map(video => video.name),
-        ...audios.map(audio => audio.name),
+      // Get uploaded file URLs to avoid duplicates (more reliable than name)
+      const uploadedUrls = new Set([
+        ...images.map(img => img.url),
+        ...videos.map(video => video.url),
+        ...audios.map(audio => audio.url),
       ]);
 
       // Add OSS files that weren't just uploaded
       for (const img of ossMedia.images) {
-        if (!uploadedNames.has(img.name)) {
+        if (!uploadedUrls.has(img.url)) {
           images.push(img as VideoWorkflowImage);
         }
       }
       for (const video of ossMedia.videos) {
-        if (!uploadedNames.has(video.name)) {
+        if (!uploadedUrls.has(video.url)) {
           videos.push(video as VideoWorkflowVideo);
         }
       }
       for (const audio of ossMedia.audios) {
-        if (!uploadedNames.has(audio.name)) {
+        if (!uploadedUrls.has(audio.url)) {
           audios.push(audio as VideoWorkflowAudio);
         }
       }
@@ -1052,14 +1052,27 @@ const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
         params.referenceMode
       );
 
+      // Get existing file URLs to avoid duplicates
+      const existingUrls = new Set([
+        ...images.map(img => img.url),
+        ...videos.map(video => video.url),
+        ...audios.map(audio => audio.url),
+      ]);
+
       for (const img of ossMedia.images) {
-        images.push(img as VideoWorkflowImage);
+        if (!existingUrls.has(img.url)) {
+          images.push(img as VideoWorkflowImage);
+        }
       }
       for (const video of ossMedia.videos) {
-        videos.push(video as VideoWorkflowVideo);
+        if (!existingUrls.has(video.url)) {
+          videos.push(video as VideoWorkflowVideo);
+        }
       }
       for (const audio of ossMedia.audios) {
-        audios.push(audio as VideoWorkflowAudio);
+        if (!existingUrls.has(audio.url)) {
+          audios.push(audio as VideoWorkflowAudio);
+        }
       }
     }
 
@@ -1290,7 +1303,10 @@ const handleRetryVideoGeneration = () => {
                 :price-config="priceConfig"
                 :is-loading="isRunning"
                 :project-files="files"
+                :immediate-upload="projectId && projectId !== 'new'"
+                :project-id="projectId"
                 @submit="handleVideoGenerationSubmit"
+                @file-uploaded="handleFileUploaded"
               />
               <VideoGenerationProgress
                 v-else
@@ -1404,7 +1420,10 @@ const handleRetryVideoGeneration = () => {
                 :price-config="priceConfig"
                 :is-loading="isRunning"
                 :project-files="files"
+                :immediate-upload="projectId && projectId !== 'new'"
+                :project-id="projectId"
                 @submit="handleVideoGenerationSubmit"
+                @file-uploaded="handleFileUploaded"
               />
               <VideoGenerationProgress
                 v-else

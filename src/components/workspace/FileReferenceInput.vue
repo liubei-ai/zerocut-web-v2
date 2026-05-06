@@ -24,6 +24,7 @@ import {
   generateFileName,
   removeFileExtension,
 } from '@/utils/fileUtils';
+import { uploadMaterial } from '@/api/videoProjectApi';
 
 interface Props {
   modelValue: string;
@@ -38,6 +39,8 @@ interface Props {
   accept?: string;
   addButtonText?: string;
   addButtonSubtext?: string;
+  immediateUpload?: boolean;
+  projectId?: string | number;
 }
 
 interface Slots {
@@ -48,9 +51,10 @@ interface Emits {
   (e: 'update:modelValue', value: string): void;
   (e: 'files-change', files: FilePreview[]): void;
   (e: 'video-total-duration', duration: number): void;
+  (e: 'first-frame-change', file: FilePreview | null): void;
+  (e: 'last-frame-change', file: FilePreview | null): void;
+  (e: 'file-uploaded'): void;
 }
-
-const { toast } = useToast();
 
 const props = withDefaults(defineProps<Props>(), {
   placeholder: '请输入你的设计需求...',
@@ -64,15 +68,8 @@ const props = withDefaults(defineProps<Props>(), {
   accept: 'image/*,video/*,audio/*',
   addButtonText: '添加参考',
   addButtonSubtext: '图片/视频/音频',
+  immediateUpload: false,
 });
-
-interface Emits {
-  (e: 'update:modelValue', value: string): void;
-  (e: 'files-change', files: FilePreview[]): void;
-  (e: 'video-total-duration', duration: number): void;
-  (e: 'first-frame-change', file: FilePreview | null): void;
-  (e: 'last-frame-change', file: FilePreview | null): void;
-}
 
 const emit = defineEmits<Emits>();
 
@@ -125,7 +122,7 @@ const triggerFrameFileInput = (position: 'first' | 'last') => {
   }
 };
 
-const handleFrameImageChange = (position: 'first' | 'last', event: Event) => {
+const handleFrameImageChange = async (position: 'first' | 'last', event: Event) => {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   if (!file || !file.type.startsWith('image/')) return;
@@ -167,6 +164,49 @@ const handleFrameImageChange = (position: 'first' | 'last', event: Event) => {
   if (props.firstLastFrameMode !== 'first_last_frame' && filePreview && !selectedFiles.value.find(f => f.id === filePreview.id)) {
     selectedFiles.value.push(filePreview);
     emit('files-change', selectedFiles.value);
+  }
+
+  // Handle immediate upload if enabled
+  if (props.immediateUpload && props.projectId) {
+    try {
+      await uploadMaterial(props.projectId, filePreview.file, filePreview.name);
+      // After successful upload, the file will appear in projectFiles (OSS)
+      // Remove it from local state to avoid duplication in @ menu
+      URL.revokeObjectURL(filePreview.url);
+      if (position === 'first') {
+        firstFrameImage.value = null;
+        emit('first-frame-change', null);
+      } else {
+        lastFrameImage.value = null;
+        emit('last-frame-change', null);
+      }
+      const existingIndex = selectedFiles.value.findIndex(f => f.id === filePreview.id);
+      if (existingIndex !== -1) {
+        selectedFiles.value.splice(existingIndex, 1);
+        emit('files-change', [...selectedFiles.value]);
+      }
+      emit('file-uploaded');
+      toast.success('文件上传成功');
+    } catch (error) {
+      console.error('File upload failed:', error);
+      toast.error('文件上传失败');
+      URL.revokeObjectURL(filePreview.url);
+      // Remove from state
+      if (position === 'first') {
+        firstFrameImage.value = null;
+        emit('first-frame-change', null);
+      } else {
+        lastFrameImage.value = null;
+        emit('last-frame-change', null);
+      }
+      const existingIndex = selectedFiles.value.findIndex(f => f.id === filePreview.id);
+      if (existingIndex !== -1) {
+        selectedFiles.value.splice(existingIndex, 1);
+        emit('files-change', [...selectedFiles.value]);
+      }
+      input.value = '';
+      return;
+    }
   }
 
   input.value = '';
@@ -495,10 +535,42 @@ const handleFileChange = async (e: Event) => {
     }
   }
 
-  // Only emit files-change if files were actually added
+  // Always add files to selectedFiles (for both immediate and deferred upload modes)
   if (filesToAdd.length > 0) {
     selectedFiles.value.push(...filesToAdd);
     emit('files-change', selectedFiles.value);
+  }
+
+  // Handle immediate upload if enabled
+  if (props.immediateUpload && props.projectId && filesToAdd.length > 0) {
+    try {
+      for (const filePreview of filesToAdd) {
+        await uploadMaterial(props.projectId, filePreview.file, filePreview.name);
+        // After successful upload, the file will appear in projectFiles (OSS)
+        // Remove it from local selectedFiles to avoid duplication in @ menu
+        const index = selectedFiles.value.findIndex(f => f.id === filePreview.id);
+        if (index !== -1) {
+          URL.revokeObjectURL(selectedFiles.value[index].url);
+          selectedFiles.value.splice(index, 1);
+        }
+      }
+      emit('file-uploaded');
+      emit('files-change', [...selectedFiles.value]);
+      toast.success('文件上传成功');
+    } catch (error) {
+      console.error('File upload failed:', error);
+      toast.error('文件上传失败');
+      // Remove failed files from selection
+      for (const filePreview of filesToAdd) {
+        URL.revokeObjectURL(filePreview.url);
+        const index = selectedFiles.value.findIndex(f => f.id === filePreview.id);
+        if (index !== -1) {
+          selectedFiles.value.splice(index, 1);
+        }
+      }
+      emit('files-change', [...selectedFiles.value]);
+      return;
+    }
   }
 
   // Show feedback messages

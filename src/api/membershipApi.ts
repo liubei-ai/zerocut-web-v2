@@ -129,6 +129,7 @@ export async function getSigningSessionStatus(sessionId: string, workspaceId: st
 export async function getCurrentSubscription(workspaceId: string) {
   const response = await client.get<SubscriptionDetails>('/subscriptions/me',
     { workspaceId },
+    { noErrorAlert: true }
   );
   return response.data;
 }

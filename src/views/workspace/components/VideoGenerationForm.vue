@@ -33,13 +33,18 @@ interface Props {
   priceConfig?: any;
   initialFiles?: FilePreview[];
   projectFiles?: ProjectFileReference[];
+  immediateUpload?: boolean;
+  projectId?: string | number;
 }
 
 interface Emits {
   (e: 'submit', params: VideoGenerationParams): void;
+  (e: 'file-uploaded'): void;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  immediateUpload: false,
+});
 const emit = defineEmits<Emits>();
 
 const prompt = ref(props.initialPrompt || '');
@@ -247,9 +252,12 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
             :enable-first-last-frame="true"
             :first-last-frame-mode="referenceMode"
             :project-files="projectFiles"
+            :immediate-upload="immediateUpload"
+            :project-id="projectId"
             @files-change="handleFilesChange"
             @first-frame-change="firstFrameImage = $event"
             @last-frame-change="lastFrameImage = $event"
+            @file-uploaded="emit('file-uploaded')"
           >
           </FileReferenceInput>
         </div>
