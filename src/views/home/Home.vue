@@ -8,7 +8,6 @@ import ProjectGrid from '@/views/project/ProjectGrid.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useCreditsStore } from '@/stores/creditsStore';
 import { useMembershipModalStore } from '@/stores/membershipModalStore';
-import { useDebugStore } from '@/stores/debugStore';
 import { getSystemConfig, type TemplateItem } from '@/api/systemApi';
 import { useToast } from '@/composables/useToast';
 import { videoModels, videoDurations, videoAspectRatios, videoResolutions } from '@/config/videoGeneration';
@@ -19,7 +18,6 @@ import type { FilePreview } from '@/types/fileReference';
 const authStore = useAuthStore();
 const creditsStore = useCreditsStore();
 const membershipModalStore = useMembershipModalStore();
-const debugStore = useDebugStore();
 const router = useRouter();
 const videoPrompt = ref('');
 const selectedMode = ref('free_creation');
@@ -127,6 +125,13 @@ const addButtonSubtext = computed(() => {
     return '仅支持图片';
   }
   return '图片/视频/音频';
+});
+
+const referenceMode = computed(() => {
+  if (selectedMode.value === 'free_creation' && freeCreationMode.value === 'video_generation') {
+    return videoReferenceMode.value;
+  }
+  return 'reference';
 });
 
 const modes = [
@@ -608,8 +613,7 @@ const loadSystemConfig = async () => {
               :placeholder="currentPlaceholder"
               :allow-file-pick="shouldAllowFilePick"
               :show-mode-selector="true"
-              :enable-first-last-frame="selectedMode === 'free_creation' && freeCreationMode === 'video_generation'"
-              :first-last-frame-mode="videoReferenceMode"
+              :reference-mode="referenceMode"
               :accept="acceptFileTypes"
               :add-button-text="addButtonText"
               :add-button-subtext="addButtonSubtext"

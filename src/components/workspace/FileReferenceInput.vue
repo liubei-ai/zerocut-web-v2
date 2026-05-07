@@ -36,8 +36,7 @@ interface Props {
   projectFiles?: ProjectFileReference[];
   textareaClass?: string;
   showModeSelector?: boolean;
-  enableFirstLastFrame?: boolean;
-  firstLastFrameMode?: 'reference' | 'first_last_frame';
+  referenceMode?: 'reference' | 'first_last_frame';
   accept?: string;
   addButtonText?: string;
   addButtonSubtext?: string;
@@ -65,8 +64,7 @@ const props = withDefaults(defineProps<Props>(), {
   projectFiles: () => [],
   textareaClass: '',
   showModeSelector: false,
-  enableFirstLastFrame: false,
-  firstLastFrameMode: 'reference',
+  referenceMode: 'reference',
   accept: 'image/*,video/*,audio/*',
   addButtonText: '添加参考',
   addButtonSubtext: '图片/视频/音频',
@@ -93,7 +91,7 @@ const reindexFiles = () => {
       totalVideoDuration += Math.round(file.duration);
     }
   });
-  
+
   // Emit total duration back to parent
   emit('video-total-duration', totalVideoDuration);
 };
@@ -141,50 +139,24 @@ const handleFrameImageChange = async (position: 'first' | 'last', event: Event) 
     file: file,
   };
 
-  if (position === 'first') {
-    if (firstFrameImage.value) {
-      URL.revokeObjectURL(firstFrameImage.value.url);
-      const existingIndex = selectedFiles.value.findIndex(f => f.id === firstFrameImage.value!.id);
-      if (existingIndex !== -1) {
-        selectedFiles.value.splice(existingIndex, 1);
-      }
-    }
-    firstFrameImage.value = filePreview;
-    emit('first-frame-change', filePreview);
-  } else {
-    if (lastFrameImage.value) {
-      URL.revokeObjectURL(lastFrameImage.value.url);
-      const existingIndex = selectedFiles.value.findIndex(f => f.id === lastFrameImage.value!.id);
-      if (existingIndex !== -1) {
-        selectedFiles.value.splice(existingIndex, 1);
-      }
-    }
-    lastFrameImage.value = filePreview;
-    emit('last-frame-change', filePreview);
-  }
+  const frameImageRef = position === 'first' ? firstFrameImage : lastFrameImage;
 
-  if (props.firstLastFrameMode !== 'first_last_frame' && filePreview && !selectedFiles.value.find(f => f.id === filePreview.id)) {
-    selectedFiles.value.push(filePreview);
-    emit('files-change', selectedFiles.value);
-  }
-
-  // Handle immediate upload if enabled
   if (props.immediateUpload && props.projectId) {
     try {
-      await uploadMaterial(props.projectId, filePreview.file, filePreview.name);
-      // After successful upload, the file will appear in projectFiles (OSS)
-      // Remove it from local state to avoid duplication in @ menu
+      const uploadResult = await uploadMaterial(props.projectId, filePreview.file, filePreview.name);
       URL.revokeObjectURL(filePreview.url);
+      filePreview.url = uploadResult.url;
+
       if (position === 'first') {
-        firstFrameImage.value = null;
-        emit('first-frame-change', null);
+        emit('first-frame-change', filePreview);
       } else {
-        lastFrameImage.value = null;
-        emit('last-frame-change', null);
+        emit('last-frame-change', filePreview);
       }
+      frameImageRef.value = filePreview;
+
       const existingIndex = selectedFiles.value.findIndex(f => f.id === filePreview.id);
       if (existingIndex !== -1) {
-        selectedFiles.value.splice(existingIndex, 1);
+        selectedFiles.value[existingIndex].url = uploadResult.url;
         emit('files-change', [...selectedFiles.value]);
       }
       emit('file-uploaded');
@@ -193,12 +165,10 @@ const handleFrameImageChange = async (position: 'first' | 'last', event: Event) 
       console.error('File upload failed:', error);
       toast.error('文件上传失败');
       URL.revokeObjectURL(filePreview.url);
-      // Remove from state
+      frameImageRef.value = null;
       if (position === 'first') {
-        firstFrameImage.value = null;
         emit('first-frame-change', null);
       } else {
-        lastFrameImage.value = null;
         emit('last-frame-change', null);
       }
       const existingIndex = selectedFiles.value.findIndex(f => f.id === filePreview.id);
@@ -206,18 +176,29 @@ const handleFrameImageChange = async (position: 'first' | 'last', event: Event) 
         selectedFiles.value.splice(existingIndex, 1);
         emit('files-change', [...selectedFiles.value]);
       }
-      input.value = '';
-      return;
+    }
+  } else {
+    if (frameImageRef.value) {
+      URL.revokeObjectURL(frameImageRef.value.url);
+      const existingIndex = selectedFiles.value.findIndex(f => f.id === frameImageRef.value!.id);
+      if (existingIndex !== -1) {
+        selectedFiles.value.splice(existingIndex, 1);
+      }
+    }
+    frameImageRef.value = filePreview;
+    if (position === 'first') {
+      emit('first-frame-change', filePreview);
+    } else {
+      emit('last-frame-change', filePreview);
     }
   }
-
   input.value = '';
 };
 
 const removeFrameImage = (position: 'first' | 'last') => {
   const filePreview = position === 'first' ? firstFrameImage.value : lastFrameImage.value;
   if (filePreview) {
-    if (props.firstLastFrameMode === 'first_last_frame') {
+    if (props.referenceMode === 'first_last_frame') {
       URL.revokeObjectURL(filePreview.url);
       const existingIndex = selectedFiles.value.findIndex(f => f.id === filePreview.id);
       if (existingIndex !== -1) {
@@ -547,13 +528,11 @@ const handleFileChange = async (e: Event) => {
   if (props.immediateUpload && props.projectId && filesToAdd.length > 0) {
     try {
       for (const filePreview of filesToAdd) {
-        await uploadMaterial(props.projectId, filePreview.file, filePreview.name);
-        // After successful upload, the file will appear in projectFiles (OSS)
-        // Remove it from local selectedFiles to avoid duplication in @ menu
+        const uploadResult = await uploadMaterial(props.projectId, filePreview.file, filePreview.name);
         const index = selectedFiles.value.findIndex(f => f.id === filePreview.id);
         if (index !== -1) {
           URL.revokeObjectURL(selectedFiles.value[index].url);
-          selectedFiles.value.splice(index, 1);
+          selectedFiles.value[index].url = uploadResult.url;
         }
       }
       emit('file-uploaded');
@@ -562,7 +541,6 @@ const handleFileChange = async (e: Event) => {
     } catch (error) {
       console.error('File upload failed:', error);
       toast.error('文件上传失败');
-      // Remove failed files from selection
       for (const filePreview of filesToAdd) {
         URL.revokeObjectURL(filePreview.url);
         const index = selectedFiles.value.findIndex(f => f.id === filePreview.id);
@@ -608,15 +586,84 @@ const existingFileNames = computed(() => {
 });
 
 const visibleFiles = computed(() => {
-  if (props.enableFirstLastFrame && props.firstLastFrameMode === 'first_last_frame') {
-    return selectedFiles.value.filter(file => 
+  if (props.referenceMode === 'first_last_frame') {
+    return selectedFiles.value.filter(file =>
       file.id === firstFrameImage.value?.id || file.id === lastFrameImage.value?.id
     );
   }
   return selectedFiles.value;
 });
 
-watch(() => props.firstLastFrameMode, (newMode) => {
+interface DropdownFile {
+  id: string | number;
+  name: string;
+  type?: string;
+  url?: string;
+  file_type?: string;
+  file_url?: string;
+  isProjectFile: boolean;
+}
+
+const dropdownFiles = computed<DropdownFile[]>(() => {
+  if (!props.allowFilePick) {
+    return props.projectFiles.map(file => ({
+      id: file.id,
+      name: file.file_name,
+      type: file.file_type,
+      file_type: file.file_type,
+      file_url: file.file_url,
+      isProjectFile: true,
+    }));
+  }
+
+  if (props.referenceMode === 'first_last_frame') {
+    const files: DropdownFile[] = [];
+    if (firstFrameImage.value) {
+      files.push({
+        id: firstFrameImage.value.id,
+        name: firstFrameImage.value.name,
+        type: firstFrameImage.value.type,
+        url: firstFrameImage.value.url,
+        isProjectFile: false,
+      });
+    }
+
+    if (lastFrameImage.value) {
+      files.push({
+        id: lastFrameImage.value.id,
+        name: lastFrameImage.value.name,
+        type: lastFrameImage.value.type,
+        url: lastFrameImage.value.url,
+        isProjectFile: false,
+      });
+    }
+    console.log('firstFrameImage', firstFrameImage.value);
+    console.log('lastFrameImage', lastFrameImage.value);
+    console.log('files', files);
+    return files;
+  }
+
+  if (props.immediateUpload) {
+    return props.projectFiles.map(file => ({
+      id: file.id,
+      name: file.file_name,
+      type: file.file_type,
+      file_type: file.file_type,
+      file_url: file.file_url,
+      isProjectFile: true,
+    }));
+  }
+
+  return selectedFiles.value.map(file => ({
+    id: file.id,
+    name: file.name,
+    type: file.type,
+    url: file.url,
+    isProjectFile: false,
+  }));
+});
+
+watch(() => props.referenceMode, (newMode) => {
   if (newMode === 'first_last_frame') {
     const toRemove: string[] = [];
     selectedFiles.value.forEach(file => {
@@ -654,120 +701,85 @@ defineExpose({
       <slot name="mode-selector" />
     </div>
 
-    <textarea
-      ref="textareaRef"
-      v-model="inputValue"
-      @input="handleInput"
-      :placeholder="placeholder"
-      :disabled="disabled"
-      :class="[
+    <textarea ref="textareaRef" v-model="inputValue" @input="handleInput" :placeholder="placeholder"
+      :disabled="disabled" :class="[
         textareaClass ||
-          'min-h-[100px] w-full resize-none border-0 p-0 text-base leading-[1.6] text-[#111827] outline-0 focus-visible:ring-0',
+        'min-h-[100px] w-full resize-none border-0 p-0 text-base leading-[1.6] text-[#111827] outline-0 focus-visible:ring-0',
         { 'cursor-not-allowed opacity-50': disabled },
-      ]"
-    />
+      ]" />
 
     <!-- File previews (only when allowFilePick is true) - always card mode -->
     <div v-if="allowFilePick && selectedFiles.length >= 0" class="mt-3 group relative min-h-[80px] px-2 py-2">
       <div class="flex items-center justify-start">
         <!-- Built-in first/last frame UI when enabled -->
-        <template v-if="enableFirstLastFrame">
-          <input
-            ref="firstFrameInputRef"
-            type="file"
-            accept="image/*"
-            class="hidden"
-            @change="handleFrameImageChange('first', $event)"
-          />
-          <input
-            ref="lastFrameInputRef"
-            type="file"
-            accept="image/*"
-            class="hidden"
-            @change="handleFrameImageChange('last', $event)"
-          />
+        <template v-if="referenceMode === 'first_last_frame'">
+          <input ref="firstFrameInputRef" type="file" accept="image/*" class="hidden"
+            @change="handleFrameImageChange('first', $event)" />
+          <input ref="lastFrameInputRef" type="file" accept="image/*" class="hidden"
+            @change="handleFrameImageChange('last', $event)" />
 
           <div class="flex items-center gap-3">
-            <div
-              v-if="firstFrameImage"
-              class="relative h-20 w-16 transform transition-transform duration-300 ease-out hover:scale-105"
-            >
+            <div v-if="firstFrameImage"
+              class="relative h-20 w-16 transform transition-transform duration-300 ease-out hover:scale-105">
               <div
-                 class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-blue-50 to-indigo-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
-               >
-                 <div class="absolute top-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-[12px] font-medium z-10 flex items-center gap-0.5 origin-center scale-[0.667]">
-                   <span>▶️</span>
-                   <span>首帧</span>
-                 </div>
-                 <img :src="firstFrameImage.url" class="w-full h-full object-cover pt-3" alt="首帧" />
-                 <button
-                   @click.stop="removeFrameImage('first')"
-                   class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[12px] opacity-0 group-hover:opacity-100 origin-center scale-[0.833]"
-                 >
-                   ×
-                 </button>
-               </div>
+                class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-blue-50 to-indigo-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl">
+                <img :src="firstFrameImage.url" class="w-full h-full object-cover" alt="首帧" />
+                <button @click.stop="removeFrameImage('first')"
+                  class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[12px] opacity-0 group-hover:opacity-100 origin-center scale-[0.833]">
+                  ×
+                </button>
+              </div>
             </div>
 
-            <div
-               v-if="!firstFrameImage && firstLastFrameMode === 'first_last_frame'"
-               class="relative h-20 w-16 transform transition-transform duration-300 hover:scale-105 cursor-pointer"
-               @click="triggerFrameFileInput('first')"
-            >
+            <div v-if="!firstFrameImage"
+              class="relative h-20 w-16 transform transition-transform duration-300 hover:scale-105 cursor-pointer"
+              @click="triggerFrameFileInput('first')">
               <div
-                class="absolute inset-0 rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-lg transition-all hover:border-blue-500 hover:shadow-xl"
-              >
+                class="absolute inset-0 rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-lg transition-all hover:border-blue-500 hover:shadow-xl">
                 <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
                   <div class="text-xl mb-0.5">▶️</div>
-                  <div class="origin-center scale-[0.833]"><div class="text-[12px] font-medium whitespace-nowrap">首帧</div></div>
-                  <div class="mt-0.5 origin-center scale-[0.667]"><div class="text-[12px] whitespace-nowrap">点击上传</div></div>
+                  <div class="origin-center scale-[0.833]">
+                    <div class="text-[12px] font-medium whitespace-nowrap">首帧</div>
+                  </div>
+                  <div class="mt-0.5 origin-center scale-[0.667]">
+                    <div class="text-[12px] whitespace-nowrap">点击上传</div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div
-              v-if="(firstLastFrameMode === 'first_last_frame') || (firstFrameImage && lastFrameImage)"
-              class="flex items-center justify-center text-gray-400"
-            >
+            <div class="flex items-center justify-center text-gray-400">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M5 12h14"></path>
                 <polyline points="12 5 19 12 12 19"></polyline>
               </svg>
             </div>
 
-            <div
-              v-if="lastFrameImage"
-              class="relative h-20 w-16 transform transition-transform duration-300 ease-out hover:scale-105"
-            >
+            <div v-if="lastFrameImage"
+              class="relative h-20 w-16 transform transition-transform duration-300 ease-out hover:scale-105">
               <div
-                 class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-purple-50 to-pink-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
-               >
-                 <div class="absolute top-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 text-white text-[12px] font-medium z-10 flex items-center gap-0.5 origin-center scale-[0.667]">
-                   <span>⏹️</span>
-                   <span>尾帧</span>
-                 </div>
-                 <img :src="lastFrameImage.url" class="w-full h-full object-cover pt-3" alt="尾帧" />
-                 <button
-                   @click.stop="removeFrameImage('last')"
-                   class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[12px] opacity-0 group-hover:opacity-100 origin-center scale-[0.833]"
-                 >
-                   ×
-                 </button>
-               </div>
+                class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-purple-50 to-pink-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl">
+                <img :src="lastFrameImage.url" class="w-full h-full object-cover" alt="尾帧" />
+                <button @click.stop="removeFrameImage('last')"
+                  class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[12px] opacity-0 group-hover:opacity-100 origin-center scale-[0.833]">
+                  ×
+                </button>
+              </div>
             </div>
 
-            <div
-               v-if="!lastFrameImage && firstLastFrameMode === 'first_last_frame'"
-               class="relative h-20 w-16 transform transition-transform duration-300 hover:scale-105 cursor-pointer"
-               @click="triggerFrameFileInput('last')"
-            >
+            <div v-if="!lastFrameImage"
+              class="relative h-20 w-16 transform transition-transform duration-300 hover:scale-105 cursor-pointer"
+              @click="triggerFrameFileInput('last')">
               <div
-                class="absolute inset-0 rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-purple-50 to-pink-50 shadow-lg transition-all hover:border-purple-500 hover:shadow-xl"
-              >
+                class="absolute inset-0 rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-purple-50 to-pink-50 shadow-lg transition-all hover:border-purple-500 hover:shadow-xl">
                 <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
                   <div class="text-xl mb-0.5">⏹️</div>
-                  <div class="origin-center scale-[0.833]"><div class="text-[12px] font-medium whitespace-nowrap">尾帧</div></div>
-                  <div class="mt-0.5 origin-center scale-[0.667]"><div class="text-[12px] whitespace-nowrap">点击上传</div></div>
+                  <div class="origin-center scale-[0.833]">
+                    <div class="text-[12px] font-medium whitespace-nowrap">尾帧</div>
+                  </div>
+                  <div class="mt-0.5 origin-center scale-[0.667]">
+                    <div class="text-[12px] whitespace-nowrap">点击上传</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -775,61 +787,51 @@ defineExpose({
         </template>
         <slot name="before-files" />
         <!-- Existing files as stacked cards -->
-        <div
-          v-for="(file, index) in visibleFiles"
-          :key="file.id"
+        <div v-for="(file, index) in visibleFiles" :key="file.id"
           class="relative h-20 w-16 origin-bottom transform group-hover:translate-x-0 group-hover:rotate-0 hover:scale-105 transition-transform duration-300 ease-out"
           :class="[
             index === 0 ? '-rotate-6 -translate-x-0' :
-            index === 1 ? '-rotate-3 -translate-x-2' :
-            index === 2 ? 'rotate-0 -translate-x-4' :
-            index === 3 ? 'rotate-3 -translate-x-6' :
-            index === 4 ? 'rotate-6 -translate-x-8' :
-            'rotate-6 -translate-x-10'
-          ]"
-          :style="{
+              index === 1 ? '-rotate-3 -translate-x-2' :
+                index === 2 ? 'rotate-0 -translate-x-4' :
+                  index === 3 ? 'rotate-3 -translate-x-6' :
+                    index === 4 ? 'rotate-6 -translate-x-8' :
+                      'rotate-6 -translate-x-10'
+          ]" :style="{
             zIndex: visibleFiles.length - index
           }"
           @mouseenter="($event) => { const target = $event.currentTarget as HTMLElement | null; if (target) target.style.zIndex = '1000'; }"
-          @mouseleave="($event) => { const target = $event.currentTarget as HTMLElement | null; if (target) target.style.zIndex = (visibleFiles.length - index).toString(); }"
-        >
+          @mouseleave="($event) => { const target = $event.currentTarget as HTMLElement | null; if (target) target.style.zIndex = (visibleFiles.length - index).toString(); }">
           <div
-            class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl"
-          >
-            <img
-              v-if="file.type === 'image'"
-              :src="file.url"
-              class="w-full h-full object-cover"
-              :alt="file.name"
-            />
+            class="absolute inset-0 rounded-xl border-2 border-white bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-xl hover:shadow-2xl">
+            <img v-if="file.type === 'image'" :src="file.url" class="w-full h-full object-cover" :alt="file.name" />
             <div v-else class="absolute inset-0 flex flex-col items-center justify-center bg-gray-100">
               <div class="text-2xl mb-1">{{ getFileIcon(file.type) }}</div>
-              <div class="text-[12px] text-gray-500 text-center px-1 truncate w-full origin-center scale-[0.667]">{{ file.name }}</div>
+              <div class="text-[12px] text-gray-500 text-center px-1 truncate w-full origin-center scale-[0.667]">{{
+                file.name
+              }}</div>
             </div>
-            <button
-              @click.stop="removeFile(file.id)"
-              class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[12px] opacity-0 group-hover:opacity-100 origin-center scale-[0.833]"
-            >
+            <button @click.stop="removeFile(file.id)"
+              class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors text-[12px] opacity-0 group-hover:opacity-100 origin-center scale-[0.833]">
               ×
             </button>
           </div>
         </div>
 
         <!-- Add card (only show when there's space and not in first_last_frame mode) -->
-        <div
-          v-if="selectedFiles.length < MAX_FILES && !(enableFirstLastFrame && firstLastFrameMode === 'first_last_frame')"
+        <div v-if="selectedFiles.length < MAX_FILES && referenceMode !== 'first_last_frame'"
           class="relative h-20 w-16 origin-bottom transform -rotate-3 transition-transform duration-300 hover:scale-105 hover:rotate-0 cursor-pointer"
           :class="[selectedFiles.length > 0 ? '-translate-x-' + (selectedFiles.length * 2) : '']"
-          :style="{ zIndex: selectedFiles.length + 1 }"
-          @click="handleFilePickClick"
-        >
+          :style="{ zIndex: selectedFiles.length + 1 }" @click="handleFilePickClick">
           <div
-            class="absolute inset-0 rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg transition-all hover:border-gray-600 hover:shadow-xl"
-          >
+            class="absolute inset-0 rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 shadow-lg transition-all hover:border-gray-600 hover:shadow-xl">
             <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
               <div class="text-xl mb-0.5">➕</div>
-              <div class="origin-center scale-[0.833]"><div class="text-[12px] font-medium whitespace-nowrap">{{ addButtonText }}</div></div>
-              <div class="mt-0.5 origin-center scale-[0.667]"><div class="text-[12px] whitespace-nowrap">{{ addButtonSubtext }}</div></div>
+              <div class="origin-center scale-[0.833]">
+                <div class="text-[12px] font-medium whitespace-nowrap">{{ addButtonText }}</div>
+              </div>
+              <div class="mt-0.5 origin-center scale-[0.667]">
+                <div class="text-[12px] whitespace-nowrap">{{ addButtonSubtext }}</div>
+              </div>
             </div>
           </div>
         </div>
@@ -837,10 +839,8 @@ defineExpose({
     </div>
 
     <!-- Invisible positioned container for dropdown trigger at cursor -->
-    <div
-      v-if="(projectFiles && projectFiles.length > 0) || (allowFilePick && (selectedFiles.length > 0 || (enableFirstLastFrame && (firstFrameImage || lastFrameImage))))"
-      class="pointer-events-none absolute top-0 left-0 h-full w-full overflow-hidden"
-    >
+    <div v-if="dropdownFiles.length > 0"
+      class="pointer-events-none absolute top-0 left-0 h-full w-full overflow-hidden">
       <DropdownMenuRoot v-model:open="dropdownOpen">
         <DropdownMenuTrigger as-child>
           <div :style="triggerStyle" class="pointer-events-auto absolute h-5 w-0.5 opacity-0" />
@@ -849,139 +849,33 @@ defineExpose({
         <DropdownMenuPortal>
           <DropdownMenuContent
             class="z-[9999] max-h-[400px] max-w-[300px] min-w-[150px] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none"
-            :side="'right'"
-            :align="'start'"
-            :side-offset="5"
-            :align-offset="0"
-            :collision-padding="10"
-          >
-            <!-- Project Files -->
-            <template v-if="projectFiles && projectFiles.length > 0">
-              <DropdownMenuItem
-                v-for="file in projectFiles"
-                :key="file.id"
-                @select="insertMention(file.file_name)"
-                class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
-              >
-                <div class="flex items-center gap-2">
-                  <img
-                    v-if="file.file_type === 'image' && file.file_url"
-                    :src="`${file.file_url}?x-tos-process=image/resize,w_100`"
-                    :alt="file.file_name"
-                    class="h-6 w-6 flex-shrink-0 rounded object-cover"
-                  />
-                  <div
-                    v-else
-                    class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-gray-100 text-sm"
-                  >
-                    {{ getFileIcon(file.file_type) }}
-                  </div>
-                  <div class="truncate" :title="removeFileExtension(file.file_name)">
-                    {{ removeFileExtension(file.file_name) }}
-                  </div>
+            :side="'right'" :align="'start'" :side-offset="5" :align-offset="0" :collision-padding="10">
+            <DropdownMenuItem v-for="file in dropdownFiles" :key="file.id" @select="insertMention(file.name)"
+              class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white">
+              <div class="flex items-center gap-2">
+                <img v-if="file.isProjectFile && file.file_type === 'image' && file.file_url"
+                  :src="`${file.file_url}?x-tos-process=image/resize,w_100`" :alt="file.name"
+                  class="h-6 w-6 flex-shrink-0 rounded object-cover" />
+                <img v-else-if="!file.isProjectFile && file.type === 'image'" :src="file.url" :alt="file.name"
+                  class="h-6 w-6 flex-shrink-0 rounded object-cover" />
+                <div v-else class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-gray-100 text-sm">
+                  {{ getFileIcon(file.type) }}
                 </div>
-              </DropdownMenuItem>
-            </template>
-
-            <!-- Local Files (for Home.vue with allowFilePick) -->
-            <template v-if="allowFilePick">
-              <!-- First frame image -->
-              <DropdownMenuItem
-                v-if="firstFrameImage"
-                :key="firstFrameImage.id"
-                @select="insertMention(firstFrameImage.name)"
-                class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
-              >
-                <div class="flex items-center gap-2">
-                  <img
-                    v-if="firstFrameImage.type === 'image'"
-                    :src="firstFrameImage.url"
-                    :alt="firstFrameImage.name"
-                    class="h-6 w-6 flex-shrink-0 rounded object-cover"
-                  />
-                  <div
-                    v-else
-                    class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-gray-100 text-sm"
-                  >
-                    {{ getFileIcon(firstFrameImage.type) }}
-                  </div>
-                  <div class="truncate" :title="firstFrameImage.name">
-                    {{ firstFrameImage.name }}
-                  </div>
+                <div class="truncate" :title="removeFileExtension(file.name)">
+                  {{ removeFileExtension(file.name) }}
                 </div>
-              </DropdownMenuItem>
-              <!-- Last frame image -->
-              <DropdownMenuItem
-                v-if="lastFrameImage"
-                :key="lastFrameImage.id"
-                @select="insertMention(lastFrameImage.name)"
-                class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
-              >
-                <div class="flex items-center gap-2">
-                  <img
-                    v-if="lastFrameImage.type === 'image'"
-                    :src="lastFrameImage.url"
-                    :alt="lastFrameImage.name"
-                    class="h-6 w-6 flex-shrink-0 rounded object-cover"
-                  />
-                  <div
-                    v-else
-                    class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-gray-100 text-sm"
-                  >
-                    {{ getFileIcon(lastFrameImage.type) }}
-                  </div>
-                  <div class="truncate" :title="lastFrameImage.name">
-                    {{ lastFrameImage.name }}
-                  </div>
-                </div>
-              </DropdownMenuItem>
-              <!-- Regular selected files - only show when not in first_last_frame mode -->
-              <DropdownMenuItem
-                v-for="file in visibleFiles"
-                :key="file.id"
-                @select="insertMention(file.name)"
-                class="cursor-pointer rounded-md px-3 py-2 text-sm text-gray-700 outline-none select-none data-[highlighted]:bg-blue-500 data-[highlighted]:text-white"
-              >
-                <div class="flex items-center gap-2">
-                  <img
-                    v-if="file.type === 'image'"
-                    :src="file.url"
-                    :alt="file.name"
-                    class="h-6 w-6 flex-shrink-0 rounded object-cover"
-                  />
-                  <div
-                    v-else
-                    class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-gray-100 text-sm"
-                  >
-                    {{ getFileIcon(file.type) }}
-                  </div>
-                  <div class="truncate" :title="file.name">
-                    {{ file.name }}
-                  </div>
-                </div>
-              </DropdownMenuItem>
-            </template>
+              </div>
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenuPortal>
       </DropdownMenuRoot>
     </div>
 
     <!-- Hidden file input -->
-    <input
-      ref="fileInputRef"
-      type="file"
-      @change="handleFileChange"
-      class="hidden"
-      :accept="accept"
-      multiple
-    />
+    <input ref="fileInputRef" type="file" @change="handleFileChange" class="hidden" :accept="accept" multiple />
 
     <!-- Action buttons slot -->
-    <slot
-      name="actions"
-      :on-mention-click="handleMentionButtonClick"
-      :on-file-pick-click="handleFilePickClick"
-      :textarea-ref="textareaRef"
-    />
+    <slot name="actions" :on-mention-click="handleMentionButtonClick" :on-file-pick-click="handleFilePickClick"
+      :textarea-ref="textareaRef" />
   </div>
 </template>
