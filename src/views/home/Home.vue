@@ -165,7 +165,7 @@ const freeCreationModes = [
   { id: 'agent', label: 'Agent模式' },
 ];
 
-const imageModel = ref('gpt-image-2');
+const imageModel = ref('banana2');
 const showImageModelMenu = ref(false);
 const imageModelMenuRef = ref<HTMLElement | null>(null);
 
