@@ -238,15 +238,17 @@ const loadOssMapping = async () => {
 
     // Convert OSS mapping to file list
     if (ossData.ossMapping && Array.isArray(ossData.ossMapping)) {
-      files.value = ossData.ossMapping.map((item, index) => ({
-        id: `file-${index}`,
-        file_name: item.localFile.split('/').pop() || item.localFile,
-        file_type: getFileTypeFromExtension(item.localFile) || item.fileType,
-        file_url: item.ossUrl,
-        thumbnail_url: item.fileType === 'image' ? item.ossUrl : undefined,
-        file_size: item.fileSize,
-        created_at: item.uploadTime,
-      }));
+      files.value = ossData.ossMapping
+        .filter(item => item.localFile && item.ossUrl)
+        .map((item, index) => ({
+          id: `file-${index}`,
+          file_name: item.localFile.split('/').pop() || item.localFile,
+          file_type: getFileTypeFromExtension(item.localFile) || item.fileType,
+          file_url: item.ossUrl,
+          thumbnail_url: item.fileType === 'image' ? item.ossUrl : undefined,
+          file_size: item.fileSize,
+          created_at: item.uploadTime,
+        }));
 
       // Select first file if none selected
       if (files.value.length > 0 && !selectedFileId.value) {
