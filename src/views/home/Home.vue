@@ -10,8 +10,8 @@ import { useCreditsStore } from '@/stores/creditsStore';
 import { useMembershipModalStore } from '@/stores/membershipModalStore';
 import { getSystemConfig, type TemplateItem } from '@/api/systemApi';
 import { useToast } from '@/composables/useToast';
-import { videoModels, videoDurations, videoAspectRatios, videoResolutions } from '@/config/videoGeneration';
-import { calculateVideoCredits } from '@/utils/videoPriceCalculator';
+import { videoModels, videoDurations, videoAspectRatios, videoResolutions, imageModels, type ImageModelItem } from '@/config/videoGeneration';
+import { calculateVideoCredits, calculateImageCredits } from '@/utils/videoPriceCalculator';
 import { MAX_FILES } from '@/types/fileReference';
 import type { FilePreview } from '@/types/fileReference';
 
@@ -168,16 +168,6 @@ const freeCreationModes = [
 const imageModel = ref('banana2');
 const showImageModelMenu = ref(false);
 const imageModelMenuRef = ref<HTMLElement | null>(null);
-
-const imageModels = [
-  { id: 'gpt-image-2', label: 'GPT-image2' },
-  { id: 'banana2', label: 'Banana 2' },
-  { id: 'banana-pro', label: 'Banana Pro' },
-  { id: 'seedream-pro', label: 'Seedream Pro' },
-  { id: 'seedream-5.0-lite', label: 'Seedream 5.0 Lite' },
-  { id: 'midjourney', label: 'Midjourney' },
-  { id: 'midjourney-niji', label: 'Midjourney Niji' },
-];
 
 const selectImageModel = (model: string) => {
   imageModel.value = model;
@@ -449,13 +439,16 @@ const selectVideoReferenceMode = (mode: 'reference' | 'first_last_frame') => {
   showVideoReferenceModeMenu.value = false;
 };
 
-// Calculate credits needed for video generation
+// Calculate credits needed for video/image generation
 const creditsNeeded = ref<number | null>(null);
 const creditsLoading = ref<boolean>(false);
 const creditsError = ref<string | null>(null);
 
 const updateCreditsNeeded = async () => {
-  if (selectedMode.value !== 'free_creation' || freeCreationMode.value !== 'video_generation') {
+  const isVideoMode = selectedMode.value === 'free_creation' && freeCreationMode.value === 'video_generation';
+  const isImageMode = selectedMode.value === 'free_creation' && freeCreationMode.value === 'image_generation';
+
+  if (!isVideoMode && !isImageMode) {
     creditsNeeded.value = null;
     creditsLoading.value = false;
     creditsError.value = null;
@@ -467,9 +460,13 @@ const updateCreditsNeeded = async () => {
   creditsNeeded.value = null;
 
   try {
-    const durationSeconds = parseInt(videoDuration.value);
-    const inputVideoDuration = getInputVideoDuration();
-    creditsNeeded.value = await calculateVideoCredits(videoModel.value, durationSeconds, videoResolution.value, priceConfig.value, videoModels, inputVideoDuration);
+    if (isVideoMode) {
+      const durationSeconds = parseInt(videoDuration.value);
+      const inputVideoDuration = getInputVideoDuration();
+      creditsNeeded.value = await calculateVideoCredits(videoModel.value, durationSeconds, videoResolution.value, priceConfig.value, videoModels, inputVideoDuration);
+    } else {
+      creditsNeeded.value = await calculateImageCredits(imageModel.value, '2K', imageModels);
+    }
   } catch (error) {
     creditsError.value = error instanceof Error ? error.message : '获取价格失败';
     creditsNeeded.value = null;
@@ -478,7 +475,7 @@ const updateCreditsNeeded = async () => {
   }
 };
 
-watch([videoModel, videoDuration, videoResolution, priceConfig, freeCreationMode], updateCreditsNeeded);
+watch([videoModel, videoDuration, videoResolution, priceConfig, freeCreationMode, imageModel], updateCreditsNeeded);
 
 watch(freeCreationMode, (newMode) => {
   if (newMode !== 'video_generation') {
@@ -1079,9 +1076,9 @@ const loadSystemConfig = async () => {
 
                     <!-- Right side: Credits and Submit button -->
                     <div class="flex items-center gap-2">
-                      <!-- Credits Display (only for video_generation mode) -->
+                      <!-- Credits Display (for video_generation and image_generation modes) -->
                       <div
-                        v-if="selectedMode === 'free_creation' && freeCreationMode === 'video_generation'"
+                        v-if="selectedMode === 'free_creation' && (freeCreationMode === 'video_generation' || freeCreationMode === 'image_generation')"
                         class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm"
                         :title="creditsError || (creditsLoading ? '获取价格中...' : '')"
                       >

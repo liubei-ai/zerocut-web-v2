@@ -1,4 +1,4 @@
-import type { VideoModelItem } from '@/config/videoGeneration';
+import type { VideoModelItem, ImageModelItem } from '@/config/videoGeneration';
 
 export interface PriceConfigItem {
   id: string;
@@ -38,6 +38,29 @@ export async function calculateVideoCredits(
   if (inputVideoDuration !== undefined && inputVideoDuration > 0) {
     apiUrl += `&input_video_duration=${inputVideoDuration}`;
   }
+
+  const response = await fetch(apiUrl);
+  if (!response.ok) {
+    throw new Error(`API request failed with status ${response.status}`);
+  }
+
+  const data = await response.json() as PricingResponse;
+  if (!data.success || !data.data) {
+    throw new Error('API returned unsuccessful response');
+  }
+
+  return data.data.credits;
+}
+
+export async function calculateImageCredits(
+  modelId: string,
+  resolution: string = '2K',
+  imageModels: ImageModelItem[],
+): Promise<number> {
+  const currentModelInfo = imageModels.find(m => m.id === modelId);
+  const targetPriceId = currentModelInfo?.priceId || modelId;
+  
+  const apiUrl = `https://sd2mfo025ni4n75n9r5p0.apigateway-cn-beijing.volceapi.com/models/pricing?model=${encodeURIComponent(targetPriceId)}&resolution=${encodeURIComponent(resolution)}`;
 
   const response = await fetch(apiUrl);
   if (!response.ok) {

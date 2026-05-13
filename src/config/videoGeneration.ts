@@ -59,3 +59,21 @@ export type VideoModelId = typeof videoModels[number]['id'];
 export type VideoDurationId = typeof videoDurations[number]['id'];
 export type VideoAspectRatioId = typeof videoAspectRatios[number]['id'];
 export type VideoResolutionId = typeof videoResolutions[number]['id'];
+
+export interface ImageModelItem {
+  id: string;
+  label: string;
+  priceId: string;
+}
+
+export const imageModels: ImageModelItem[] = [
+  { id: 'gpt-image-2', label: 'GPT-image2', priceId: 'gpt-image-2' },
+  { id: 'banana2', label: 'Banana 2', priceId: 'banana2' },
+  { id: 'banana-pro', label: 'Banana Pro', priceId: 'banana-pro' },
+  { id: 'seedream-pro', label: 'Seedream Pro', priceId: 'seedream-pro' },
+  { id: 'seedream-5.0-lite', label: 'Seedream 5.0 Lite', priceId: 'seedream-5l' },
+  { id: 'midjourney', label: 'Midjourney', priceId: 'mj' },
+  { id: 'midjourney-niji', label: 'Midjourney Niji', priceId: 'mj-niji' },
+];
+
+export type ImageModelId = typeof imageModels[number]['id'];
