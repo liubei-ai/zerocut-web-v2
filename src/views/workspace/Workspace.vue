@@ -875,14 +875,18 @@ const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
       !audio.file || isFileReferencedInPrompt(params.prompt, audio.name || '')
     );
 
+    const hasLocalFile = (item: any) => {
+      return item.file && !item.url;
+    };
+
     let hasLocalFiles = false;
-    if (referencedImages.some(img => img.file)) {
+    if (referencedImages.some(img => hasLocalFile(img))) {
       hasLocalFiles = true;
     }
-    if (referencedVideos.some(video => video.file)) {
+    if (referencedVideos.some(video => hasLocalFile(video))) {
       hasLocalFiles = true;
     }
-    if (referencedAudios.some(audio => audio.file)) {
+    if (referencedAudios.some(audio => hasLocalFile(audio))) {
       hasLocalFiles = true;
     }
 
@@ -936,7 +940,7 @@ const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
           if (imageIndex === 0) type = 'first_frame';
           else if (imageIndex === 1) type = 'last_frame';
         }
-        if (img.file) {
+        if (img.file && !img.url) {
           const fileName = img.name ? getUniqueFileName(img.name) : undefined;
           const response = await uploadMaterial(projectId.value, img.file, fileName);
           images.push({
@@ -948,13 +952,13 @@ const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
           images.push({
             type,
             name: img.name ? removeFileExtension(img.name) : undefined,
-            url: img.url,
+            url: encodeURI(img.url),
           });
         }
       }
 
       for (const video of referencedVideos) {
-        if (video.file) {
+        if (video.file && !video.url) {
           const fileName = video.name ? getUniqueFileName(video.name) : undefined;
           const response = await uploadMaterial(projectId.value, video.file, fileName);
           videos.push({
@@ -967,14 +971,14 @@ const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
           videos.push({
             type: 'ref',
             name: video.name ? removeFileExtension(video.name) : undefined,
-            url: video.url,
+            url: encodeURI(video.url),
             duration: video.duration,
           });
         }
       }
 
       for (const audio of referencedAudios) {
-        if (audio.file) {
+        if (audio.file && !audio.url) {
           const fileName = audio.name ? getUniqueFileName(audio.name) : undefined;
           const response = await uploadMaterial(projectId.value, audio.file, fileName);
           audios.push({
@@ -987,7 +991,7 @@ const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
           audios.push({
             type: 'reference',
             name: audio.name ? removeFileExtension(audio.name) : undefined,
-            url: audio.url,
+            url: encodeURI(audio.url),
             duration: audio.duration,
           });
         }
@@ -1009,25 +1013,26 @@ const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
       );
 
       // Get uploaded file URLs to avoid duplicates (more reliable than name)
+      // Use decodeURI to normalize URLs for comparison
       const uploadedUrls = new Set([
-        ...images.map(img => img.url),
-        ...videos.map(video => video.url),
-        ...audios.map(audio => audio.url),
+        ...images.map(img => decodeURI(img.url || '')),
+        ...videos.map(video => decodeURI(video.url || '')),
+        ...audios.map(audio => decodeURI(audio.url || '')),
       ]);
 
       // Add OSS files that weren't just uploaded
       for (const img of ossMedia.images) {
-        if (!uploadedUrls.has(img.url)) {
+        if (!uploadedUrls.has(decodeURI(img.url || ''))) {
           images.push(img as VideoWorkflowImage);
         }
       }
       for (const video of ossMedia.videos) {
-        if (!uploadedUrls.has(video.url)) {
+        if (!uploadedUrls.has(decodeURI(video.url || ''))) {
           videos.push(video as VideoWorkflowVideo);
         }
       }
       for (const audio of ossMedia.audios) {
-        if (!uploadedUrls.has(audio.url)) {
+        if (!uploadedUrls.has(decodeURI(audio.url || ''))) {
           audios.push(audio as VideoWorkflowAudio);
         }
       }

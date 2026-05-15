@@ -152,24 +152,31 @@ const convertFilesToWorkflow = () => {
   const videos: VideoWorkflowVideo[] = [];
   const audios: VideoWorkflowAudio[] = [];
 
+  const isUrlUploaded = (url: string | undefined): boolean => {
+    return !!url && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('oss://'));
+  };
+
   if (referenceMode.value === 'first_last_frame') {
     if (firstFrameImage.value) {
+      const isUploaded = isUrlUploaded(firstFrameImage.value.url);
       images.push({
         type: 'first_frame',
         name: firstFrameImage.value.name,
-        file: firstFrameImage.value.file,
+        ...(isUploaded ? { url: firstFrameImage.value.url } : { file: firstFrameImage.value.file }),
       });
     }
     if (lastFrameImage.value) {
+      const isUploaded = isUrlUploaded(lastFrameImage.value.url);
       images.push({
         type: 'last_frame',
         name: lastFrameImage.value.name,
-        file: lastFrameImage.value.file,
+        ...(isUploaded ? { url: lastFrameImage.value.url } : { file: lastFrameImage.value.file }),
       });
     }
   }
 
   selectedFiles.value.forEach(file => {
+    const isUploaded = isUrlUploaded(file.url);
     if (file.type === 'image') {
       if (referenceMode.value === 'first_last_frame') {
         const isFirstOrLast = file.id === firstFrameImage.value?.id || file.id === lastFrameImage.value?.id;
@@ -177,28 +184,28 @@ const convertFilesToWorkflow = () => {
           images.push({
             type: 'reference',
             name: file.name,
-            file: file.file,
+            ...(isUploaded ? { url: file.url } : { file: file.file }),
           });
         }
       } else {
         images.push({
           type: 'reference',
           name: file.name,
-          file: file.file,
+          ...(isUploaded ? { url: file.url } : { file: file.file }),
         });
       }
     } else if (file.type === 'video') {
       videos.push({
         type: 'ref',
         name: file.name,
-        file: file.file,
+        ...(isUploaded ? { url: file.url } : { file: file.file }),
         duration: file.duration || 0,
       });
     } else if (file.type === 'audio') {
       audios.push({
         type: 'reference',
         name: file.name,
-        file: file.file,
+        ...(isUploaded ? { url: file.url } : { file: file.file }),
         duration: file.duration || 0,
       });
     }
