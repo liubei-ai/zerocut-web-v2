@@ -232,6 +232,17 @@ const handleSubmit = () => {
   });
 };
 
+const resetPrompt = () => {
+  prompt.value = '';
+  selectedFiles.value = [];
+  firstFrameImage.value = null;
+  lastFrameImage.value = null;
+};
+
+defineExpose({
+  resetPrompt,
+});
+
 const handleClickOutside = (e: MouseEvent) => {
   const target = e.target as HTMLElement;
   if (!target.closest('[data-menu]')) closeMenus();

@@ -5,6 +5,8 @@ interface Props {
   fileName?: string;
   isDownloading: boolean;
   downloadProgress: number;
+  status?: string;
+  prompt?: string;
 }
 
 interface Emits {
@@ -79,8 +81,36 @@ const emit = defineEmits<Emits>();
     </div>
 
     <div class="flex flex-1 items-center justify-center overflow-auto p-4 md:p-10">
+      <!-- Generating file placeholder -->
+      <div v-if="status === 'RUNNING'" class="flex h-full w-full max-w-[600px] flex-col items-center justify-center gap-6 px-4">
+        <div class="relative">
+          <div class="flex h-24 w-24 items-center justify-center rounded-2xl bg-blue-50 md:h-32 md:w-32">
+            <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent md:h-16 md:w-16"></div>
+          </div>
+          <div class="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md">
+            <span class="text-lg">🎬</span>
+          </div>
+        </div>
+
+        <div class="w-full text-center">
+          <h3 class="m-0 mb-2 text-lg font-semibold text-gray-900 md:text-xl">视频生成中...</h3>
+          <p class="m-0 mb-4 text-sm text-gray-500">请稍候，这可能需要几分钟时间</p>
+          
+          <div v-if="prompt" class="mx-auto max-w-md rounded-xl bg-gray-50 p-4">
+            <div class="mb-2 text-xs font-medium text-gray-400">提示词</div>
+            <p class="m-0 text-sm text-gray-600">{{ prompt }}</p>
+          </div>
+        </div>
+
+        <div class="w-full max-w-md">
+          <div class="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+            <div class="h-full w-full animate-loading-bar bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- No file selected -->
-      <div v-if="!fileUrl" class="flex h-full flex-col items-center justify-center gap-3 px-4 md:gap-4">
+      <div v-else-if="!fileUrl" class="flex h-full flex-col items-center justify-center gap-3 px-4 md:gap-4">
         <div
           class="flex h-16 w-16 items-center justify-center rounded-full bg-gray-50 text-3xl md:h-20 md:w-20 md:text-4xl"
         >
@@ -190,6 +220,33 @@ const emit = defineEmits<Emits>();
   }
 }
 
+@keyframes loading-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .animate-shimmer {
   animation: shimmer 2s infinite;
 }
@@ -200,5 +257,17 @@ const emit = defineEmits<Emits>();
 
 .animate-scale-in {
   animation: scale-in 0.3s ease-out forwards;
+}
+
+.animate-loading-bar {
+  animation: loading-bar 1.5s ease-in-out infinite;
+}
+
+.animate-pulse {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
 }
 </style>

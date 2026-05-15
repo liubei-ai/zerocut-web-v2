@@ -202,6 +202,8 @@ export interface OssMapping {
   fileType: string;
   localFile: string;
   uploadTime: string;
+  status?: string;
+  prompt?: string;
 }
 
 export interface OssMappingResponse {

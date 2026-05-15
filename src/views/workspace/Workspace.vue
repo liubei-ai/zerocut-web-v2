@@ -43,6 +43,8 @@ export interface WorkspaceFile {
   thumbnail_url?: string;
   file_size?: number;
   created_at: string;
+  status?: string;
+  prompt?: string;
 }
 
 const route = useRoute();
@@ -66,11 +68,15 @@ const pollingTimer = ref<NodeJS.Timeout | null>(null);
 const isAborting = ref(false);
 const isPolling = ref(false);
 const isVideoPolling = ref(false);
+const isOssPolling = ref(false);
+let ossPollingTimer: NodeJS.Timeout | null = null;
 const projectId = ref<string>('');
 const activeTab = ref<'files' | 'preview' | 'chat'>('chat');
 const isOwner = ref<boolean>(true);
 const isShared = ref<boolean>(false);
 const isCancelling = ref(false);
+
+const videoGenerationFormRef = ref();
 
 // Video generation mode (passed from home page)
 const generationMode = ref<'agent' | 'video_generation'>('agent');
@@ -197,6 +203,7 @@ onMounted(async () => {
 onUnmounted(() => {
   stopPolling();
   stopVideoPolling();
+  stopOssPolling();
 });
 
 const loadProject = async () => {
@@ -217,6 +224,9 @@ const loadProject = async () => {
 
     // Start polling for project updates every 5 seconds
     startPolling();
+
+    // Check if there are running files and start OSS polling if needed
+    startOssPollingIfNeeded();
   } catch (error) {
     console.error('❌ 加载项目失败:', error);
   }
@@ -239,20 +249,30 @@ const loadOssMapping = async () => {
     // Convert OSS mapping to file list
     if (ossData.ossMapping && Array.isArray(ossData.ossMapping)) {
       files.value = ossData.ossMapping
-        .filter(item => item.localFile && item.ossUrl)
-        .map((item, index) => ({
-          id: `file-${index}`,
-          file_name: item.localFile.split('/').pop() || item.localFile,
-          file_type: getFileTypeFromExtension(item.localFile) || item.fileType,
-          file_url: item.ossUrl,
-          thumbnail_url: item.fileType === 'image' ? item.ossUrl : undefined,
-          file_size: item.fileSize,
-          created_at: item.uploadTime,
-        }));
+        .filter(item => item.status !== 'FAILED')
+        .map((item, index) => {
+          const fileName = item.localFile ? (item.localFile.split('/').pop() || item.prompt || '未命名文件') : (item.prompt || '生成中...');
+          const fileType = item.localFile ? getFileTypeFromExtension(item.localFile) : (item.fileType || 'video');
+          
+          return {
+            id: `file-${index}`,
+            file_name: fileName,
+            file_type: fileType,
+            file_url: item.ossUrl || '',
+            thumbnail_url: item.fileType === 'image' && item.ossUrl ? item.ossUrl : undefined,
+            file_size: item.fileSize || 0,
+            created_at: item.uploadTime || new Date().toISOString(),
+            status: item.status,
+            prompt: item.prompt,
+          };
+        });
 
       // Select first file if none selected
       if (files.value.length > 0 && !selectedFileId.value) {
-        selectedFileId.value = files.value[0].id;
+        const firstCompletedFile = files.value.find(f => !f.status || f.status === 'SUCCESS');
+        if (firstCompletedFile) {
+          selectedFileId.value = firstCompletedFile.id;
+        }
       }
     }
   } catch (error) {
@@ -1124,6 +1144,47 @@ const stopVideoPolling = () => {
   isVideoPolling.value = false;
 };
 
+const stopOssPolling = () => {
+  if (ossPollingTimer) {
+    clearTimeout(ossPollingTimer);
+    ossPollingTimer = null;
+  }
+  isOssPolling.value = false;
+};
+
+const scheduleNextOssPoll = (delay: number = 3000) => {
+  if (isOssPolling.value) {
+    ossPollingTimer = setTimeout(async () => {
+      if (!isOssPolling.value) return;
+
+      try {
+        await loadOssMapping();
+        // Check if there are still running files
+        const hasRunningFiles = files.value.some(file => file.status === 'RUNNING');
+        if (hasRunningFiles) {
+          scheduleNextOssPoll(delay);
+        } else {
+          stopOssPolling();
+        }
+      } catch (error) {
+        console.error('❌ 轮询OSS状态失败:', error);
+        if (isOssPolling.value) {
+          scheduleNextOssPoll(delay);
+        }
+      }
+    }, delay);
+  }
+};
+
+const startOssPollingIfNeeded = () => {
+  const hasRunningFiles = files.value.some(file => file.status === 'RUNNING');
+  if (hasRunningFiles && !isOssPolling.value) {
+    isOssPolling.value = true;
+    scheduleNextOssPoll();
+    console.log('🔄 检测到正在生成的文件，启动OSS轮询');
+  }
+};
+
 const scheduleNextVideoPoll = (delay: number = 3000) => {
   if (isVideoPolling.value) {
     videoPollingTimer = setTimeout(async () => {
@@ -1157,17 +1218,24 @@ const pollVideoWorkflowStatus = async () => {
     const data = await getVideoWorkflow(videoWorkflowId.value);
     videoWorkflowData.value = data;
 
+    // Refresh OSS list on every poll to show latest generation status
+    await loadOssMapping();
+
     if (data.status === 'SUCCESS') {
       videoGenerationState.value = 'completed';
       stopVideoPolling();
-      // Refresh file list to show new video
-      await loadOssMapping();
       toast.success('视频生成完成');
+      // 重置视频描述，但保留其他选项
+      videoGenerationFormRef.value?.resetPrompt();
+      // Check if there are other running files and start OSS polling
+      startOssPollingIfNeeded();
     } else if (data.status === 'FAILED') {
       videoGenerationState.value = 'failed';
       videoGenerationError.value = data.output?.errorMessage || data.output?.error || '视频生成失败';
       stopVideoPolling();
       toast.error(videoGenerationError.value);
+      // Check if there are other running files and start OSS polling
+      startOssPollingIfNeeded();
     }
   } catch (error) {
     console.error('❌ 轮询视频生成状态失败:', error);
@@ -1258,6 +1326,8 @@ const handleRetryVideoGeneration = () => {
           :file-name="selectedFile?.file_name"
           :is-downloading="isDownloading"
           :download-progress="downloadProgress"
+          :status="selectedFile?.status"
+          :prompt="selectedFile?.prompt"
           @regenerate="handleRegenerate"
           @download="handleDownload"
           @modify="handleModify"
@@ -1299,7 +1369,8 @@ const handleRetryVideoGeneration = () => {
             <!-- Video Generation Tab -->
             <div v-show="workspaceTab === 'video'" class="h-full">
               <VideoGenerationForm
-                v-if="videoGenerationState === 'idle'"
+                v-show="videoGenerationState === 'idle'"
+                ref="videoGenerationFormRef"
                 :initial-prompt="initialPrompt"
                 :initial-model="initialVideoModel"
                 :initial-duration="initialVideoDuration"
@@ -1316,7 +1387,7 @@ const handleRetryVideoGeneration = () => {
                 @file-uploaded="handleFileUploaded"
               />
               <VideoGenerationProgress
-                v-else
+                v-show="videoGenerationState !== 'idle'"
                 :status="videoGenerationState === 'failed' ? 'FAILED' : (videoWorkflowData?.status || 'PENDING')"
                 :progress="videoWorkflowData?.output?.progress"
                 :result-url="videoWorkflowData?.output?.videoUrl || videoWorkflowData?.output?.videoUrls?.[0]"
@@ -1375,6 +1446,8 @@ const handleRetryVideoGeneration = () => {
             :file-name="selectedFile?.file_name"
             :is-downloading="isDownloading"
             :download-progress="downloadProgress"
+            :status="selectedFile?.status"
+            :prompt="selectedFile?.prompt"
             @regenerate="handleRegenerate"
             @download="handleDownload"
             @modify="handleModify"
@@ -1416,7 +1489,8 @@ const handleRetryVideoGeneration = () => {
             <!-- Mobile: Video Generation Tab -->
             <div v-show="workspaceTab === 'video'" class="flex-1 overflow-hidden pb-16 md:hidden">
               <VideoGenerationForm
-                v-if="videoGenerationState === 'idle'"
+                v-show="videoGenerationState === 'idle'"
+                ref="videoGenerationFormRef"
                 :initial-prompt="initialPrompt"
                 :initial-model="initialVideoModel"
                 :initial-duration="initialVideoDuration"
@@ -1433,7 +1507,7 @@ const handleRetryVideoGeneration = () => {
                 @file-uploaded="handleFileUploaded"
               />
               <VideoGenerationProgress
-                v-else
+                v-show="videoGenerationState !== 'idle'"
                 :status="videoGenerationState === 'failed' ? 'FAILED' : (videoWorkflowData?.status || 'PENDING')"
                 :progress="videoWorkflowData?.output?.progress"
                 :result-url="videoWorkflowData?.output?.videoUrl || videoWorkflowData?.output?.videoUrls?.[0]"

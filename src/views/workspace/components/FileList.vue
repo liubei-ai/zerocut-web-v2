@@ -319,10 +319,18 @@ const handleDownloadAll = async () => {
           :class="[
             'flex cursor-pointer items-start gap-2.5 rounded-lg border p-2.5 transition-all active:scale-[0.98]',
             selectedFileId === file.id ? 'border-gray-200 bg-gray-50' : 'border-transparent hover:bg-gray-50',
+            file.status === 'RUNNING' ? 'opacity-80' : '',
           ]"
         >
+          <template v-if="file.status === 'RUNNING'">
+            <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-blue-50">
+              <div class="relative">
+                <div class="animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent"></div>
+              </div>
+            </div>
+          </template>
           <img
-            v-if="file.file_type === 'image'"
+            v-else-if="file.file_type === 'image'"
             :src="`${file.file_url}?x-tos-process=image/resize,w_100`"
             :alt="file.file_name"
             class="h-10 w-10 flex-shrink-0 rounded-md object-cover"
@@ -333,10 +341,18 @@ const handleDownloadAll = async () => {
 
           <div class="min-w-0 flex-1">
             <div class="mb-0.5 overflow-hidden text-xs font-medium text-ellipsis whitespace-nowrap text-gray-900">
-              {{ file.file_name }}
+              {{ file.status === 'RUNNING' ? '生成中...' : file.file_name }}
             </div>
             <div class="text-[11px] text-gray-400">
-              {{ formatFileSize(file.file_size) }}
+              <template v-if="file.status === 'RUNNING'">
+                <span class="inline-flex items-center gap-1">
+                  <span class="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                  正在生成
+                </span>
+              </template>
+              <template v-else>
+                {{ formatFileSize(file.file_size) }}
+              </template>
             </div>
           </div>
         </div>
