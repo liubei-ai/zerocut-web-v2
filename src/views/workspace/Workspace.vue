@@ -8,7 +8,9 @@ import PreviewArea from './components/PreviewArea.vue';
 import ChatBox from './components/ChatBox.vue';
 import VideoGenerationForm from './components/VideoGenerationForm.vue';
 import VideoGenerationProgress from './components/VideoGenerationProgress.vue';
+import CanvasFlow from '@/components/workspace/CanvasFlow.vue';
 import type { VideoGenerationParams } from './components/VideoGenerationForm.vue';
+import type { OssMaterial } from '@/types/ossMaterial';
 import {
   createVideoProject,
   createVideo,
@@ -56,7 +58,9 @@ const { messages, initMessages, addUserMessage, removeMessage, addAssistantMessa
 const { toast } = useToast();
 
 const files = ref<WorkspaceFile[]>([]);
+const ossMaterials = ref<OssMaterial[]>([]);
 const selectedFileId = ref<string>();
+const selectedMaterialId = ref<string>();
 const isRunning = ref(false);
 const isUploading = ref(false);
 const projectTitle = ref('');
@@ -75,6 +79,7 @@ const activeTab = ref<'files' | 'preview' | 'chat'>('chat');
 const isOwner = ref<boolean>(true);
 const isShared = ref<boolean>(false);
 const isCancelling = ref(false);
+const workspaceView = ref<'list' | 'canvas'>('canvas');
 
 const videoGenerationFormRef = ref();
 
@@ -244,11 +249,28 @@ const loadOssMapping = async () => {
   try {
     const ossData = await getOssMapping(projectId.value);
 
-    // Convert OSS mapping to file list
+    // Convert OSS mapping to file list and materials for canvas
     if (ossData.ossMapping && Array.isArray(ossData.ossMapping)) {
+      // Store raw materials for canvas (includes all items with full data)
+      ossMaterials.value = ossData.ossMapping.map((item: any) => ({
+        ossKey: item.ossKey,
+        ossUrl: item.ossUrl,
+        source: item.source || 'manual',
+        fileSize: item.fileSize || 0,
+        fileType: item.fileType || (item.localFile ? getFileTypeFromExtension(item.localFile) : 'document'),
+        localFile: item.localFile,
+        uploadTime: item.uploadTime || new Date().toISOString(),
+        prompt: item.prompt,
+        model: item.model,
+        inputParams: item.inputParams,
+        status: item.status,
+        workflowRef: item.workflowRef,
+      }));
+
+      // Convert to file list for existing UI (filter out failed items)
       files.value = ossData.ossMapping
-        .filter(item => item.status !== 'FAILED')
-        .map((item, index) => {
+        .filter((item: any) => item.status !== 'FAILED')
+        .map((item: any, index: number) => {
           const fileName = item.localFile ? (item.localFile.split('/').pop() || item.prompt || '未命名文件') : (item.prompt || '生成中...');
           const fileType = item.localFile ? getFileTypeFromExtension(item.localFile) : (item.fileType || 'video');
           
@@ -279,6 +301,7 @@ const loadOssMapping = async () => {
     if (!files.value.length) {
       files.value = [];
     }
+    ossMaterials.value = [];
   }
 };
 
@@ -685,6 +708,89 @@ const handleModify = () => {
 
 const handleShowPrompt = () => {
   console.log('Show prompt');
+};
+
+// Canvas event handlers
+const handleCanvasSelect = (material: OssMaterial) => {
+  selectedMaterialId.value = material.ossKey || material.localFile || undefined;
+  
+  // Also select in file list for preview
+  const matchingFile = files.value.find(f => 
+    (material.ossUrl && f.file_url === material.ossUrl) ||
+    (material.localFile && f.file_name === material.localFile.split('/').pop())
+  );
+  if (matchingFile) {
+    selectedFileId.value = matchingFile.id;
+  }
+};
+
+const handleCanvasEdit = (material: OssMaterial) => {
+  console.log('Edit material:', material);
+  
+  // Switch to video generation tab and fill the form
+  workspaceTab.value = 'video';
+  videoGenerationState.value = 'idle';
+  
+  if (material.prompt) {
+    initialPrompt.value = material.prompt;
+  }
+  if (material.inputParams) {
+    if (material.inputParams.duration) {
+      initialVideoDuration.value = material.inputParams.duration;
+    }
+    if (material.inputParams.aspect_ratio) {
+      initialVideoAspectRatio.value = material.inputParams.aspect_ratio as '16:9' | '9:16';
+    }
+    if (material.inputParams.resolution) {
+      initialVideoResolution.value = material.inputParams.resolution as '720p' | '1080p';
+    }
+  }
+  if (material.model) {
+    initialVideoModel.value = material.model;
+  }
+};
+
+const handleCanvasRegenerate = (material: OssMaterial) => {
+  console.log('Regenerate material:', material);
+  
+  // Use the material's parameters to regenerate
+  if (!material.prompt && !material.inputParams) {
+    toast.error('该素材没有生成参数，无法重新生成');
+    return;
+  }
+  
+  workspaceTab.value = 'video';
+  
+  // Prepare params for regeneration - convert references to appropriate types
+  const images = material.inputParams?.images?.map(img => ({
+    ...img,
+    type: img.type as 'reference' | 'first_frame' | 'last_frame',
+  }));
+  
+  const videos = material.inputParams?.videos?.map(vid => ({
+    ...vid,
+    type: vid.type as 'ref',
+  }));
+  
+  const audios = material.inputParams?.audios?.map(aud => ({
+    ...aud,
+    type: aud.type as 'reference' | 'speaker' | 'sound' | 'bgm' | 'lipsync',
+  }));
+  
+  const params: VideoGenerationParams = {
+    model: material.model || initialVideoModel.value,
+    prompt: material.prompt || '',
+    resolution: (material.inputParams?.resolution as '720p' | '1080p') || initialVideoResolution.value,
+    aspectRatio: (material.inputParams?.aspect_ratio as '16:9' | '9:16') || initialVideoAspectRatio.value,
+    duration: material.inputParams?.duration || initialVideoDuration.value,
+    referenceMode: 'reference',
+    images,
+    videos,
+    audios,
+  };
+  
+  // Start regeneration
+  handleVideoGenerationSubmit(params);
 };
 
 const handleAbortTask = async () => {
@@ -1304,47 +1410,78 @@ const handleBackToVideoForm = () => {
 
       <!-- Desktop Layout -->
       <div class="hidden h-full w-full md:flex">
-        <FileList
-          :files="files"
-          :selected-file-id="selectedFileId"
-          :project-title="projectTitle"
-          :project-id="projectId"
-          :is-uploading="isUploading"
-          :is-owner="isOwner"
-          :is-shared="isShared"
-          @file-select="handleFileSelect"
-          @project-title-change="handleProjectTitleChange"
-          @share-toggle="handleShareToggle"
-          @file-uploaded="handleFileUploaded"
-          @upload-start="handleUploadStart"
-          @upload-end="handleUploadEnd"
-        />
+        <!-- Left Panel: File List or Canvas Flow (占据更大空间) -->
+        <div class="flex h-full flex-[2] flex-col border-r border-border">
+          <!-- View Toggle -->
+          <div class="flex items-center justify-between border-b border-border px-4 py-3 bg-card">
+            <div class="flex items-center gap-2">
+              <button
+                @click="workspaceView = 'list'"
+                class="rounded-lg px-4 py-2 text-sm font-medium transition-all shadow-sm"
+                :class="[
+                  workspaceView === 'list'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-secondary-foreground hover:bg-accent',
+                ]"
+              >
+                📁 列表
+              </button>
+              <button
+                @click="workspaceView = 'canvas'"
+                class="rounded-lg px-4 py-2 text-sm font-medium transition-all shadow-sm"
+                :class="[
+                  workspaceView === 'canvas'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-secondary-foreground hover:bg-accent',
+                ]"
+              >
+                🧩 画布
+              </button>
+            </div>
+          </div>
 
-        <PreviewArea
-          :file-url="selectedFile?.file_url"
-          :file-type="selectedFile?.file_type"
-          :file-name="selectedFile?.file_name"
-          :is-downloading="isDownloading"
-          :download-progress="downloadProgress"
-          :status="selectedFile?.status"
-          :prompt="selectedFile?.prompt"
-          @regenerate="handleRegenerate"
-          @download="handleDownload"
-          @modify="handleModify"
-          @show-prompt="handleShowPrompt"
-        />
+          <!-- File List View -->
+          <div v-show="workspaceView === 'list'" class="h-full flex-1 overflow-hidden bg-background">
+            <FileList
+              :files="files"
+              :selected-file-id="selectedFileId"
+              :project-title="projectTitle"
+              :project-id="projectId"
+              :is-uploading="isUploading"
+              :is-owner="isOwner"
+              :is-shared="isShared"
+              @file-select="handleFileSelect"
+              @project-title-change="handleProjectTitleChange"
+              @share-toggle="handleShareToggle"
+              @file-uploaded="handleFileUploaded"
+              @upload-start="handleUploadStart"
+              @upload-end="handleUploadEnd"
+            />
+          </div>
 
-        <!-- Desktop: Chat/Video Generation Area with Tabs -->
-        <div class="hidden h-full w-[320px] flex-col border-l border-gray-200 bg-white lg:w-[400px] xl:w-[480px] md:flex">
+          <!-- Canvas Flow View (默认视图，占据主要空间) -->
+          <div v-show="workspaceView === 'canvas'" class="h-full flex-1 overflow-hidden bg-background">
+            <CanvasFlow
+              :materials="ossMaterials"
+              :selected-material-id="selectedMaterialId"
+              @select="handleCanvasSelect"
+              @edit="handleCanvasEdit"
+              @regenerate="handleCanvasRegenerate"
+            />
+          </div>
+        </div>
+
+        <!-- Desktop: Chat/Video Generation Area with Tabs (右侧面板) -->
+        <div class="h-full w-[360px] flex-col border-l border-border bg-card lg:w-[420px] xl:w-[500px] flex">
           <!-- Tab Navigation -->
-          <div class="flex border-b border-gray-200">
+          <div class="flex border-b border-border">
             <button
               @click="workspaceTab = 'video'"
               class="flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
               :class="[
                 workspaceTab === 'video'
-                  ? 'border-b-2 border-gray-900 text-gray-900'
-                  : 'text-gray-500 hover:text-gray-700',
+                  ? 'border-b-2 border-primary text-primary bg-accent/50'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/30',
               ]"
             >
               <span>🎬</span>
@@ -1355,8 +1492,8 @@ const handleBackToVideoForm = () => {
               class="flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
               :class="[
                 workspaceTab === 'agent'
-                  ? 'border-b-2 border-gray-900 text-gray-900'
-                  : 'text-gray-500 hover:text-gray-700',
+                  ? 'border-b-2 border-primary text-primary bg-accent/50'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/30',
               ]"
             >
               <span>🤖</span>
