@@ -394,6 +394,8 @@ const handleSubmit = () => {
         videoAspectRatio: videoAspectRatio.value,
         videoResolution: videoResolution.value,
         videoReferenceMode: videoReferenceMode.value,
+        firstFrameFileId: videoReferenceMode.value === 'first_last_frame' && firstFrameImage.value ? firstFrameImage.value.id : undefined,
+        lastFrameFileId: videoReferenceMode.value === 'first_last_frame' && lastFrameImage.value ? lastFrameImage.value.id : undefined,
       },
     });
   }

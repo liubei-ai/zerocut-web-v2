@@ -30,6 +30,8 @@ interface Props {
   initialAspectRatio?: '16:9' | '9:16';
   initialResolution?: '720p' | '1080p';
   initialReferenceMode?: 'reference' | 'first_last_frame';
+  initialFirstFrameFileId?: string;
+  initialLastFrameFileId?: string;
   priceConfig?: any;
   initialFiles?: FilePreview[];
   projectFiles?: ProjectFileReference[];
@@ -53,12 +55,31 @@ const resolution = ref<'720p' | '1080p'>(props.initialResolution || '720p');
 const aspectRatio = ref<'16:9' | '9:16'>(props.initialAspectRatio || '9:16');
 const duration = ref(props.initialDuration || 5);
 const referenceMode = ref<'reference' | 'first_last_frame'>(props.initialReferenceMode || 'reference');
-const selectedFiles = ref<FilePreview[]>(props.initialFiles || []);
-
-const openMenu = ref<string | null>(null);
-
 const firstFrameImage = ref<FilePreview | null>(null);
 const lastFrameImage = ref<FilePreview | null>(null);
+
+const initFilesFromProps = () => {
+  if (!props.initialFiles || props.initialFiles.length === 0) return;
+
+  if (props.initialReferenceMode === 'first_last_frame' && (props.initialFirstFrameFileId || props.initialLastFrameFileId)) {
+    const firstFile = props.initialFiles.find(f => f.id === props.initialFirstFrameFileId) || null;
+    const lastFile = props.initialFiles.find(f => f.id === props.initialLastFrameFileId) || null;
+    firstFrameImage.value = firstFile;
+    lastFrameImage.value = lastFile;
+    const remainingFiles = props.initialFiles.filter(
+      f => f.id !== props.initialFirstFrameFileId && f.id !== props.initialLastFrameFileId
+    );
+    selectedFiles.value = remainingFiles;
+  } else {
+    selectedFiles.value = [...props.initialFiles];
+  }
+};
+
+const selectedFiles = ref<FilePreview[]>([]);
+
+initFilesFromProps();
+
+const openMenu = ref<string | null>(null);
 
 const getFirstFrameImage = computed(() => {
   if (referenceMode.value === 'first_last_frame') {
@@ -145,7 +166,20 @@ const updateCreditsNeeded = async () => {
 watch([model, duration, resolution], updateCreditsNeeded);
 
 updateCreditsNeeded();
-const canSubmit = computed(() => prompt.value.trim().length > 0 && !props.isLoading);
+
+// 在首尾帧模式下，必须上传首帧图片才能提交
+const canSubmit = computed(() => {
+  const hasPrompt = prompt.value.trim().length > 0;
+  const notLoading = !props.isLoading;
+
+  // 首尾帧模式必须上传首帧图片
+  if (referenceMode.value === 'first_last_frame') {
+    const hasFirstFrame = !!firstFrameImage.value;
+    return hasPrompt && notLoading && hasFirstFrame;
+  }
+
+  return hasPrompt && notLoading;
+});
 
 const convertFilesToWorkflow = () => {
   const images: VideoWorkflowImage[] = [];
