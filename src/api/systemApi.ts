@@ -1,4 +1,5 @@
 import apiClient from './client';
+import { ImageModelItem, VideoModelItem } from '@/config/videoGeneration';
 
 export interface SystemConfigRequest {
   keys: string[];
@@ -15,6 +16,11 @@ export interface SystemConfigResponse {
   webHomeTips?: string;
   webHomeAutoRecommend?: TemplateItem[];
   webHomeFreeRecommend?: TemplateItem[];
+  webHomeImageModels?: ImageModelItem[];
+  webHomeVideoModels?: VideoModelItem[];
+  webHomeImageModelDefault?: string;
+  webHomeVideoModelDefault?: string;
+  webHomeDefaultMode?: 'agent' | 'video_generation' | 'image_generation';
 }
 
 /**

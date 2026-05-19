@@ -10,3 +10,7 @@
 ## TODO
 
 [ ] prompt参考图匹配有问题，prompt的中的图片1会匹配到图片10-图片19
+
+## API
+https://sd2mfo025ni4n75n9r5p0.apigateway-cn-beijing.volceapi.com/models 模型列表
+https://sd2mfo025ni4n75n9r5p0.apigateway-cn-beijing.volceapi.com/models/pricing?model=zerocut3.0&duration=10&resolution=1080p 模型价格

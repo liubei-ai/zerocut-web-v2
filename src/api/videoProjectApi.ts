@@ -2,20 +2,14 @@ import apiClient from './client';
 import { type ChatMessage } from '@/types/workspace';
 
 export interface VideoProject {
-  id: string;
-  title?: string; // Keep for backward compatibility
-  project_name: string; // Actual property name from API
-  prompt?: string;
-  creation_mode?: string;
+  id: number;
+  uid: number;
+  project_name: string;
   status: string;
-  thumbnail_url?: string;
-  duration?: number;
-  created_at: string;
   is_shared: boolean;
-  oss_mapping?: Array<{
-    localFile: string;
-    ossUrl: string;
-  }>;
+  cover_url: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface VideoProjectListResponse {
@@ -23,9 +17,10 @@ export interface VideoProjectListResponse {
   pagination?: {
     page: number;
     pageSize: number;
+    total: number;
     totalPages: number;
-    totalCount: number;
     hasNext: boolean;
+    hasPrev: boolean;
   };
 }
 
@@ -58,7 +53,7 @@ export async function getUserVideoProjects(params: VideoProjectListParams = {}) 
   const { page = 1, pageSize = 6 } = params;
 
   const response = await apiClient.get<VideoProjectListResponse>(
-    `/video-project/user?page=${page}&pageSize=${pageSize}`
+    `/video-project/user/summary?page=${page}&pageSize=${pageSize}`
   );
 
   return response.data;

@@ -10,7 +10,7 @@ import { useCreditsStore } from '@/stores/creditsStore';
 import { useMembershipModalStore } from '@/stores/membershipModalStore';
 import { getSystemConfig, type TemplateItem } from '@/api/systemApi';
 import { useToast } from '@/composables/useToast';
-import { videoModels, videoDurations, videoAspectRatios, videoResolutions, imageModels, type ImageModelItem } from '@/config/videoGeneration';
+import { videoDurations, videoAspectRatios, videoResolutions, imageModels as defaultImageModels, videoModels as defaultVideoModels, type ImageModelItem, type VideoModelItem } from '@/config/videoGeneration';
 import { calculateVideoCredits, calculateImageCredits } from '@/utils/videoPriceCalculator';
 import { MAX_FILES } from '@/types/fileReference';
 import type { FilePreview } from '@/types/fileReference';
@@ -27,7 +27,6 @@ const showAspectRatioMenu = ref(false);
 const showStyleMenu = ref(false);
 const selectedFiles = ref<FilePreview[]>([]);
 const homeTips = ref('新用户注册送1000积分～');
-const priceConfig = ref<any>(null);
 const { toast } = useToast();
 
 // Free creation mode options
@@ -166,6 +165,8 @@ const freeCreationModes = [
 ];
 
 const imageModel = ref('banana2');
+const imageModelList = ref<ImageModelItem[]>([...defaultImageModels]);
+const videoModelList = ref<VideoModelItem[]>([...defaultVideoModels]);
 const showImageModelMenu = ref(false);
 const imageModelMenuRef = ref<HTMLElement | null>(null);
 
@@ -343,7 +344,7 @@ const handleSubmit = () => {
           '1:8': '极长竖屏1:8',
           '8:1': '极长横屏8:1',
         };
-        chatMessage = `请使用${imageModels.find(m => m.id === imageModel.value)?.id || imageModel.value}模型生成图片，${aspectRatioMap[videoAspectRatio.value] || videoAspectRatio.value}，内容为：${videoPrompt.value}`;
+        chatMessage = `请使用${imageModelList.value.find(m => m.id === imageModel.value)?.id || imageModel.value}模型生成图片，${aspectRatioMap[videoAspectRatio.value] || videoAspectRatio.value}，内容为：${videoPrompt.value}`;
       } else {
         // Video generation mode - use workflow API instead of chat
         chatMessage = videoPrompt.value;
@@ -465,9 +466,9 @@ const updateCreditsNeeded = async () => {
     if (isVideoMode) {
       const durationSeconds = parseInt(videoDuration.value);
       const inputVideoDuration = getInputVideoDuration();
-      creditsNeeded.value = await calculateVideoCredits(videoModel.value, durationSeconds, videoResolution.value, priceConfig.value, videoModels, inputVideoDuration);
+      creditsNeeded.value = await calculateVideoCredits(videoModel.value, durationSeconds, videoResolution.value, videoModelList.value, inputVideoDuration);
     } else {
-      creditsNeeded.value = await calculateImageCredits(imageModel.value, '2K', imageModels);
+      creditsNeeded.value = await calculateImageCredits(imageModel.value, '2K', imageModelList.value);
     }
   } catch (error) {
     creditsError.value = error instanceof Error ? error.message : '获取价格失败';
@@ -477,7 +478,7 @@ const updateCreditsNeeded = async () => {
   }
 };
 
-watch([videoModel, videoDuration, videoResolution, priceConfig, freeCreationMode, imageModel], updateCreditsNeeded);
+watch([videoModel, videoDuration, videoResolution, freeCreationMode, imageModel], updateCreditsNeeded);
 
 watch(freeCreationMode, (newMode) => {
   if (newMode !== 'video_generation') {
@@ -548,18 +549,17 @@ const loadSystemConfig = async () => {
   try {
     const config = await getSystemConfig([
       'web_home_tips',
-      'web_price',
       'web_home_auto_recommend',
       'web_home_free_recommend',
+      'web_home_image_models',
+      'web_home_video_models',
+      'web_home_image_model_default',
+      'web_home_video_model_default',
+      'web_home_default_mode',
     ]);
     console.log('config', config);
     if (config.webHomeTips) {
       homeTips.value = config.webHomeTips;
-    }
-
-    // Store price config
-    if (config.webPrice) {
-      priceConfig.value = config.webPrice;
     }
 
     const webHomeAutoRecommend = config.webHomeAutoRecommend;
@@ -569,6 +569,31 @@ const loadSystemConfig = async () => {
     }
     if (webHomeFreeRecommend && webHomeFreeRecommend.length > 0) {
       suggestionsByMode.value.free_creation = webHomeFreeRecommend;
+    }
+
+    if (config.webHomeImageModels && config.webHomeImageModels.length > 0) {
+      imageModelList.value = config.webHomeImageModels;
+    }
+    if (config.webHomeVideoModels && config.webHomeVideoModels.length > 0) {
+      videoModelList.value = config.webHomeVideoModels;
+    }
+    if (config.webHomeImageModelDefault) {
+      const defaultImageModelExists = imageModelList.value.some(m => m.id === config.webHomeImageModelDefault);
+      if (defaultImageModelExists) {
+        imageModel.value = config.webHomeImageModelDefault;
+      }
+    }
+    if (config.webHomeVideoModelDefault) {
+      const defaultVideoModelExists = videoModelList.value.some(m => m.id === config.webHomeVideoModelDefault);
+      if (defaultVideoModelExists) {
+        videoModel.value = config.webHomeVideoModelDefault;
+      }
+    }
+    if (config.webHomeDefaultMode) {
+      const validModes = ['agent', 'video_generation', 'image_generation'];
+      if (validModes.includes(config.webHomeDefaultMode)) {
+        freeCreationMode.value = config.webHomeDefaultMode;
+      }
     }
   } catch (error) {
     console.error('Failed to load system config:', error);
@@ -779,7 +804,7 @@ const loadSystemConfig = async () => {
                             class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
                           >
                             <span>🎯</span>
-                            <span>{{ videoModels.find(m => m.id === videoModel)?.label }}</span>
+                            <span>{{ videoModelList.find(m => m.id === videoModel)?.label }}</span>
                             <span class="text-xs">▼</span>
                           </Button>
 
@@ -788,7 +813,7 @@ const loadSystemConfig = async () => {
                             class="absolute bottom-full left-0 z-[1000] mb-2 min-w-[200px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
                           >
                             <Button
-                              v-for="model in videoModels"
+                              v-for="model in videoModelList"
                               :key="model.id"
                               variant="ghost"
                               @click="selectVideoModel(model.id)"
@@ -988,7 +1013,7 @@ const loadSystemConfig = async () => {
                             class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
                           >
                             <span>🎨</span>
-                            <span>{{ imageModels.find(m => m.id === imageModel)?.label }}</span>
+                            <span>{{ imageModelList.find(m => m.id === imageModel)?.label }}</span>
                             <span class="text-xs">▼</span>
                           </Button>
 
@@ -997,7 +1022,7 @@ const loadSystemConfig = async () => {
                             class="absolute bottom-full left-0 z-[1000] mb-2 min-w-[200px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
                           >
                             <Button
-                              v-for="model in imageModels"
+                              v-for="model in imageModelList"
                               :key="model.id"
                               variant="ghost"
                               @click="selectImageModel(model.id)"

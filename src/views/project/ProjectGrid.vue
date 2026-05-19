@@ -105,7 +105,7 @@
           </h3>
           <div class="flex items-center justify-between border-t border-gray-100 pt-3">
             <span class="text-xs text-gray-400">
-              {{ formatDate(project.created_at) }}
+              {{ formatDate(project.updated_at) }}
             </span>
           </div>
 
@@ -177,7 +177,7 @@ const router = useRouter();
 // State
 const projects = ref<VideoProject[]>([]);
 const isLoading = ref(false);
-const isDeleting = ref<string | null>(null);
+const isDeleting = ref<number | null>(null);
 const isLoadingMore = ref(false);
 const currentPage = ref(1);
 const hasNextPage = ref(false);
@@ -253,14 +253,14 @@ const goToAllProjects = () => {
 };
 
 // Delete project
-const handleDeleteProject = async (projectId: string) => {
+const handleDeleteProject = async (projectId: number) => {
   if (isDeleting.value) return;
 
   if (!confirm('确定要删除这个视频项目吗？')) return;
 
   isDeleting.value = projectId;
   try {
-    await deleteVideoProject(projectId);
+    await deleteVideoProject(projectId.toString());
     // Remove project from list
     projects.value = projects.value.filter(p => p.id !== projectId);
   } catch (error) {
@@ -308,26 +308,12 @@ const placeholderImage =
 
 // Get project preview image/video
 const getProjectPreview = (project: any) => {
-  if (!project.oss_mapping || !Array.isArray(project.oss_mapping)) {
-    // If no oss_mapping data, return placeholder
-    return placeholderImage;
+  // Use cover_url from the new API response
+  if (project.cover_url) {
+    return `${project.cover_url}?x-tos-process=image/resize,w_300`;
   }
 
-  // Use first image from oss_mapping as cover
-  const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
-
-  // Find first image
-  const firstImage = project.oss_mapping.find((item: any) => {
-    if (!item.localFile || !item.ossUrl) return false;
-    const lowerFile = item.localFile.toLowerCase();
-    return imageExtensions.some(ext => lowerFile.endsWith(ext));
-  });
-
-  if (firstImage && firstImage.ossUrl) {
-    return firstImage.ossUrl;
-  }
-
-  // If no image found, return inline SVG placeholder
+  // If no cover_url, return inline SVG placeholder
   return placeholderImage;
 };
 

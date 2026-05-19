@@ -2,7 +2,6 @@ export interface VideoModelItem {
   id: string;
   label: string;
   description: string;
-  priceId: string;
   isNew?: boolean;
 }
 
@@ -26,13 +25,9 @@ export interface VideoResolutionItem {
 }
 
 export const videoModels: VideoModelItem[] = [
-  { id: 'seedance-2.0', label: 'Seedance-2.0', description: '即梦 高质量生成', priceId: 'seedance-2.0' },
-  { id: 'seedance-2.0-fast', label: 'Seedance-2.0-fast', description: '即梦 快速生成', priceId: 'seedance-2.0-fast' },
-  { id: 'zerocut3.0', label: 'ZeroCut 3.0', description: 'ZeroCut 高质量生成', priceId: 'zerocut3.0' },
-  { id: 'zerocut3.0-pro', label: 'ZeroCut 3.0 Pro', description: 'ZeroCut 专业版', priceId: 'zerocut3.0-pro' },
-  { id: 'zerocut3.0-pro-fast', label: 'ZeroCut 3.0 Pro Fast', description: 'ZeroCut 专业快速', priceId: 'zerocut3.0-pro-fast' },
-  { id: 'zerocut3.0-turbo', label: 'ZeroCut 3.0 Turbo', description: 'ZeroCut 性价比之王', priceId: 'zerocut3.0-turbo' },
-  { id: 'happyhorse', label: 'HappyHorse', description: '阿里快乐马', priceId: 'happyhorse', isNew: true },
+  { id: 'seedance-2.0', label: 'Seedance-2.0', description: '即梦 高质量生成' },
+  { id: 'seedance-2.0-fast', label: 'Seedance-2.0-fast', description: '即梦 快速生成' },
+  { id: 'happyhorse', label: 'HappyHorse', description: '阿里快乐马', isNew: true },
 ];
 
 export const videoDurations: VideoDurationItem[] = [
@@ -63,17 +58,16 @@ export type VideoResolutionId = typeof videoResolutions[number]['id'];
 export interface ImageModelItem {
   id: string;
   label: string;
-  priceId: string;
 }
 
 export const imageModels: ImageModelItem[] = [
-  { id: 'gpt-image-2', label: 'GPT-image2', priceId: 'gpt-image-2' },
-  { id: 'banana2', label: 'Banana 2', priceId: 'banana2' },
-  { id: 'banana-pro', label: 'Banana Pro', priceId: 'banana-pro' },
-  { id: 'seedream-pro', label: 'Seedream Pro', priceId: 'seedream-pro' },
-  { id: 'seedream-5.0-lite', label: 'Seedream 5.0 Lite', priceId: 'seedream-5l' },
-  { id: 'midjourney', label: 'Midjourney', priceId: 'mj' },
-  { id: 'midjourney-niji', label: 'Midjourney Niji', priceId: 'mj-niji' },
+  { id: 'gpt-image-2', label: 'GPT-image2' },
+  { id: 'banana2', label: 'Banana 2' },
+  { id: 'banana-pro', label: 'Banana Pro' },
+  { id: 'seedream-pro', label: 'Seedream Pro' },
+  { id: 'seedream-5l', label: 'Seedream 5.0 Lite' },
+  { id: 'mj', label: 'Midjourney' },
+  { id: 'mj-niji', label: 'Midjourney Niji' },
 ];
 
 export type ImageModelId = typeof imageModels[number]['id'];

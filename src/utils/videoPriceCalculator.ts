@@ -26,12 +26,11 @@ export async function calculateVideoCredits(
   modelId: string,
   durationSeconds: number,
   resolution: string,
-  priceConfig: PriceConfigItem[] | null,
   videoModels: VideoModelItem[],
   inputVideoDuration?: number,
 ): Promise<number> {
   const currentModelInfo = videoModels.find(m => m.id === modelId);
-  const targetPriceId = currentModelInfo?.priceId || 'zerocut3.0';
+  const targetPriceId = currentModelInfo?.id || 'zerocut3.0';
   
   let apiUrl = `https://sd2mfo025ni4n75n9r5p0.apigateway-cn-beijing.volceapi.com/models/pricing?model=${encodeURIComponent(targetPriceId)}&duration=${durationSeconds}&resolution=${encodeURIComponent(resolution)}`;
   
@@ -58,7 +57,7 @@ export async function calculateImageCredits(
   imageModels: ImageModelItem[],
 ): Promise<number> {
   const currentModelInfo = imageModels.find(m => m.id === modelId);
-  const targetPriceId = currentModelInfo?.priceId || modelId;
+  const targetPriceId = currentModelInfo?.id || modelId;
   
   const apiUrl = `https://sd2mfo025ni4n75n9r5p0.apigateway-cn-beijing.volceapi.com/models/pricing?model=${encodeURIComponent(targetPriceId)}&resolution=${encodeURIComponent(resolution)}`;
 
