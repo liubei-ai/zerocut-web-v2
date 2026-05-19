@@ -154,7 +154,7 @@ const updateCreditsNeeded = async () => {
 
   try {
     const inputVideoDuration = getInputVideoDuration();
-    creditsNeeded.value = await calculateVideoCredits(model.value, duration.value, resolution.value, props.priceConfig || null, videoModels, inputVideoDuration);
+    creditsNeeded.value = await calculateVideoCredits(model.value, duration.value, resolution.value, videoModels, inputVideoDuration);
   } catch (error) {
     creditsError.value = error instanceof Error ? error.message : '获取价格失败';
     creditsNeeded.value = null;
