@@ -1410,7 +1410,7 @@ const handleBackToVideoForm = () => {
 
       <!-- Desktop Layout -->
       <div class="hidden h-full w-full md:flex">
-        <!-- Left Panel: File List or Canvas Flow (占据更大空间) -->
+        <!-- Left Panel: File List + Preview Area or Canvas Flow -->
         <div class="flex h-full flex-[2] flex-col border-r border-border">
           <!-- View Toggle -->
           <div class="flex items-center justify-between border-b border-border px-4 py-3 bg-card">
@@ -1441,7 +1441,7 @@ const handleBackToVideoForm = () => {
           </div>
 
           <!-- File List View -->
-          <div v-show="workspaceView === 'list'" class="h-full flex-1 overflow-hidden bg-background">
+          <div v-show="workspaceView === 'list'" class="flex h-full flex-1 overflow-hidden bg-background">
             <FileList
               :files="files"
               :selected-file-id="selectedFileId"
@@ -1457,6 +1457,20 @@ const handleBackToVideoForm = () => {
               @upload-start="handleUploadStart"
               @upload-end="handleUploadEnd"
             />
+
+            <PreviewArea
+              :file-url="selectedFile?.file_url"
+              :file-type="selectedFile?.file_type"
+              :file-name="selectedFile?.file_name"
+              :is-downloading="isDownloading"
+              :download-progress="downloadProgress"
+              :status="selectedFile?.status"
+              :prompt="selectedFile?.prompt"
+              @regenerate="handleRegenerate"
+              @download="handleDownload"
+              @modify="handleModify"
+              @show-prompt="handleShowPrompt"
+            />
           </div>
 
           <!-- Canvas Flow View (默认视图，占据主要空间) -->
@@ -1471,7 +1485,7 @@ const handleBackToVideoForm = () => {
           </div>
         </div>
 
-        <!-- Desktop: Chat/Video Generation Area with Tabs (右侧面板) -->
+        <!-- Right Panel: Chat/Video Generation Area with Tabs -->
         <div class="h-full w-[360px] flex-col border-l border-border bg-card lg:w-[420px] xl:w-[500px] flex">
           <!-- Tab Navigation -->
           <div class="flex border-b border-border">
