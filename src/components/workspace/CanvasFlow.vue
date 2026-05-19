@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch, onMounted, ref } from 'vue';
+import { computed, watch, onMounted, ref, markRaw } from 'vue';
 import { VueFlow, useVueFlow, MarkerType, type Node, type Edge } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
@@ -23,9 +23,9 @@ const emit = defineEmits<Emits>();
 
 const { fitView, setNodes: setFlowNodes, setEdges: setFlowEdges } = useVueFlow();
 
-const nodeTypes = {
+const nodeTypes = markRaw({
   material: MaterialNode,
-};
+});
 
 const isLayouted = ref(false);
 
@@ -82,10 +82,10 @@ const findMaterialByReference = (refUrl: string, refName?: string): OssMaterial 
     if (m.localFile) {
       const localFileName = m.localFile.split('/').pop() || '';
       const localFileNameNoExt = getFileNameWithoutExt(localFileName);
-      
+
       if (refFileName && localFileName && refFileName === localFileName) return true;
       if (refFileNameNoExt && localFileNameNoExt && refFileNameNoExt === localFileNameNoExt) return true;
-      
+
       if (normalizedRefUrl.includes(m.localFile)) return true;
       if (m.localFile.includes(refFileName)) return true;
     }
@@ -110,6 +110,7 @@ const getNodeId = (material: OssMaterial): string => {
 };
 
 const initialNodes = computed<Node[]>(() => {
+  console.log('materials', props.materials)
   return props.materials.map(material => ({
     id: getNodeId(material),
     type: 'material',
@@ -144,21 +145,21 @@ const edges = computed<Edge[]>(() => {
 
         if (!edgeSet.has(edgeKey) && sourceId !== targetId) {
           edgeSet.add(edgeKey);
-          
+
           // 根据参考类型设置不同的连线样式
           const isVideoRef = material.inputParams?.videos?.some(v => v.url === ref.url);
           const edgeColor = isVideoRef ? 'hsl(var(--primary) / 0.5)' : 'hsl(142, 76%, 36% / 0.5)';
           const edgeLabel = isVideoRef ? '📹 参考视频' : '🖼️ 参考图片';
-          
+
           edgeList.push({
             id: edgeKey,
             source: sourceId,
             target: targetId,
             type: 'smoothstep',
-            animated: true,
+            animated: false,
             label: edgeLabel,
-            labelStyle: { 
-              fill: 'hsl(var(--foreground))', 
+            labelStyle: {
+              fill: 'hsl(var(--foreground))',
               fontWeight: 600,
               fontSize: '10px',
             },
@@ -166,8 +167,8 @@ const edges = computed<Edge[]>(() => {
               fill: 'hsl(var(--card))',
               fillOpacity: 0.9,
             },
-            style: { 
-              stroke: isVideoRef ? 'hsl(var(--primary) / 0.6)' : 'hsl(142, 76%, 36% / 0.6)', 
+            style: {
+              stroke: isVideoRef ? 'hsl(var(--primary) / 0.6)' : 'hsl(142, 76%, 36% / 0.6)',
               strokeWidth: 2.5,
             },
             markerEnd: {
@@ -189,15 +190,14 @@ const runLayout = () => {
     return;
   }
 
-  // 分析素材依赖关系，构建层级结构
-  const { nodes: layoutedNodes } = calculateGridLayout(
+  const result = calculateConnectedComponentLayout(
     initialNodes.value,
     edges.value
   );
 
-  setFlowNodes(layoutedNodes);
-  setFlowEdges(edges.value);
-  
+  setFlowNodes(result.nodes);
+  setFlowEdges(result.edges);
+
   isLayouted.value = true;
 
   setTimeout(() => {
@@ -208,60 +208,210 @@ const runLayout = () => {
 interface LayoutNode extends Node {
   level?: number;
   groupIndex?: number;
+  componentIndex?: number;
 }
 
-const calculateGridLayout = (nodes: Node[], edgeList: Edge[]) => {
-  const nodeWidth = 280;
-  const nodeHeight = 340;
-  const horizontalGap = 60;
-  const verticalGap = 80;
+interface ComponentLayoutResult {
+  nodes: LayoutNode[];
+  edges: Edge[];
+  canvasWidth: number;
+  canvasHeight: number;
+}
+
+interface GraphComponent {
+  nodes: Node[];
+  edges: Edge[];
+  nodeIds: Set<string>;
+}
+
+const calculateConnectedComponentLayout = (
+  nodes: Node[],
+  edgeList: Edge[]
+): ComponentLayoutResult => {
+  const nodeWidth = 400;
+  const nodeHeight = 420;
+  const horizontalGap = 80;
+  const verticalGap = 10;
+  const componentGap = 80;
   const padding = 100;
+
+  const components = findConnectedComponents(nodes, edgeList);
   
-  // 构建依赖图，找出每个节点的引用者和被引用者
+  const layoutedComponents: Array<{
+    nodes: LayoutNode[];
+    width: number;
+    height: number;
+    sourceEdges: Edge[];
+  }> = [];
+
+  components.forEach((component, componentIndex) => {
+    const { nodes: layoutedNodes, edges: componentEdges, width, height } = 
+      layoutSingleComponent(component, componentIndex, nodeWidth, nodeHeight, horizontalGap, verticalGap);
+    
+    layoutedComponents.push({
+      nodes: layoutedNodes,
+      width,
+      height,
+      sourceEdges: componentEdges,
+    });
+  });
+
+  const maxComponentWidth = Math.max(...layoutedComponents.map(c => c.width));
+  const canvasWidth = maxComponentWidth + padding * 2;
+
+  const finalNodes: LayoutNode[] = [];
+  const finalEdges: Edge[] = [];
+  let currentY = padding;
+
+  layoutedComponents.forEach((component, componentIndex) => {
+    const startX = (canvasWidth - component.width) / 2;
+    
+    component.nodes.forEach(layoutedNode => {
+      finalNodes.push({
+        ...layoutedNode,
+        position: {
+          x: layoutedNode.position.x + startX,
+          y: layoutedNode.position.y + currentY,
+        },
+        componentIndex,
+      });
+    });
+    
+    component.sourceEdges.forEach(edge => {
+      finalEdges.push(edge);
+    });
+    
+    currentY += component.height + (componentIndex < layoutedComponents.length - 1 ? componentGap : 0);
+  });
+
+  const canvasHeight = currentY + padding;
+
+  return {
+    nodes: finalNodes,
+    edges: finalEdges,
+    canvasWidth,
+    canvasHeight,
+  };
+};
+
+const findConnectedComponents = (
+  nodes: Node[],
+  edges: Edge[]
+): GraphComponent[] => {
+  const adjacency = new Map<string, Set<string>>();
+  nodes.forEach(node => adjacency.set(node.id, new Set()));
+  
+  edges.forEach(edge => {
+    adjacency.get(edge.source)?.add(edge.target);
+    adjacency.get(edge.target)?.add(edge.source);
+  });
+
+  const visited = new Set<string>();
+  const components: GraphComponent[] = [];
+
+  const dfs = (nodeId: string, component: GraphComponent) => {
+    if (visited.has(nodeId)) return;
+    visited.add(nodeId);
+
+    const node = nodes.find(n => n.id === nodeId);
+    if (node) {
+      component.nodes.push(node);
+      component.nodeIds.add(nodeId);
+    }
+
+    adjacency.get(nodeId)?.forEach(neighbor => {
+      dfs(neighbor, component);
+    });
+  };
+
+  nodes.forEach(node => {
+    if (!visited.has(node.id)) {
+      const component: GraphComponent = {
+        nodes: [],
+        edges: [],
+        nodeIds: new Set(),
+      };
+      dfs(node.id, component);
+
+      component.edges = edges.filter(
+        edge => component.nodeIds.has(edge.source) && component.nodeIds.has(edge.target)
+      );
+
+      components.push(component);
+    }
+  });
+
+  components.sort((a, b) => b.nodes.length - a.nodes.length);
+
+  return components;
+};
+
+const layoutSingleComponent = (
+  component: GraphComponent,
+  componentIndex: number,
+  nodeWidth: number,
+  nodeHeight: number,
+  horizontalGap: number,
+  verticalGap: number
+): { nodes: LayoutNode[]; edges: Edge[]; width: number; height: number } => {
+  const { nodes: componentNodes, edges: componentEdges } = component;
+
+  if (componentNodes.length === 0) {
+    return { nodes: [], edges: [], width: 0, height: 0 };
+  }
+
+  if (componentNodes.length === 1) {
+    return {
+      nodes: [{
+        ...componentNodes[0],
+        position: { x: 0, y: 0 },
+        componentIndex,
+      }],
+      edges: componentEdges,
+      width: nodeWidth,
+      height: nodeHeight,
+    };
+  }
+
   const nodeDependencies = new Map<string, Set<string>>();
   const nodeReferencedBy = new Map<string, Set<string>>();
-  
-  nodes.forEach(node => {
+
+  componentNodes.forEach(node => {
     nodeDependencies.set(node.id, new Set());
     nodeReferencedBy.set(node.id, new Set());
   });
-  
-  edgeList.forEach(edge => {
+
+  componentEdges.forEach(edge => {
     nodeDependencies.get(edge.target)?.add(edge.source);
     nodeReferencedBy.get(edge.source)?.add(edge.target);
   });
-  
-  // BFS计算层级（从源节点开始）
+
   const levels = new Map<string, number>();
   const visited = new Set<string>();
-  
+
   const assignLevels = () => {
-    // 找出所有没有依赖的节点（源节点）作为第0层
     const sources: string[] = [];
-    nodes.forEach(node => {
+    componentNodes.forEach(node => {
       if (nodeDependencies.get(node.id)?.size === 0) {
         sources.push(node.id);
       }
     });
-    
-    // 如果所有节点都有依赖，则使用时间顺序
+
     if (sources.length === 0) {
-      nodes.forEach((node, index) => {
+      componentNodes.forEach((node, index) => {
         if (!visited.has(node.id)) {
-          levels.set(node.id, Math.floor(index / 4));
+          levels.set(node.id, Math.floor(index / 3));
           visited.add(node.id);
         }
       });
       return;
     }
-    
-    // BFS分配层级
+
     const queue = sources.map(id => ({ id, level: 0 }));
     while (queue.length > 0) {
       const { id, level } = queue.shift()!;
-      
+
       if (visited.has(id)) {
-        // 如果已经访问过，取最小层级
         if (levels.get(id)! > level) {
           levels.set(id, level);
         }
@@ -269,17 +419,15 @@ const calculateGridLayout = (nodes: Node[], edgeList: Edge[]) => {
         levels.set(id, level);
         visited.add(id);
       }
-      
-      // 将被引用者加入队列，层级+1
+
       nodeReferencedBy.get(id)?.forEach(targetId => {
         if (!visited.has(targetId)) {
           queue.push({ id: targetId, level: level + 1 });
         }
       });
     }
-    
-    // 处理未被访问的节点（形成闭环或有依赖关系）
-    nodes.forEach(node => {
+
+    componentNodes.forEach(node => {
       if (!levels.has(node.id)) {
         const deps = nodeDependencies.get(node.id);
         if (deps && deps.size > 0) {
@@ -291,10 +439,9 @@ const calculateGridLayout = (nodes: Node[], edgeList: Edge[]) => {
       }
     });
   };
-  
+
   assignLevels();
-  
-  // 按层级分组节点
+
   const levelGroups = new Map<number, string[]>();
   levels.forEach((level, nodeId) => {
     if (!levelGroups.has(level)) {
@@ -302,35 +449,40 @@ const calculateGridLayout = (nodes: Node[], edgeList: Edge[]) => {
     }
     levelGroups.get(level)!.push(nodeId);
   });
-  
-  // 计算画布宽度（基于最大层级的节点数）
+
   const maxNodesInLevel = Math.max(...Array.from(levelGroups.values()).map(group => group.length));
-  const canvasWidth = maxNodesInLevel * (nodeWidth + horizontalGap) + padding * 2;
-  
-  // 为每个层级计算节点位置
+  const componentWidth = maxNodesInLevel * (nodeWidth + horizontalGap) - horizontalGap;
+  const componentHeight = (Math.max(...Array.from(levelGroups.keys())) + 1) * (nodeHeight + verticalGap) - verticalGap;
+
   const layoutedNodes: LayoutNode[] = [];
-  
+
   levelGroups.forEach((nodeIds, level) => {
     const levelWidth = nodeIds.length * (nodeWidth + horizontalGap) - horizontalGap;
-    const startX = (canvasWidth - levelWidth) / 2;
-    
+    const startX = (maxNodesInLevel * (nodeWidth + horizontalGap) - horizontalGap - levelWidth) / 2;
+
     nodeIds.forEach((nodeId, indexInLevel) => {
-      const node = nodes.find(n => n.id === nodeId);
+      const node = componentNodes.find(n => n.id === nodeId);
       if (node) {
         const x = startX + indexInLevel * (nodeWidth + horizontalGap);
-        const y = padding + level * (nodeHeight + verticalGap);
-        
+        const y = level * (nodeHeight + verticalGap);
+
         layoutedNodes.push({
           ...node,
           position: { x, y },
-          level: level,
+          level,
           groupIndex: indexInLevel,
+          componentIndex,
         });
       }
     });
   });
-  
-  return { nodes: layoutedNodes, canvasWidth };
+
+  return {
+    nodes: layoutedNodes,
+    edges: componentEdges,
+    width: componentWidth,
+    height: componentHeight,
+  };
 };
 
 watch([() => props.materials, edges], () => {
@@ -358,50 +510,36 @@ const handleNodeRegenerate = (material: OssMaterial) => {
 
 <template>
   <div class="h-full w-full relative">
-    <VueFlow
-      :nodes="initialNodes"
-      :edges="edges"
-      :node-types="nodeTypes"
-      :default-viewport="{ x: 0, y: 0, zoom: 0.8 }"
-      :min-zoom="0.1"
-      :max-zoom="2"
-      :fit-view-on-init="false"
-      class="vue-flow-canvas"
-      @node-click="(nodeEvent: any) => handleNodeSelect(nodeEvent.node.data.material)"
-    >
+    <VueFlow :nodes="initialNodes" :edges="edges" :node-types="nodeTypes" :default-viewport="{ x: 0, y: 0, zoom: 0.8 }"
+      :min-zoom="0.1" :max-zoom="2" :fit-view-on-init="false" class="vue-flow-canvas"
+      @node-click="(nodeEvent: any) => handleNodeSelect(nodeEvent.node.data.material)">
       <Background :gap="24" :size="1.5" variant="dots" color="hsl(var(--border) / 0.6)" />
-      
-      <Controls 
-        position="bottom-right"
-        class="!bg-card/95 !border-border !shadow-xl !rounded-xl overflow-hidden backdrop-blur-sm"
-        :show-fit-view="true"
-        :show-interactive="true"
-      />
-      
-      <MiniMap
-        position="bottom-left"
-        :node-color="(node: any) => {
-          const material = node.data?.material;
-          if (!material) return 'hsl(var(--muted-foreground))';
-          if (material.status === 'SUCCESS') return '#10b981';
-          if (material.status === 'FAILED') return 'hsl(var(--destructive))';
-          if (material.status === 'RUNNING') return 'hsl(var(--primary))';
-          return 'hsl(var(--muted))';
-        }"
-        :mask-color="'hsl(var(--muted) / 0.7)'"
-        class="!bg-card/95 !border-border !shadow-xl !rounded-xl backdrop-blur-sm"
-        :pannable="true"
-        :zoomable="true"
-      />
+
+      <Controls position="bottom-right"
+        class="!bg-card/95 !border-border !shadow-xl !rounded-xl overflow-hidden backdrop-blur-sm" :show-fit-view="true"
+        :show-interactive="true" />
+
+      <MiniMap position="bottom-left" :node-color="(node: any) => {
+        const material = node.data?.material;
+        if (!material) return 'hsl(var(--muted-foreground))';
+        if (material.status === 'SUCCESS') return '#10b981';
+        if (material.status === 'FAILED') return 'hsl(var(--destructive))';
+        if (material.status === 'RUNNING') return 'hsl(var(--primary))';
+        return 'hsl(var(--muted))';
+      }" :mask-color="'hsl(var(--muted) / 0.7)'"
+        class="!bg-card/95 !border-border !shadow-xl !rounded-xl backdrop-blur-sm" :pannable="true" :zoomable="true" />
 
       <!-- 空状态 - 优化版 -->
-      <div v-if="materials.length === 0" class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+      <div v-if="materials.length === 0"
+        class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
         <div class="text-center p-8 rounded-2xl bg-card/80 backdrop-blur-sm border border-border shadow-xl">
           <div class="relative mb-6">
-            <div class="w-24 h-24 mx-auto rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center border border-primary/20">
+            <div
+              class="w-24 h-24 mx-auto rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center border border-primary/20">
               <span class="text-5xl">🎨</span>
             </div>
-            <div class="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center shadow-md">
+            <div
+              class="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center shadow-md">
               <span class="text-sm">➕</span>
             </div>
           </div>
@@ -511,6 +649,7 @@ const handleNodeRegenerate = (material: OssMaterial) => {
   from {
     stroke-dashoffset: 10;
   }
+
   to {
     stroke-dashoffset: 0;
   }
