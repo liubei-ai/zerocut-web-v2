@@ -2,7 +2,6 @@
 import { computed, watch, onMounted, ref, markRaw } from 'vue';
 import { VueFlow, useVueFlow, MarkerType, type Node, type Edge } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
-import { Controls } from '@vue-flow/controls';
 import { MiniMap } from '@vue-flow/minimap';
 import MaterialNode from './MaterialNode.vue';
 import type { OssMaterial } from '@/types/ossMaterial';
@@ -109,8 +108,53 @@ const getNodeId = (material: OssMaterial): string => {
   return material.ossKey || material.localFile || `material-${Math.random().toString(36).substr(2, 9)}`;
 };
 
+interface NodeSize {
+  width: number;
+  height: number;
+}
+
+const calculateNodeSize = (material: OssMaterial): NodeSize => {
+  const baseWidth = 384;
+  let height = 120;
+  
+  const isGenerated = material.prompt !== null || material.source === 'omni';
+  const hasPrompt = !!material.prompt;
+  const hasParams = material.inputParams && (
+    material.inputParams.duration ||
+    material.inputParams.resolution ||
+    material.inputParams.aspect_ratio ||
+    material.inputParams.model
+  );
+  const hasActionButtons = material.fileType === 'video' && isGenerated && material.status === 'SUCCESS';
+  
+  if (hasPrompt) {
+    height += 60;
+  }
+  
+  if (hasParams) {
+    height += 45;
+  }
+  
+  const isImageOrVideo = material.fileType === 'image' || material.fileType === 'video';
+  if (isImageOrVideo && material.ossUrl) {
+    height += 160;
+  } else if (material.fileType === 'audio') {
+    height += 60;
+  } else {
+    height += 80;
+  }
+  
+  if (hasActionButtons) {
+    height += 56;
+  }
+  
+  return {
+    width: baseWidth,
+    height: Math.min(Math.max(height, 200), 600)
+  };
+};
+
 const initialNodes = computed<Node[]>(() => {
-  console.log('materials', props.materials)
   return props.materials.map(material => ({
     id: getNodeId(material),
     type: 'material',
@@ -146,7 +190,6 @@ const edges = computed<Edge[]>(() => {
         if (!edgeSet.has(edgeKey) && sourceId !== targetId) {
           edgeSet.add(edgeKey);
 
-          // 根据参考类型设置不同的连线样式
           const isVideoRef = material.inputParams?.videos?.some(v => v.url === ref.url);
           const edgeColor = isVideoRef ? 'hsl(var(--primary) / 0.5)' : 'hsl(142, 76%, 36% / 0.5)';
           const edgeLabel = isVideoRef ? '📹 参考视频' : '🖼️ 参考图片';
@@ -190,7 +233,7 @@ const runLayout = () => {
     return;
   }
 
-  const result = calculateConnectedComponentLayout(
+  const result = calculateSmartLayout(
     initialNodes.value,
     edges.value
   );
@@ -201,17 +244,26 @@ const runLayout = () => {
   isLayouted.value = true;
 
   setTimeout(() => {
-    fitView({ padding: 0.1, duration: 400 });
+    fitView({ padding: 0.15, duration: 400 });
   }, 50);
 };
 
 interface LayoutNode extends Node {
   level?: number;
-  groupIndex?: number;
   componentIndex?: number;
+  nodeWidth?: number;
+  nodeHeight?: number;
 }
 
-interface ComponentLayoutResult {
+interface GridCell {
+  row: number;
+  col: number;
+  width: number;
+  height: number;
+  nodeIndex: number;
+}
+
+interface LayoutResult {
   nodes: LayoutNode[];
   edges: Edge[];
   canvasWidth: number;
@@ -222,18 +274,96 @@ interface GraphComponent {
   nodes: Node[];
   edges: Edge[];
   nodeIds: Set<string>;
+  layoutDirection?: 'horizontal' | 'vertical';
 }
 
-const calculateConnectedComponentLayout = (
+interface NodeDimensions {
+  width: number;
+  height: number;
+}
+
+type LayoutDirection = 'horizontal' | 'vertical';
+
+const MAX_CANVAS_WIDTH = 2000;
+const HORIZONTAL_GAP = 60;
+const VERTICAL_GAP = 40;
+const COMPONENT_GAP = 80;
+const PADDING = 80;
+
+const determineOptimalLayoutDirection = (
+  component: GraphComponent,
+  nodeDimensions: Map<string, NodeDimensions>
+): LayoutDirection => {
+  const { nodes, edges } = component;
+  
+  if (nodes.length <= 3) {
+    return 'vertical';
+  }
+  
+  const nodeDependencies = new Map<string, Set<string>>();
+  nodes.forEach(node => {
+    nodeDependencies.set(node.id, new Set());
+  });
+  
+  edges.forEach(edge => {
+    nodeDependencies.get(edge.target)?.add(edge.source);
+  });
+  
+  let maxInDegree = 0;
+  let maxOutDegree = 0;
+  
+  nodes.forEach(node => {
+    const inDegree = nodeDependencies.get(node.id)?.size || 0;
+    const outDegree = edges.filter(e => e.source === node.id).length;
+    
+    maxInDegree = Math.max(maxInDegree, inDegree);
+    maxOutDegree = Math.max(maxOutDegree, outDegree);
+  });
+  
+  const totalDeps = Array.from(nodeDependencies.values()).reduce((sum, deps) => sum + deps.size, 0);
+  const avgDepsPerNode = totalDeps / nodes.length;
+  
+  const verticalDimension = nodes.reduce((sum, node) => {
+    const dims = nodeDimensions.get(node.id) || { width: 384, height: 400 };
+    return sum + dims.height;
+  }, 0);
+  
+  const horizontalDimension = nodes.reduce((sum, node) => {
+    const dims = nodeDimensions.get(node.id) || { width: 384, height: 400 };
+    return sum + dims.width;
+  }, 0);
+  
+  const aspectRatio = horizontalDimension / verticalDimension;
+  
+  if (nodes.length <= 4 && aspectRatio < 0.8) {
+    return 'vertical';
+  }
+  
+  if (nodes.length > 6 && maxOutDegree > 2) {
+    return 'horizontal';
+  }
+  
+  if (nodes.length > 8 || aspectRatio > 1.5) {
+    return 'horizontal';
+  }
+  
+  return 'vertical';
+};
+
+const calculateSmartLayout = (
   nodes: Node[],
   edgeList: Edge[]
-): ComponentLayoutResult => {
-  const nodeWidth = 400;
-  const nodeHeight = 420;
-  const horizontalGap = 80;
-  const verticalGap = 10;
-  const componentGap = 80;
-  const padding = 100;
+): LayoutResult => {
+  const nodeDimensions = new Map<string, NodeDimensions>();
+  
+  nodes.forEach(node => {
+    const material = (node.data as any)?.material;
+    if (material) {
+      nodeDimensions.set(node.id, calculateNodeSize(material));
+    } else {
+      nodeDimensions.set(node.id, { width: 384, height: 400 });
+    }
+  });
 
   const components = findConnectedComponents(nodes, edgeList);
   
@@ -246,52 +376,163 @@ const calculateConnectedComponentLayout = (
 
   components.forEach((component, componentIndex) => {
     const { nodes: layoutedNodes, edges: componentEdges, width, height } = 
-      layoutSingleComponent(component, componentIndex, nodeWidth, nodeHeight, horizontalGap, verticalGap);
+      layoutComponentWithDimensions(component, componentIndex, nodeDimensions);
+    
+    const resolvedNodes = resolveOverlaps(layoutedNodes, nodeDimensions);
+    const recalcHeight = Math.max(...resolvedNodes.map(n => {
+      const dims = nodeDimensions.get(n.id) || { width: 384, height: 400 };
+      return n.position.y + dims.height;
+    })) + PADDING;
     
     layoutedComponents.push({
-      nodes: layoutedNodes,
+      nodes: resolvedNodes,
       width,
-      height,
+      height: recalcHeight,
       sourceEdges: componentEdges,
     });
   });
 
-  const maxComponentWidth = Math.max(...layoutedComponents.map(c => c.width));
-  const canvasWidth = maxComponentWidth + padding * 2;
-
+  const { gridLayout, totalWidth, totalHeight } = calculateGridLayout(layoutedComponents);
+  const offsets = calculateGridLayoutOffsets(gridLayout);
+  
   const finalNodes: LayoutNode[] = [];
   const finalEdges: Edge[] = [];
-  let currentY = padding;
-
-  layoutedComponents.forEach((component, componentIndex) => {
-    const startX = (canvasWidth - component.width) / 2;
+  
+  gridLayout.forEach((cell, index) => {
+    const component = layoutedComponents[cell.nodeIndex];
+    const offset = offsets.get(cell.nodeIndex)!;
     
     component.nodes.forEach(layoutedNode => {
       finalNodes.push({
         ...layoutedNode,
         position: {
-          x: layoutedNode.position.x + startX,
-          y: layoutedNode.position.y + currentY,
+          x: layoutedNode.position.x + offset.offsetX,
+          y: layoutedNode.position.y + offset.offsetY,
         },
-        componentIndex,
+        componentIndex: index,
       });
     });
     
     component.sourceEdges.forEach(edge => {
       finalEdges.push(edge);
     });
-    
-    currentY += component.height + (componentIndex < layoutedComponents.length - 1 ? componentGap : 0);
   });
 
-  const canvasHeight = currentY + padding;
+  const canvasWidth = Math.max(totalWidth, MAX_CANVAS_WIDTH);
+  const canvasHeight = totalHeight + PADDING * 2;
+  
+  const optimizedEdges = optimizeEdgeRouting(finalNodes, finalEdges);
 
   return {
     nodes: finalNodes,
-    edges: finalEdges,
+    edges: optimizedEdges,
     canvasWidth,
     canvasHeight,
   };
+};
+
+const calculateGridLayout = (components: Array<{
+  nodes: LayoutNode[];
+  width: number;
+  height: number;
+  sourceEdges: Edge[];
+}>): { gridLayout: GridCell[]; totalWidth: number; totalHeight: number } => {
+  if (components.length === 0) {
+    return { gridLayout: [], totalWidth: 0, totalHeight: 0 };
+  }
+
+  const gridLayout: GridCell[] = [];
+  let currentRow = 0;
+  let currentCol = 0;
+  let rowHeights: number[] = [];
+  let colWidths: number[] = [];
+  let currentRowWidth = 0;
+  
+  components.forEach((component, index) => {
+    const cellWidth = component.width;
+    const cellHeight = component.height;
+    
+    const availableWidth = MAX_CANVAS_WIDTH - PADDING * 2 - currentRowWidth;
+    
+    if (currentCol > 0 && currentRowWidth + COMPONENT_GAP + cellWidth > MAX_CANVAS_WIDTH - PADDING * 2) {
+      currentRow++;
+      currentCol = 0;
+      currentRowWidth = 0;
+    }
+    
+    gridLayout.push({
+      row: currentRow,
+      col: currentCol,
+      width: cellWidth,
+      height: cellHeight,
+      nodeIndex: index,
+    });
+    
+    if (!rowHeights[currentRow]) {
+      rowHeights[currentRow] = 0;
+    }
+    rowHeights[currentRow] = Math.max(rowHeights[currentRow], cellHeight);
+    
+    if (!colWidths[currentCol]) {
+      colWidths[currentCol] = 0;
+    }
+    colWidths[currentCol] = Math.max(colWidths[currentCol], cellWidth);
+    
+    currentRowWidth += cellWidth + (currentCol > 0 ? COMPONENT_GAP : 0);
+    currentCol++;
+  });
+
+  const totalHeight = rowHeights.reduce((sum, h) => sum + h + COMPONENT_GAP, 0);
+  const totalWidth = colWidths.reduce((sum, w) => sum + w + COMPONENT_GAP, 0);
+
+  return {
+    gridLayout,
+    totalWidth: totalWidth + PADDING * 2,
+    totalHeight: totalHeight + PADDING * 2,
+  };
+};
+
+const calculateGridLayoutOffsets = (gridLayout: GridCell[]): Map<number, { offsetX: number; offsetY: number }> => {
+  const offsets = new Map<number, { offsetX: number; offsetY: number }>();
+  const rowHeightMap = new Map<number, number>();
+  const colWidthMap = new Map<number, number>();
+  
+  gridLayout.forEach(cell => {
+    if (!rowHeightMap.has(cell.row)) {
+      rowHeightMap.set(cell.row, 0);
+    }
+    rowHeightMap.set(cell.row, Math.max(rowHeightMap.get(cell.row)!, cell.height));
+    
+    if (!colWidthMap.has(cell.col)) {
+      colWidthMap.set(cell.col, 0);
+    }
+    colWidthMap.set(cell.col, Math.max(colWidthMap.get(cell.col)!, cell.width));
+  });
+  
+  const rowOffsets = new Map<number, number>();
+  let cumulativeY = PADDING;
+  const sortedRows = Array.from(rowHeightMap.keys()).sort((a, b) => a - b);
+  sortedRows.forEach(row => {
+    rowOffsets.set(row, cumulativeY);
+    cumulativeY += rowHeightMap.get(row)! + COMPONENT_GAP;
+  });
+  
+  const colOffsets = new Map<number, number>();
+  let cumulativeX = PADDING;
+  const sortedCols = Array.from(colWidthMap.keys()).sort((a, b) => a - b);
+  sortedCols.forEach(col => {
+    colOffsets.set(col, cumulativeX);
+    cumulativeX += colWidthMap.get(col)! + COMPONENT_GAP;
+  });
+  
+  gridLayout.forEach(cell => {
+    offsets.set(cell.nodeIndex, {
+      offsetX: colOffsets.get(cell.col)!,
+      offsetY: rowOffsets.get(cell.row)!,
+    });
+  });
+  
+  return offsets;
 };
 
 const findConnectedComponents = (
@@ -346,13 +587,10 @@ const findConnectedComponents = (
   return components;
 };
 
-const layoutSingleComponent = (
+const layoutComponentWithDimensions = (
   component: GraphComponent,
   componentIndex: number,
-  nodeWidth: number,
-  nodeHeight: number,
-  horizontalGap: number,
-  verticalGap: number
+  nodeDimensions: Map<string, NodeDimensions>
 ): { nodes: LayoutNode[]; edges: Edge[]; width: number; height: number } => {
   const { nodes: componentNodes, edges: componentEdges } = component;
 
@@ -361,18 +599,37 @@ const layoutSingleComponent = (
   }
 
   if (componentNodes.length === 1) {
+    const nodeId = componentNodes[0].id;
+    const dims = nodeDimensions.get(nodeId) || { width: 384, height: 400 };
     return {
       nodes: [{
         ...componentNodes[0],
         position: { x: 0, y: 0 },
         componentIndex,
+        nodeWidth: dims.width,
+        nodeHeight: dims.height,
       }],
       edges: componentEdges,
-      width: nodeWidth,
-      height: nodeHeight,
+      width: dims.width,
+      height: dims.height,
     };
   }
 
+  const layoutDirection = determineOptimalLayoutDirection(component, nodeDimensions);
+
+  if (layoutDirection === 'horizontal') {
+    return layoutComponentHorizontal(componentNodes, componentEdges, componentIndex, nodeDimensions);
+  } else {
+    return layoutComponentVertical(componentNodes, componentEdges, componentIndex, nodeDimensions);
+  }
+};
+
+const layoutComponentVertical = (
+  componentNodes: Node[],
+  componentEdges: Edge[],
+  componentIndex: number,
+  nodeDimensions: Map<string, NodeDimensions>
+): { nodes: LayoutNode[]; edges: Edge[]; width: number; height: number } => {
   const nodeDependencies = new Map<string, Set<string>>();
   const nodeReferencedBy = new Map<string, Set<string>>();
 
@@ -387,9 +644,8 @@ const layoutSingleComponent = (
   });
 
   const levels = new Map<string, number>();
-  const visited = new Set<string>();
-
-  const assignLevels = () => {
+  
+  const calculateLevels = () => {
     const sources: string[] = [];
     componentNodes.forEach(node => {
       if (nodeDependencies.get(node.id)?.size === 0) {
@@ -399,30 +655,30 @@ const layoutSingleComponent = (
 
     if (sources.length === 0) {
       componentNodes.forEach((node, index) => {
-        if (!visited.has(node.id)) {
-          levels.set(node.id, Math.floor(index / 3));
-          visited.add(node.id);
-        }
+        levels.set(node.id, Math.floor(index / 3));
       });
       return;
     }
 
+    const visited = new Set<string>();
     const queue = sources.map(id => ({ id, level: 0 }));
+    
     while (queue.length > 0) {
-      const { id, level } = queue.shift()!;
-
-      if (visited.has(id)) {
-        if (levels.get(id)! > level) {
-          levels.set(id, level);
-        }
+      const current = queue.shift()!;
+      
+      if (visited.has(current.id)) continue;
+      visited.add(current.id);
+      
+      const existingLevel = levels.get(current.id);
+      if (existingLevel !== undefined) {
+        levels.set(current.id, Math.min(existingLevel, current.level));
       } else {
-        levels.set(id, level);
-        visited.add(id);
+        levels.set(current.id, current.level);
       }
-
-      nodeReferencedBy.get(id)?.forEach(targetId => {
+      
+      nodeReferencedBy.get(current.id)?.forEach(targetId => {
         if (!visited.has(targetId)) {
-          queue.push({ id: targetId, level: level + 1 });
+          queue.push({ id: targetId, level: current.level + 1 });
         }
       });
     }
@@ -440,7 +696,7 @@ const layoutSingleComponent = (
     });
   };
 
-  assignLevels();
+  calculateLevels();
 
   const levelGroups = new Map<number, string[]>();
   levels.forEach((level, nodeId) => {
@@ -450,39 +706,392 @@ const layoutSingleComponent = (
     levelGroups.get(level)!.push(nodeId);
   });
 
-  const maxNodesInLevel = Math.max(...Array.from(levelGroups.values()).map(group => group.length));
-  const componentWidth = maxNodesInLevel * (nodeWidth + horizontalGap) - horizontalGap;
-  const componentHeight = (Math.max(...Array.from(levelGroups.keys())) + 1) * (nodeHeight + verticalGap) - verticalGap;
-
+  const levelCount = Math.max(...Array.from(levelGroups.keys())) + 1;
+  
   const layoutedNodes: LayoutNode[] = [];
-
-  levelGroups.forEach((nodeIds, level) => {
-    const levelWidth = nodeIds.length * (nodeWidth + horizontalGap) - horizontalGap;
-    const startX = (maxNodesInLevel * (nodeWidth + horizontalGap) - horizontalGap - levelWidth) / 2;
-
-    nodeIds.forEach((nodeId, indexInLevel) => {
+  const nodePositions = new Map<string, { x: number; y: number }>();
+  
+  const assignPositionsToLevel = (level: number, nodeIds: string[]) => {
+    const sortedNodes = [...nodeIds].sort((a, b) => {
+      const aDeps = nodeDependencies.get(a)?.size || 0;
+      const bDeps = nodeDependencies.get(b)?.size || 0;
+      return aDeps - bDeps;
+    });
+    
+    const levelWidth = sortedNodes.reduce((sum, nodeId) => {
+      const dims = nodeDimensions.get(nodeId) || { width: 384, height: 400 };
+      return sum + dims.width + HORIZONTAL_GAP;
+    }, -HORIZONTAL_GAP);
+    
+    let currentX = 0;
+    
+    sortedNodes.forEach((nodeId, index) => {
       const node = componentNodes.find(n => n.id === nodeId);
+      const dims = nodeDimensions.get(nodeId) || { width: 384, height: 400 };
+      
+      const position = { x: currentX, y: 0 };
+      nodePositions.set(nodeId, position);
+      
       if (node) {
-        const x = startX + indexInLevel * (nodeWidth + horizontalGap);
-        const y = level * (nodeHeight + verticalGap);
-
         layoutedNodes.push({
           ...node,
-          position: { x, y },
+          position,
           level,
-          groupIndex: indexInLevel,
           componentIndex,
+          nodeWidth: dims.width,
+          nodeHeight: dims.height,
         });
       }
+      
+      currentX += dims.width + HORIZONTAL_GAP;
     });
+    
+    return levelWidth;
+  };
+  
+  let currentY = 0;
+  let maxLevelWidth = 0;
+  const levelHeights: number[] = [];
+  
+  const sortedLevels = Array.from(levelGroups.keys()).sort((a, b) => a - b);
+  
+  sortedLevels.forEach((level, levelIndex) => {
+    const nodeIds = levelGroups.get(level)!;
+    const levelWidth = assignPositionsToLevel(level, nodeIds);
+    
+    maxLevelWidth = Math.max(maxLevelWidth, levelWidth);
+    
+    const levelHeight = Math.max(...nodeIds.map(nodeId => {
+      const dims = nodeDimensions.get(nodeId) || { width: 384, height: 400 };
+      return dims.height;
+    }));
+    
+    levelHeights.push(levelHeight);
+    
+    nodeIds.forEach(nodeId => {
+      const position = nodePositions.get(nodeId)!;
+      const centerOffset = (maxLevelWidth - levelWidth) / 2;
+      position.x += centerOffset;
+      position.y = currentY;
+    });
+    
+    currentY += levelHeight + VERTICAL_GAP;
   });
+
+  const totalHeight = currentY - VERTICAL_GAP;
+  
+  const centerAllNodes = (totalWidth: number) => {
+    layoutedNodes.forEach(node => {
+      const centerOffset = (totalWidth - maxLevelWidth) / 2;
+      node.position.x += centerOffset;
+    });
+  };
+  
+  centerAllNodes(maxLevelWidth);
 
   return {
     nodes: layoutedNodes,
     edges: componentEdges,
-    width: componentWidth,
-    height: componentHeight,
+    width: maxLevelWidth,
+    height: totalHeight,
   };
+};
+
+const layoutComponentHorizontal = (
+  componentNodes: Node[],
+  componentEdges: Edge[],
+  componentIndex: number,
+  nodeDimensions: Map<string, NodeDimensions>
+): { nodes: LayoutNode[]; edges: Edge[]; width: number; height: number } => {
+  const nodeDependencies = new Map<string, Set<string>>();
+  const nodeReferencedBy = new Map<string, Set<string>>();
+
+  componentNodes.forEach(node => {
+    nodeDependencies.set(node.id, new Set());
+    nodeReferencedBy.set(node.id, new Set());
+  });
+
+  componentEdges.forEach(edge => {
+    nodeDependencies.get(edge.target)?.add(edge.source);
+    nodeReferencedBy.get(edge.source)?.add(edge.target);
+  });
+
+  const levels = new Map<string, number>();
+  
+  const calculateLevels = () => {
+    const sources: string[] = [];
+    componentNodes.forEach(node => {
+      if (nodeDependencies.get(node.id)?.size === 0) {
+        sources.push(node.id);
+      }
+    });
+
+    if (sources.length === 0) {
+      componentNodes.forEach((node, index) => {
+        levels.set(node.id, Math.floor(index / 3));
+      });
+      return;
+    }
+
+    const visited = new Set<string>();
+    const queue = sources.map(id => ({ id, level: 0 }));
+    
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      
+      if (visited.has(current.id)) continue;
+      visited.add(current.id);
+      
+      const existingLevel = levels.get(current.id);
+      if (existingLevel !== undefined) {
+        levels.set(current.id, Math.min(existingLevel, current.level));
+      } else {
+        levels.set(current.id, current.level);
+      }
+      
+      nodeReferencedBy.get(current.id)?.forEach(targetId => {
+        if (!visited.has(targetId)) {
+          queue.push({ id: targetId, level: current.level + 1 });
+        }
+      });
+    }
+
+    componentNodes.forEach(node => {
+      if (!levels.has(node.id)) {
+        const deps = nodeDependencies.get(node.id);
+        if (deps && deps.size > 0) {
+          const maxDepLevel = Math.max(...Array.from(deps).map(d => levels.get(d) || 0));
+          levels.set(node.id, maxDepLevel + 1);
+        } else {
+          levels.set(node.id, 0);
+        }
+      }
+    });
+  };
+
+  calculateLevels();
+
+  const levelGroups = new Map<number, string[]>();
+  levels.forEach((level, nodeId) => {
+    if (!levelGroups.has(level)) {
+      levelGroups.set(level, []);
+    }
+    levelGroups.get(level)!.push(nodeId);
+  });
+
+  const layoutedNodes: LayoutNode[] = [];
+  const nodePositions = new Map<string, { x: number; y: number }>();
+  
+  const assignPositionsToLevel = (level: number, nodeIds: string[]) => {
+    const sortedNodes = [...nodeIds].sort((a, b) => {
+      const aDeps = nodeDependencies.get(a)?.size || 0;
+      const bDeps = nodeDependencies.get(b)?.size || 0;
+      return aDeps - bDeps;
+    });
+    
+    const levelHeight = sortedNodes.reduce((sum, nodeId) => {
+      const dims = nodeDimensions.get(nodeId) || { width: 384, height: 400 };
+      return sum + dims.height + VERTICAL_GAP;
+    }, -VERTICAL_GAP);
+    
+    let currentY = 0;
+    
+    sortedNodes.forEach((nodeId, index) => {
+      const node = componentNodes.find(n => n.id === nodeId);
+      const dims = nodeDimensions.get(nodeId) || { width: 384, height: 400 };
+      
+      const position = { x: 0, y: currentY };
+      nodePositions.set(nodeId, position);
+      
+      if (node) {
+        layoutedNodes.push({
+          ...node,
+          position,
+          level,
+          componentIndex,
+          nodeWidth: dims.width,
+          nodeHeight: dims.height,
+        });
+      }
+      
+      currentY += dims.height + VERTICAL_GAP;
+    });
+    
+    return levelHeight;
+  };
+  
+  let currentX = 0;
+  let maxLevelHeight = 0;
+  const levelWidths: number[] = [];
+  
+  const sortedLevels = Array.from(levelGroups.keys()).sort((a, b) => a - b);
+  
+  sortedLevels.forEach((level, levelIndex) => {
+    const nodeIds = levelGroups.get(level)!;
+    const levelHeight = assignPositionsToLevel(level, nodeIds);
+    
+    maxLevelHeight = Math.max(maxLevelHeight, levelHeight);
+    
+    const levelWidth = Math.max(...nodeIds.map(nodeId => {
+      const dims = nodeDimensions.get(nodeId) || { width: 384, height: 400 };
+      return dims.width;
+    }));
+    
+    levelWidths.push(levelWidth);
+    
+    nodeIds.forEach(nodeId => {
+      const position = nodePositions.get(nodeId)!;
+      const centerOffset = (maxLevelHeight - levelHeight) / 2;
+      position.y += centerOffset;
+      position.x = currentX;
+    });
+    
+    currentX += levelWidth + HORIZONTAL_GAP;
+  });
+
+  const totalWidth = currentX - HORIZONTAL_GAP;
+  
+  const centerAllNodes = (totalHeight: number) => {
+    layoutedNodes.forEach(node => {
+      const centerOffset = (totalHeight - maxLevelHeight) / 2;
+      node.position.y += centerOffset;
+    });
+  };
+  
+  centerAllNodes(maxLevelHeight);
+
+  return {
+    nodes: layoutedNodes,
+    edges: componentEdges,
+    width: totalWidth,
+    height: maxLevelHeight,
+  };
+};
+
+interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const checkOverlap = (rect1: Rect, rect2: Rect, padding: number = 10): boolean => {
+  return !(
+    rect1.x + rect1.width + padding < rect2.x ||
+    rect2.x + rect2.width + padding < rect1.x ||
+    rect1.y + rect1.height + padding < rect2.y ||
+    rect2.y + rect2.height + padding < rect1.y
+  );
+};
+
+const resolveOverlaps = (nodes: LayoutNode[], nodeDimensions: Map<string, NodeDimensions>): LayoutNode[] => {
+  const resolutionPasses = 3;
+  const minSpacing = 20;
+  
+  for (let pass = 0; pass < resolutionPasses; pass++) {
+    let hasOverlaps = false;
+    
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const nodeA = nodes[i];
+        const nodeB = nodes[j];
+        
+        const dimsA = nodeDimensions.get(nodeA.id) || { width: 384, height: 400 };
+        const dimsB = nodeDimensions.get(nodeB.id) || { width: 384, height: 400 };
+        
+        const rectA: Rect = {
+          x: nodeA.position.x,
+          y: nodeA.position.y,
+          width: dimsA.width,
+          height: dimsA.height,
+        };
+        
+        const rectB: Rect = {
+          x: nodeB.position.x,
+          y: nodeB.position.y,
+          width: dimsB.width,
+          height: dimsB.height,
+        };
+        
+        if (checkOverlap(rectA, rectB, minSpacing)) {
+          hasOverlaps = true;
+          
+          const overlapX = Math.max(0, Math.min(
+            rectA.x + rectA.width - rectB.x,
+            rectB.x + rectB.width - rectA.x
+          ));
+          
+          const overlapY = Math.max(0, Math.min(
+            rectA.y + rectA.height - rectB.y,
+            rectB.y + rectB.height - rectA.y
+          ));
+          
+          if (overlapX > 0 || overlapY > 0) {
+            if (overlapY >= overlapX) {
+              if (nodeA.position.y < nodeB.position.y) {
+                nodeB.position.y = nodeA.position.y + rectA.height + minSpacing;
+              } else {
+                nodeA.position.y = nodeB.position.y + rectB.height + minSpacing;
+              }
+            } else {
+              if (nodeA.position.x < nodeB.position.x) {
+                nodeB.position.x = nodeA.position.x + rectA.width + minSpacing;
+              } else {
+                nodeA.position.x = nodeB.position.x + rectB.width + minSpacing;
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    if (!hasOverlaps) break;
+  }
+  
+  return nodes;
+};
+
+const optimizeEdgeRouting = (nodes: LayoutNode[], edges: Edge[]): Edge[] => {
+  return edges.map(edge => {
+    const sourceNode = nodes.find(n => n.id === edge.source);
+    const targetNode = nodes.find(n => n.id === edge.target);
+    
+    if (!sourceNode || !targetNode) return edge;
+    
+    const sourceDims = { width: sourceNode.nodeWidth || 384, height: sourceNode.nodeHeight || 400 };
+    const targetDims = { width: targetNode.nodeWidth || 384, height: targetNode.nodeHeight || 400 };
+    
+    const sourceY = sourceNode.position.y + sourceDims.height / 2;
+    const targetY = targetNode.position.y + targetDims.height / 2;
+    const sourceX = sourceNode.position.x + sourceDims.width / 2;
+    const targetX = targetNode.position.x + targetDims.width / 2;
+    
+    const verticalDiff = Math.abs(targetY - sourceY);
+    const horizontalDiff = Math.abs(targetX - sourceX);
+    
+    let edgeType = 'smoothstep';
+    let pathType: 'straight' | 'vertical' | 'horizontal' | 'default' = 'default';
+    
+    if (verticalDiff > horizontalDiff * 2 && verticalDiff > 200) {
+      pathType = 'straight';
+    } else if (horizontalDiff > verticalDiff * 2 && horizontalDiff > 200) {
+      pathType = 'horizontal';
+    } else if (verticalDiff > 150) {
+      pathType = 'vertical';
+    }
+    
+    if (pathType !== 'default') {
+      return {
+        ...edge,
+        type: pathType === 'straight' ? 'default' : pathType,
+        style: {
+          ...edge.style,
+        },
+      };
+    }
+    
+    return edge;
+  });
 };
 
 watch([() => props.materials, edges], () => {
@@ -514,10 +1123,6 @@ const handleNodeRegenerate = (material: OssMaterial) => {
       :min-zoom="0.1" :max-zoom="2" :fit-view-on-init="false" class="vue-flow-canvas"
       @node-click="(nodeEvent: any) => handleNodeSelect(nodeEvent.node.data.material)">
       <Background :gap="24" :size="1.5" variant="dots" color="hsl(var(--border) / 0.6)" />
-
-      <Controls position="bottom-right"
-        class="!bg-card/95 !border-border !shadow-xl !rounded-xl overflow-hidden backdrop-blur-sm" :show-fit-view="true"
-        :show-interactive="true" />
 
       <MiniMap position="bottom-left" :node-color="(node: any) => {
         const material = node.data?.material;
