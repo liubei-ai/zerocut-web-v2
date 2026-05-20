@@ -31,12 +31,13 @@ const selectedFiles = ref<FilePreview[]>([]);
 const { toast } = useToast();
 
 // Free creation mode options
-const freeCreationMode = ref<DefaultMode>('image_generation'); // 'agent' or 'video_generation' or 'image_generation'
+const freeCreationMode = ref<DefaultMode>(configStore.defaultMode); // 'agent' or 'video_generation' or 'image_generation'
 
 // Video generation reference mode
 const videoReferenceMode = ref<'reference' | 'first_last_frame'>('reference'); // 'reference' 全能参考, 'first_last_frame' 首尾帧
 
-const videoModel = ref('seedance-2.0');
+const videoModel = ref(configStore.effectiveVideoModel);
+console.log('videoModel: ', videoModel);
 
 const videoDuration = ref('5s');
 const videoAspectRatio = ref('9:16');
@@ -165,7 +166,7 @@ const freeCreationModes = [
   { id: 'agent', label: 'Agent模式' },
 ];
 
-const imageModel = ref('banana2');
+const imageModel = ref(configStore.effectiveImageModel);
 const showImageModelMenu = ref(false);
 const imageModelMenuRef = ref<HTMLElement | null>(null);
 
@@ -458,6 +459,24 @@ watch(freeCreationMode, (newMode) => {
       }
       lastFrameImage.value = null;
     }
+  }
+});
+
+watch(() => configStore.defaultMode, (newDefaultMode) => {
+  if (newDefaultMode) {
+    freeCreationMode.value = newDefaultMode;
+  }
+});
+
+watch(() => configStore.effectiveVideoModel, (newVideoModel) => {
+  if (newVideoModel) {
+    videoModel.value = newVideoModel;
+  }
+});
+
+watch(() => configStore.effectiveImageModel, (newImageModel) => {
+  if (newImageModel) {
+    imageModel.value = newImageModel;
   }
 });
 

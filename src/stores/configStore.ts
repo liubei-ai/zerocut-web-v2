@@ -81,21 +81,12 @@ export const useConfigStore = defineStore('config', () => {
   const videoModelDefault = ref<string>('');
   const defaultMode = ref<DefaultMode>('agent');
 
-  const isImageModelDefaultValid = computed(() => {
-    return imageModelList.value.some(m => m.id === imageModelDefault.value);
-  });
-
-  const isVideoModelDefaultValid = computed(() => {
-    if (!videoModelDefault.value) return true;
-    return videoModelList.value.some(m => m.id === videoModelDefault.value);
-  });
-
   const effectiveImageModel = computed(() => {
-    return isImageModelDefaultValid.value ? imageModelDefault.value : 'banana2';
+    return imageModelDefault.value || imageModelList.value[0]?.id || '';
   });
 
   const effectiveVideoModel = computed(() => {
-    return isVideoModelDefaultValid.value ? videoModelDefault.value : videoModelList.value[0]?.id || '';
+    return videoModelDefault.value || videoModelList.value[0]?.id || '';
   });
 
   const loadConfig = async () => {
@@ -176,8 +167,6 @@ export const useConfigStore = defineStore('config', () => {
     imageModelDefault,
     videoModelDefault,
     defaultMode,
-    isImageModelDefaultValid,
-    isVideoModelDefaultValid,
     effectiveImageModel,
     effectiveVideoModel,
     loadConfig,
