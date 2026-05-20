@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { Button } from '@/components/ui/button';
-import { videoModels, videoDurations, videoAspectRatios, videoResolutions } from '@/config/videoGeneration';
+import { videoModels as defaultVideoModels, videoDurations, videoAspectRatios, videoResolutions, type VideoModelItem } from '@/config/videoGeneration';
 import { calculateVideoCredits } from '@/utils/videoPriceCalculator';
 import { useAuthStore } from '@/stores/authStore';
 import { useCreditsStore } from '@/stores/creditsStore';
@@ -37,6 +37,7 @@ interface Props {
   projectFiles?: ProjectFileReference[];
   immediateUpload?: boolean;
   projectId?: string | number;
+  videoModels?: VideoModelItem[];
 }
 
 interface Emits {
@@ -51,6 +52,13 @@ const emit = defineEmits<Emits>();
 
 const prompt = ref(props.initialPrompt || '');
 const model = ref(props.initialModel || 'seedance-2.0');
+
+const videoModels = computed(() => {
+  return props.videoModels && props.videoModels.length > 0 
+    ? props.videoModels 
+    : defaultVideoModels;
+});
+
 const resolution = ref<'720p' | '1080p'>(props.initialResolution || '720p');
 const aspectRatio = ref<'16:9' | '9:16'>(props.initialAspectRatio || '9:16');
 const duration = ref(props.initialDuration || 5);
@@ -154,7 +162,7 @@ const updateCreditsNeeded = async () => {
 
   try {
     const inputVideoDuration = getInputVideoDuration();
-    creditsNeeded.value = await calculateVideoCredits(model.value, duration.value, resolution.value, videoModels, inputVideoDuration);
+    creditsNeeded.value = await calculateVideoCredits(model.value, duration.value, resolution.value, videoModels.value, inputVideoDuration);
   } catch (error) {
     creditsError.value = error instanceof Error ? error.message : '获取价格失败';
     creditsNeeded.value = null;

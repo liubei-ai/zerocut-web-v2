@@ -12,6 +12,7 @@ interface Props {
 interface Emits {
   (e: 'cancel'): void;
   (e: 'retry'): void;
+  (e: 'back'): void;
 }
 
 const props = defineProps<Props>();
@@ -98,6 +99,15 @@ const statusSub = computed(() => {
       >
         取消生成
       </button> -->
+
+      <!-- Back to form -->
+      <button
+        v-if="workflowId"
+        @click="emit('back')"
+        class="relative z-10 mt-4 rounded-lg border border-gray-200 px-5 py-2 text-sm text-gray-500 transition-colors hover:border-gray-400 hover:text-gray-700"
+      >
+        继续生成
+      </button>
     </div>
 
     <!-- SUCCESS state -->

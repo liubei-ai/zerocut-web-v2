@@ -31,7 +31,7 @@ import {
 import { useChatMessages } from '@/composables';
 import { useToast } from '@/composables/useToast';
 import { getSystemConfig } from '@/api/systemApi';
-import { videoModels } from '@/config/videoGeneration';
+import { videoModels as defaultVideoModels, type VideoModelItem } from '@/config/videoGeneration';
 import type { FilePreview } from '@/types/fileReference';
 import { getReferencedFiles } from '@/utils/fileUtils';
 
@@ -49,6 +49,22 @@ export interface WorkspaceFile {
 
 const route = useRoute();
 const router = useRouter();
+
+const isValidVideoModelItem = (item: any): item is VideoModelItem => {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    typeof item.id === 'string' &&
+    item.id.length > 0 &&
+    typeof item.label === 'string' &&
+    item.label.length > 0 &&
+    typeof item.description === 'string'
+  );
+};
+
+const validateVideoModelList = (list: any): list is VideoModelItem[] => {
+  return Array.isArray(list) && list.length > 0 && list.every(isValidVideoModelItem);
+};
 
 // Use chat messages composable
 const { messages, initMessages, addUserMessage, removeMessage, addAssistantMessage, loadChatHistory } =
@@ -106,12 +122,20 @@ const initialLastFrameFileId = ref<string | undefined>(undefined);
 // Price configuration from system config
 const priceConfig = ref<any>(null);
 
+// Video models configuration from system config
+const videoModelList = ref<VideoModelItem[]>([...defaultVideoModels]);
+
 // Load system config for pricing
 const loadSystemConfig = async () => {
   try {
-    const config = await getSystemConfig(['web_price']);
+    const config = await getSystemConfig(['web_price', 'web_home_video_models']);
+    console.log('workspace config', config);
     if (config.webPrice) {
       priceConfig.value = config.webPrice;
+    }
+    if (config.webHomeVideoModels && validateVideoModelList(config.webHomeVideoModels)) {
+      videoModelList.value = config.webHomeVideoModels;
+      console.log('videoModelList.value: ', videoModelList.value);
     }
   } catch (error) {
     console.error('Failed to load system config:', error);
@@ -1280,6 +1304,13 @@ const handleRetryVideoGeneration = () => {
   videoWorkflowId.value = '';
   videoWorkflowData.value = null;
 };
+
+const handleBackToVideoForm = () => {
+  stopVideoPolling();
+  videoGenerationState.value = 'idle';
+  videoWorkflowId.value = '';
+  videoWorkflowData.value = null;
+};
 </script>
 
 <template>
@@ -1384,6 +1415,7 @@ const handleRetryVideoGeneration = () => {
                 :project-files="files"
                 :immediate-upload="!!(projectId && projectId !== 'new')"
                 :project-id="projectId"
+                :video-models="videoModelList"
                 @submit="handleVideoGenerationSubmit"
                 @file-uploaded="handleFileUploaded"
               />
@@ -1396,6 +1428,7 @@ const handleRetryVideoGeneration = () => {
                 :workflow-id="Number(videoWorkflowId)"
                 @cancel="handleCancelVideoGeneration"
                 @retry="handleRetryVideoGeneration"
+                @back="handleBackToVideoForm"
               />
             </div>
 
@@ -1506,6 +1539,7 @@ const handleRetryVideoGeneration = () => {
                 :project-files="files"
                 :immediate-upload="!!(projectId && projectId !== 'new')"
                 :project-id="projectId"
+                :video-models="videoModelList"
                 @submit="handleVideoGenerationSubmit"
                 @file-uploaded="handleFileUploaded"
               />
@@ -1518,6 +1552,7 @@ const handleRetryVideoGeneration = () => {
                 :workflow-id="Number(videoWorkflowId)"
                 @cancel="handleCancelVideoGeneration"
                 @retry="handleRetryVideoGeneration"
+                @back="handleBackToVideoForm"
               />
             </div>
 

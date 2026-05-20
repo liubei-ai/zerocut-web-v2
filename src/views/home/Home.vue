@@ -164,6 +164,37 @@ const freeCreationModes = [
   { id: 'agent', label: 'Agent模式' },
 ];
 
+const isValidImageModelItem = (item: any): item is ImageModelItem => {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    typeof item.id === 'string' &&
+    item.id.length > 0 &&
+    typeof item.label === 'string' &&
+    item.label.length > 0
+  );
+};
+
+const isValidVideoModelItem = (item: any): item is VideoModelItem => {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    typeof item.id === 'string' &&
+    item.id.length > 0 &&
+    typeof item.label === 'string' &&
+    item.label.length > 0 &&
+    typeof item.description === 'string'
+  );
+};
+
+const validateImageModelList = (list: any): list is ImageModelItem[] => {
+  return Array.isArray(list) && list.length > 0 && list.every(isValidImageModelItem);
+};
+
+const validateVideoModelList = (list: any): list is VideoModelItem[] => {
+  return Array.isArray(list) && list.length > 0 && list.every(isValidVideoModelItem);
+};
+
 const imageModel = ref('banana2');
 const imageModelList = ref<ImageModelItem[]>([...defaultImageModels]);
 const videoModelList = ref<VideoModelItem[]>([...defaultVideoModels]);
@@ -571,10 +602,10 @@ const loadSystemConfig = async () => {
       suggestionsByMode.value.free_creation = webHomeFreeRecommend;
     }
 
-    if (config.webHomeImageModels && config.webHomeImageModels.length > 0) {
+    if (config.webHomeImageModels && validateImageModelList(config.webHomeImageModels)) {
       imageModelList.value = config.webHomeImageModels;
     }
-    if (config.webHomeVideoModels && config.webHomeVideoModels.length > 0) {
+    if (config.webHomeVideoModels && validateVideoModelList(config.webHomeVideoModels)) {
       videoModelList.value = config.webHomeVideoModels;
     }
     if (config.webHomeImageModelDefault) {
