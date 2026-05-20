@@ -8,9 +8,10 @@ import ProjectGrid from '@/views/project/ProjectGrid.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useCreditsStore } from '@/stores/creditsStore';
 import { useMembershipModalStore } from '@/stores/membershipModalStore';
-import { getSystemConfig, type TemplateItem } from '@/api/systemApi';
+import { useConfigStore, type DefaultMode } from '@/stores/configStore';
+import { type TemplateItem } from '@/api/systemApi';
 import { useToast } from '@/composables/useToast';
-import { videoDurations, videoAspectRatios, videoResolutions, imageModels as defaultImageModels, videoModels as defaultVideoModels, type ImageModelItem, type VideoModelItem } from '@/config/videoGeneration';
+import { videoDurations, videoAspectRatios, videoResolutions, type ImageModelItem, type VideoModelItem } from '@/config/videoGeneration';
 import { calculateVideoCredits, calculateImageCredits } from '@/utils/videoPriceCalculator';
 import { MAX_FILES } from '@/types/fileReference';
 import type { FilePreview } from '@/types/fileReference';
@@ -18,6 +19,7 @@ import type { FilePreview } from '@/types/fileReference';
 const authStore = useAuthStore();
 const creditsStore = useCreditsStore();
 const membershipModalStore = useMembershipModalStore();
+const configStore = useConfigStore();
 const router = useRouter();
 const videoPrompt = ref('');
 const selectedMode = ref('free_creation');
@@ -26,11 +28,10 @@ const videoType = ref('自动');
 const showAspectRatioMenu = ref(false);
 const showStyleMenu = ref(false);
 const selectedFiles = ref<FilePreview[]>([]);
-const homeTips = ref('新用户注册送1000积分～');
 const { toast } = useToast();
 
 // Free creation mode options
-const freeCreationMode = ref('image_generation'); // 'agent' or 'video_generation' or 'image_generation'
+const freeCreationMode = ref<DefaultMode>('image_generation'); // 'agent' or 'video_generation' or 'image_generation'
 
 // Video generation reference mode
 const videoReferenceMode = ref<'reference' | 'first_last_frame'>('reference'); // 'reference' 全能参考, 'first_last_frame' 首尾帧
@@ -164,40 +165,7 @@ const freeCreationModes = [
   { id: 'agent', label: 'Agent模式' },
 ];
 
-const isValidImageModelItem = (item: any): item is ImageModelItem => {
-  return (
-    typeof item === 'object' &&
-    item !== null &&
-    typeof item.id === 'string' &&
-    item.id.length > 0 &&
-    typeof item.label === 'string' &&
-    item.label.length > 0
-  );
-};
-
-const isValidVideoModelItem = (item: any): item is VideoModelItem => {
-  return (
-    typeof item === 'object' &&
-    item !== null &&
-    typeof item.id === 'string' &&
-    item.id.length > 0 &&
-    typeof item.label === 'string' &&
-    item.label.length > 0 &&
-    typeof item.description === 'string'
-  );
-};
-
-const validateImageModelList = (list: any): list is ImageModelItem[] => {
-  return Array.isArray(list) && list.length > 0 && list.every(isValidImageModelItem);
-};
-
-const validateVideoModelList = (list: any): list is VideoModelItem[] => {
-  return Array.isArray(list) && list.length > 0 && list.every(isValidVideoModelItem);
-};
-
 const imageModel = ref('banana2');
-const imageModelList = ref<ImageModelItem[]>([...defaultImageModels]);
-const videoModelList = ref<VideoModelItem[]>([...defaultVideoModels]);
 const showImageModelMenu = ref(false);
 const imageModelMenuRef = ref<HTMLElement | null>(null);
 
@@ -259,41 +227,6 @@ const durationMap = videoDurations.reduce(
   },
   {} as Record<string, string>,
 );
-
-const suggestionsByMode = ref<Record<string, TemplateItem[]>>({
-  one_click: [
-    { name: '制作一个产品宣传视频', placeholder: '制作一个产品宣传视频' },
-    { name: '创建旅行Vlog剪辑', placeholder: '创建旅行Vlog剪辑' },
-    { name: '生成教学演示视频', placeholder: '生成教学演示视频' },
-    { name: '制作婚礼回忆短片', placeholder: '制作婚礼回忆短片' },
-    { name: '创建企业介绍视频', placeholder: '创建企业介绍视频' },
-    { name: '生成音乐MV', placeholder: '生成音乐MV' },
-  ],
-  free_creation: [
-    { name: '生成一张未来科技风格的插画', placeholder: '生成一张未来科技风格的插画' },
-    { name: '创作一个悬疑短片的剧本大纲', placeholder: '创作一个悬疑短片的剧本大纲' },
-    { name: '制作一段产品介绍视频', placeholder: '制作一段产品介绍视频' },
-    { name: '设计一组社交媒体配图', placeholder: '设计一组社交媒体配图' },
-    { name: '编写一个广告文案脚本', placeholder: '编写一个广告文案脚本' },
-    { name: '生成品牌宣传海报', placeholder: '生成品牌宣传海报' },
-  ],
-  image_generation: [
-    { name: '赛博朋克城市夜景', placeholder: '赛博朋克风格的城市夜景，霓虹灯倒映在雨后的街道上，高楼林立，充满未来感' },
-    { name: '水墨山水画', placeholder: '中国传统水墨风格的山水画，云雾缭绕的山峰，远处有一叶扁舟，意境悠远' },
-    { name: '可爱动物插画', placeholder: '一只穿着宇航服的柴犬漂浮在太空中，背景是星云和行星，卡通插画风格' },
-    { name: '梦幻森林场景', placeholder: '魔法森林中的精灵小屋，蘑菇发光，萤火虫飞舞，唯美奇幻风格' },
-    { name: '产品概念海报', placeholder: '极简主义风格的香水广告海报，玻璃瓶在柔和光线下折射出彩虹光晕，高端质感' },
-    { name: '复古胶片人像', placeholder: '复古胶片风格的街头人像摄影，暖色调，浅景深，充满年代感' },
-  ],
-  /* storyboard: [
-    '一个咖啡店的温馨日常故事',
-    '科幻题材的短片分镜',
-    '产品发布会开场视频脚本',
-    '旅行纪录片的叙事结构',
-    '品牌故事微电影分镜',
-    '教育类短视频脚本',
-  ], */
-});
 
 const placeholderByMode: Record<string, string> = {
   one_click: '输入视频创意主题、剧本或分镜，快速生成完整视频',
@@ -375,7 +308,7 @@ const handleSubmit = () => {
           '1:8': '极长竖屏1:8',
           '8:1': '极长横屏8:1',
         };
-        chatMessage = `请使用${imageModelList.value.find(m => m.id === imageModel.value)?.id || imageModel.value}模型生成图片，${aspectRatioMap[videoAspectRatio.value] || videoAspectRatio.value}，内容为：${videoPrompt.value}`;
+        chatMessage = `请使用${configStore.imageModelList.find(m => m.id === imageModel.value)?.id || imageModel.value}模型生成图片，${aspectRatioMap[videoAspectRatio.value] || videoAspectRatio.value}，内容为：${videoPrompt.value}`;
       } else {
         // Video generation mode - use workflow API instead of chat
         chatMessage = videoPrompt.value;
@@ -443,7 +376,7 @@ const selectStyle = (style: string) => {
   showStyleMenu.value = false;
 };
 
-const selectFreeCreationMode = (mode: string) => {
+const selectFreeCreationMode = (mode: DefaultMode) => {
   freeCreationMode.value = mode;
   showFreeCreationModeMenu.value = false;
 };
@@ -497,9 +430,9 @@ const updateCreditsNeeded = async () => {
     if (isVideoMode) {
       const durationSeconds = parseInt(videoDuration.value);
       const inputVideoDuration = getInputVideoDuration();
-      creditsNeeded.value = await calculateVideoCredits(videoModel.value, durationSeconds, videoResolution.value, videoModelList.value, inputVideoDuration);
+      creditsNeeded.value = await calculateVideoCredits(videoModel.value, durationSeconds, videoResolution.value, configStore.videoModelList, inputVideoDuration);
     } else {
-      creditsNeeded.value = await calculateImageCredits(imageModel.value, '2K', imageModelList.value);
+      creditsNeeded.value = await calculateImageCredits(imageModel.value, '2K', configStore.imageModelList);
     }
   } catch (error) {
     creditsError.value = error instanceof Error ? error.message : '获取价格失败';
@@ -569,67 +502,12 @@ const handleClickOutside = (event: MouseEvent) => {
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside);
-  loadSystemConfig();
+  configStore.loadConfig();
 });
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside);
 });
-
-const loadSystemConfig = async () => {
-  try {
-    const config = await getSystemConfig([
-      'web_home_tips',
-      'web_home_auto_recommend',
-      'web_home_free_recommend',
-      'web_home_image_models',
-      'web_home_video_models',
-      'web_home_image_model_default',
-      'web_home_video_model_default',
-      'web_home_default_mode',
-    ]);
-    console.log('config', config);
-    if (config.webHomeTips) {
-      homeTips.value = config.webHomeTips;
-    }
-
-    const webHomeAutoRecommend = config.webHomeAutoRecommend;
-    const webHomeFreeRecommend = config.webHomeFreeRecommend;
-    if (webHomeAutoRecommend && webHomeAutoRecommend.length > 0) {
-      suggestionsByMode.value.one_click = webHomeAutoRecommend;
-    }
-    if (webHomeFreeRecommend && webHomeFreeRecommend.length > 0) {
-      suggestionsByMode.value.free_creation = webHomeFreeRecommend;
-    }
-
-    if (config.webHomeImageModels && validateImageModelList(config.webHomeImageModels)) {
-      imageModelList.value = config.webHomeImageModels;
-    }
-    if (config.webHomeVideoModels && validateVideoModelList(config.webHomeVideoModels)) {
-      videoModelList.value = config.webHomeVideoModels;
-    }
-    if (config.webHomeImageModelDefault) {
-      const defaultImageModelExists = imageModelList.value.some(m => m.id === config.webHomeImageModelDefault);
-      if (defaultImageModelExists) {
-        imageModel.value = config.webHomeImageModelDefault;
-      }
-    }
-    if (config.webHomeVideoModelDefault) {
-      const defaultVideoModelExists = videoModelList.value.some(m => m.id === config.webHomeVideoModelDefault);
-      if (defaultVideoModelExists) {
-        videoModel.value = config.webHomeVideoModelDefault;
-      }
-    }
-    if (config.webHomeDefaultMode) {
-      const validModes = ['agent', 'video_generation', 'image_generation'];
-      if (validModes.includes(config.webHomeDefaultMode)) {
-        freeCreationMode.value = config.webHomeDefaultMode;
-      }
-    }
-  } catch (error) {
-    console.error('Failed to load system config:', error);
-  }
-};
 </script>
 
 <template>
@@ -642,7 +520,7 @@ const loadSystemConfig = async () => {
             v-if="!authStore.isAuthenticated"
             class="mb-6 inline-flex items-center gap-2 rounded-[20px] border border-[#fde68a] bg-[#fef3c7] px-5 py-2"
           >
-            <span class="text-sm text-[#92400e]">{{ homeTips }}</span>
+            <span class="text-sm text-[#92400e]">{{ configStore.homeTips }}</span>
           </div>
 
           <div class="mb-5 flex items-center gap-3">
@@ -808,7 +686,7 @@ const loadSystemConfig = async () => {
                             v-for="mode in freeCreationModes"
                             :key="mode.id"
                             variant="ghost"
-                            @click="selectFreeCreationMode(mode.id)"
+                            @click="selectFreeCreationMode(mode.id as DefaultMode)"
                             :class="[
                               'h-auto w-full justify-start rounded-lg px-3 py-2.5 text-left',
                               freeCreationMode === mode.id ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]',
@@ -835,7 +713,7 @@ const loadSystemConfig = async () => {
                             class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
                           >
                             <span>🎯</span>
-                            <span>{{ videoModelList.find(m => m.id === videoModel)?.label }}</span>
+                            <span>{{ configStore.videoModelList.find(m => m.id === videoModel)?.label }}</span>
                             <span class="text-xs">▼</span>
                           </Button>
 
@@ -844,7 +722,7 @@ const loadSystemConfig = async () => {
                             class="absolute bottom-full left-0 z-[1000] mb-2 min-w-[200px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
                           >
                             <Button
-                              v-for="model in videoModelList"
+                              v-for="model in configStore.videoModelList"
                               :key="model.id"
                               variant="ghost"
                               @click="selectVideoModel(model.id)"
@@ -1044,7 +922,7 @@ const loadSystemConfig = async () => {
                             class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
                           >
                             <span>🎨</span>
-                            <span>{{ imageModelList.find(m => m.id === imageModel)?.label }}</span>
+                            <span>{{ configStore.imageModelList.find(m => m.id === imageModel)?.label }}</span>
                             <span class="text-xs">▼</span>
                           </Button>
 
@@ -1053,7 +931,7 @@ const loadSystemConfig = async () => {
                             class="absolute bottom-full left-0 z-[1000] mb-2 min-w-[200px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
                           >
                             <Button
-                              v-for="model in imageModelList"
+                              v-for="model in configStore.imageModelList"
                               :key="model.id"
                               variant="ghost"
                               @click="selectImageModel(model.id)"
@@ -1169,9 +1047,9 @@ const loadSystemConfig = async () => {
           <!-- Quick Templates -->
           <div class="grid grid-cols-3 gap-3">
             <button
-              v-for="template in selectedMode === 'free_creation' && freeCreationMode === 'image_generation'
-                ? suggestionsByMode['image_generation']
-                : suggestionsByMode[selectedMode]"
+              v-for="template in (selectedMode === 'free_creation' && freeCreationMode === 'image_generation'
+                ? configStore.suggestionsByMode.image_generation
+                : configStore.suggestionsByMode[selectedMode as 'one_click' | 'free_creation'])"
               :key="template.name"
               @click="videoPrompt = template.placeholder"
               class="cursor-pointer rounded-xl border border-[#e5e7eb] bg-white p-4 text-center text-sm text-[#6b7280] transition-all hover:-translate-y-0.5 hover:border-[#d1d5db] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)]"

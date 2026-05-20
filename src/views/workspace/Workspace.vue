@@ -30,8 +30,7 @@ import {
 } from '@/api/videoWorkflowApi';
 import { useChatMessages } from '@/composables';
 import { useToast } from '@/composables/useToast';
-import { getSystemConfig } from '@/api/systemApi';
-import { videoModels as defaultVideoModels, type VideoModelItem } from '@/config/videoGeneration';
+import { useConfigStore } from '@/stores/configStore';
 import type { FilePreview } from '@/types/fileReference';
 import { getReferencedFiles } from '@/utils/fileUtils';
 
@@ -49,22 +48,7 @@ export interface WorkspaceFile {
 
 const route = useRoute();
 const router = useRouter();
-
-const isValidVideoModelItem = (item: any): item is VideoModelItem => {
-  return (
-    typeof item === 'object' &&
-    item !== null &&
-    typeof item.id === 'string' &&
-    item.id.length > 0 &&
-    typeof item.label === 'string' &&
-    item.label.length > 0 &&
-    typeof item.description === 'string'
-  );
-};
-
-const validateVideoModelList = (list: any): list is VideoModelItem[] => {
-  return Array.isArray(list) && list.length > 0 && list.every(isValidVideoModelItem);
-};
+const configStore = useConfigStore();
 
 // Use chat messages composable
 const { messages, initMessages, addUserMessage, removeMessage, addAssistantMessage, loadChatHistory } =
@@ -119,24 +103,10 @@ const initialVideoReferenceMode = ref<'reference' | 'first_last_frame'>('referen
 const initialFirstFrameFileId = ref<string | undefined>(undefined);
 const initialLastFrameFileId = ref<string | undefined>(undefined);
 
-// Price configuration from system config
-const priceConfig = ref<any>(null);
-
-// Video models configuration from system config
-const videoModelList = ref<VideoModelItem[]>([...defaultVideoModels]);
-
 // Load system config for pricing
 const loadSystemConfig = async () => {
   try {
-    const config = await getSystemConfig(['web_price', 'web_home_video_models']);
-    console.log('workspace config', config);
-    if (config.webPrice) {
-      priceConfig.value = config.webPrice;
-    }
-    if (config.webHomeVideoModels && validateVideoModelList(config.webHomeVideoModels)) {
-      videoModelList.value = config.webHomeVideoModels;
-      console.log('videoModelList.value: ', videoModelList.value);
-    }
+    await configStore.loadConfig();
   } catch (error) {
     console.error('Failed to load system config:', error);
   }
@@ -1410,12 +1380,11 @@ const handleBackToVideoForm = () => {
                 :initial-first-frame-file-id="initialFirstFrameFileId"
                 :initial-last-frame-file-id="initialLastFrameFileId"
                 :initial-files="initialFiles"
-                :price-config="priceConfig"
                 :is-loading="isRunning"
                 :project-files="files"
                 :immediate-upload="!!(projectId && projectId !== 'new')"
                 :project-id="projectId"
-                :video-models="videoModelList"
+                :video-models="configStore.videoModelList"
                 @submit="handleVideoGenerationSubmit"
                 @file-uploaded="handleFileUploaded"
               />
@@ -1534,12 +1503,11 @@ const handleBackToVideoForm = () => {
                 :initial-first-frame-file-id="initialFirstFrameFileId"
                 :initial-last-frame-file-id="initialLastFrameFileId"
                 :initial-files="initialFiles"
-                :price-config="priceConfig"
                 :is-loading="isRunning"
                 :project-files="files"
                 :immediate-upload="!!(projectId && projectId !== 'new')"
                 :project-id="projectId"
-                :video-models="videoModelList"
+                :video-models="configStore.videoModelList"
                 @submit="handleVideoGenerationSubmit"
                 @file-uploaded="handleFileUploaded"
               />

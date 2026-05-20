@@ -32,7 +32,6 @@ interface Props {
   initialReferenceMode?: 'reference' | 'first_last_frame';
   initialFirstFrameFileId?: string;
   initialLastFrameFileId?: string;
-  priceConfig?: any;
   initialFiles?: FilePreview[];
   projectFiles?: ProjectFileReference[];
   immediateUpload?: boolean;
