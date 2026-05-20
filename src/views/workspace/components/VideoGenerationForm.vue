@@ -102,6 +102,11 @@ const getLastFrameImage = computed(() => {
   return null;
 });
 
+const filteredProjectFiles = computed(() => {
+  if (!props.projectFiles) return [];
+  return props.projectFiles.filter(file => file.status !== 'RUNNING');
+});
+
 const shouldShowAtButton = computed(() => {
   return true;
 });
@@ -309,7 +314,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
             :allow-file-pick="true"
             :textarea-class="'w-full min-h-[100px] text-sm leading-[1.6] bg-transparent border-0 outline-0 focus-visible:ring-0'"
             :reference-mode="referenceMode"
-            :project-files="projectFiles"
+            :project-files="filteredProjectFiles"
             :immediate-upload="immediateUpload"
             :project-id="projectId"
             @files-change="handleFilesChange"

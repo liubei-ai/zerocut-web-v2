@@ -13,6 +13,7 @@ export interface ProjectFileReference {
   file_type?: string;
   file_url?: string;
   thumbnail_url?: string;
+  status?: string;
 }
 
 export interface ProcessFilesResult {
