@@ -1,4 +1,5 @@
 import { type User } from '@/types/api';
+import { getStoredRef } from '@/utils/referralTracker';
 import { request, type IRequestOptions } from './client';
 
 export interface SyncUserProfileRequest {
@@ -9,14 +10,24 @@ export interface SyncUserProfileRequest {
   token: string;
 }
 
+export interface SyncUserProfileBody extends SyncUserProfileRequest {
+  refCode?: string;
+  refSeenAt?: string;
+  refLandingHost?: string;
+}
+
 // Sync user profile with custom options
 export async function syncUserProfile(
-  user: SyncUserProfileRequest, 
+  user: SyncUserProfileRequest,
   options?: IRequestOptions
 ) {
-  return request.post<SyncUserProfileRequest, User>(
-    '/auth/sync', 
-    user, 
+  const ref = getStoredRef();
+  const body: SyncUserProfileBody = ref
+    ? { ...user, refCode: ref.code, refSeenAt: ref.seenAt, refLandingHost: ref.landingHost }
+    : user;
+  return request.post<SyncUserProfileBody, User>(
+    '/auth/sync',
+    body,
     {
       noLoading: false, // Show loading by default
       noErrorAlert: false, // Show error alerts by default
