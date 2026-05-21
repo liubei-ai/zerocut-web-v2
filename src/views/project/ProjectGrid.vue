@@ -310,7 +310,7 @@ const placeholderImage =
 const getProjectPreview = (project: any) => {
   // Use cover_url from the new API response
   if (project.cover_url) {
-    return `${project.cover_url}?x-tos-process=image/resize,w_300`;
+    return `${project.cover_url}?x-tos-process=image/resize,w_400`;
   }
 
   // If no cover_url, return inline SVG placeholder

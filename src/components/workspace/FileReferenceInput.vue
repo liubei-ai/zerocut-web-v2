@@ -15,6 +15,7 @@ import {
   MAX_FILES,
   MAX_VIDEO_TOTAL_DURATION,
   MAX_VIDEO_COUNT,
+  MAX_IMAGE_COUNT,
   MIN_VIDEO_DURATION,
   MAX_VIDEO_DURATION,
   MAX_FILE_SIZE,
@@ -499,6 +500,15 @@ const handleFileChange = async (e: Event) => {
         toast.error(`文件 ${sizeMB}MB 超过限制，单个文件不能超过 200MB`);
         invalidSizeCount++;
         continue;
+      }
+
+      let exceededImageCount = 0;
+      if (fileType === 'image') {
+        if (imageCount + filesToAdd.filter(f => f.type === 'image').length >= MAX_IMAGE_COUNT) {
+          toast.error(`最多支持 ${MAX_IMAGE_COUNT} 张图片`);
+          exceededImageCount++;
+          continue;
+        }
       }
 
       let renamedName = file.name;

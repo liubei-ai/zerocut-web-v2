@@ -25,9 +25,10 @@ export interface ProcessFilesResult {
   exceededVideoCount: number;
 }
 
-export const MAX_FILES = 6;
+export const MAX_FILES = 12;
 export const MAX_VIDEO_TOTAL_DURATION = 15;
 export const MAX_VIDEO_COUNT = 3;
+export const MAX_IMAGE_COUNT = 9;
 export const MIN_VIDEO_DURATION = 2;
 export const MAX_VIDEO_DURATION = 15;
 export const MAX_FILE_SIZE = 200 * 1024 * 1024;

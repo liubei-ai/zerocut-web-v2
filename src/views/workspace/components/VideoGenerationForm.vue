@@ -8,7 +8,7 @@ import { useCreditsStore } from '@/stores/creditsStore';
 import FileReferenceInput from '@/components/workspace/FileReferenceInput.vue';
 import type { VideoWorkflowImage, VideoWorkflowVideo, VideoWorkflowAudio } from '@/api/videoWorkflowApi';
 import type { FilePreview, ProjectFileReference } from '@/types/fileReference';
-import { MAX_FILES } from '@/types/fileReference';
+import { MAX_FILES, MAX_IMAGE_COUNT, MAX_VIDEO_COUNT } from '@/types/fileReference';
 
 export interface VideoGenerationParams {
   model: string;
@@ -358,7 +358,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
             >
               <div>
                 <div class="text-sm font-medium text-gray-900">全能参考</div>
-                <div class="text-xs text-gray-400">多图参考，支持最多6张参考图</div>
+                <div class="text-xs text-gray-400">多图参考，支持最多{{ MAX_IMAGE_COUNT }}张图片、{{ MAX_VIDEO_COUNT }}个视频</div>
               </div>
             </button>
             <button

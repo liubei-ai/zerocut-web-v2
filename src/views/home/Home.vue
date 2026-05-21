@@ -13,7 +13,7 @@ import { type TemplateItem } from '@/api/systemApi';
 import { useToast } from '@/composables/useToast';
 import { videoDurations, videoAspectRatios, videoResolutions, type ImageModelItem, type VideoModelItem } from '@/config/videoGeneration';
 import { calculateVideoCredits, calculateImageCredits } from '@/utils/videoPriceCalculator';
-import { MAX_FILES } from '@/types/fileReference';
+import { MAX_FILES, MAX_IMAGE_COUNT, MAX_VIDEO_COUNT } from '@/types/fileReference';
 import type { FilePreview } from '@/types/fileReference';
 
 const authStore = useAuthStore();
@@ -792,7 +792,7 @@ onUnmounted(() => {
                             >
                               <div class="text-left">
                                 <div class="font-medium text-[#111827]">全能参考</div>
-                                <div class="text-xs text-[#9ca3af]">多图参考，支持最多6张参考图</div>
+                                <div class="text-xs text-[#9ca3af]">多图参考，支持最多{{ MAX_IMAGE_COUNT }}张图片、{{ MAX_VIDEO_COUNT }}个视频</div>
                               </div>
                             </Button>
                             <Button
