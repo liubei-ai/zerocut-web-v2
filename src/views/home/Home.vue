@@ -522,6 +522,13 @@ const handleClickOutside = (event: MouseEvent) => {
 onMounted(() => {
   document.addEventListener('click', handleClickOutside);
   configStore.loadConfig();
+
+  const url = new URL(window.location.href);
+  if (url.searchParams.get('showMembership') === 'true') {
+    membershipModalStore.openMembershipModal();
+    url.searchParams.delete('showMembership');
+    window.history.replaceState({}, '', url.toString());
+  }
 });
 
 onUnmounted(() => {
