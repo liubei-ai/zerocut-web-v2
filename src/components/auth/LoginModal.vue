@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useAuthStore } from '@/stores/authStore';
+import { useMembershipModalStore } from '@/stores/membershipModalStore';
 import type { User } from '@authing/guard-vue3';
 import { useGuard } from '@authing/guard-vue3';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
@@ -16,6 +17,7 @@ const emit = defineEmits<{
 }>();
 
 const authStore = useAuthStore();
+const membershipModalStore = useMembershipModalStore();
 const guard = useGuard();
 const error = ref('');
 const showError = ref(false);
@@ -28,6 +30,11 @@ guard.on('login', async (authingUser: User) => {
       await authStore.setAuthingUser(authingUser);
       // Close modal after successful login
       authStore.closeLoginModal();
+
+      if (membershipModalStore.pendingReopen) {
+        membershipModalStore.clearPendingReopen();
+        membershipModalStore.openMembershipModal();
+      }
     }
   } catch (err) {
     console.error('Login failed:', err);

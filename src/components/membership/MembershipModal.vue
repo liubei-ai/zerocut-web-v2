@@ -4,6 +4,7 @@ import { X, Check, Sparkles, Crown, Gem, User } from 'lucide-vue-next';
 import { getMembershipPlans, getCurrentSubscription, type MembershipPlanDto, type SubscriptionDetails } from '@/api/membershipApi';
 import { useCreditsStore } from '@/stores/creditsStore';
 import { useAuthStore } from '@/stores/authStore';
+import { useMembershipModalStore } from '@/stores/membershipModalStore';
 import MembershipPaymentModal from './MembershipPaymentModal.vue';
 import MembershipSigningModal from './MembershipSigningModal.vue';
 
@@ -20,6 +21,7 @@ const emit = defineEmits<Emits>();
 
 const creditsStore = useCreditsStore();
 const authStore = useAuthStore();
+const membershipModalStore = useMembershipModalStore();
 
 const billingCycle = ref<'subscription' | 'yearly' | 'monthly'>('subscription');
 const loading = ref(false);
@@ -160,16 +162,16 @@ const plans = computed(() => {
 });
 
 async function fetchData() {
-  if (!workspaceId.value) return;
-
   try {
     loading.value = true;
-    const [plansData, subscription] = await Promise.all([
-      getMembershipPlans(workspaceId.value),
-      getCurrentSubscription(workspaceId.value).catch(() => null),
-    ]);
+    const plansData = await getMembershipPlans(workspaceId.value || undefined);
     rawPlans.value = plansData || [];
-    currentSubscription.value = subscription;
+
+    if (authStore.isAuthenticated && workspaceId.value) {
+      currentSubscription.value = await getCurrentSubscription(workspaceId.value).catch(() => null);
+    } else {
+      currentSubscription.value = null;
+    }
   } catch (error) {
     console.error('Failed to fetch membership data:', error);
   } finally {
@@ -178,6 +180,13 @@ async function fetchData() {
 }
 
 function handlePurchase(planCode: string) {
+  if (!authStore.isAuthenticated) {
+    membershipModalStore.markPendingReopen();
+    closeModal();
+    authStore.openLoginModal();
+    return;
+  }
+
   const plan = plans.value.find(p => p.id === planCode);
   if (!plan) return;
 
@@ -249,7 +258,7 @@ onMounted(() => {
       </button>
 
       <!-- Header -->
-      <div class="border-b border-gray-100 p-4 pb-4 sm:p-6 md:p-8">
+      <div v-if="authStore.isAuthenticated" class="border-b border-gray-100 p-4 pb-4 sm:p-6 md:p-8">
         <!-- Mobile Layout -->
         <div class="block space-y-4 lg:hidden">
           <div class="flex items-center gap-3">
