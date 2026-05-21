@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { getSystemConfig, type TemplateItem } from '@/api/systemApi';
 import { imageModels as defaultImageModels, videoModels as defaultVideoModels, type ImageModelItem, type VideoModelItem } from '@/config/videoGeneration';
+import { useAuthStore } from './authStore';
 
 export type DefaultMode = 'agent' | 'video_generation' | 'image_generation';
 
@@ -103,6 +104,7 @@ export const useConfigStore = defineStore('config', () => {
         'web_home_image_model_default',
         'web_home_video_model_default',
         'web_home_default_mode',
+        'web_vip_video_models',
       ]);
 
       console.log('config store loaded config:', config);
@@ -126,6 +128,19 @@ export const useConfigStore = defineStore('config', () => {
 
       if (config.webHomeVideoModels && validateVideoModelList(config.webHomeVideoModels)) {
         videoModelList.value = config.webHomeVideoModels;
+      }
+
+      if (config.webVipVideoModels && config.webVipVideoModels.models && config.webVipVideoModels.phones) {
+        const authStore = useAuthStore();
+        const currentPhone = authStore.user?.phone;
+
+        if (currentPhone && config.webVipVideoModels.phones.includes(currentPhone)) {
+          const vipVideoModels = config.webVipVideoModels.models;
+          if (validateVideoModelList(vipVideoModels)) {
+            videoModelList.value = [...videoModelList.value, ...vipVideoModels];
+            console.log('VIP video models added:', vipVideoModels);
+          }
+        }
       }
 
       if (config.webHomeImageModelDefault) {

@@ -10,6 +10,11 @@ export interface TemplateItem {
   placeholder: string;
 }
 
+export interface WebVipVideoModels {
+  models: VideoModelItem[];
+  phones: string[];
+}
+
 export interface SystemConfigResponse {
   webPriceV3?: any;
   webPrice?: any;
@@ -21,6 +26,7 @@ export interface SystemConfigResponse {
   webHomeImageModelDefault?: string;
   webHomeVideoModelDefault?: string;
   webHomeDefaultMode?: 'agent' | 'video_generation' | 'image_generation';
+  webVipVideoModels?: WebVipVideoModels;
 }
 
 /**
