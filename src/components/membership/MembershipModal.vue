@@ -27,6 +27,7 @@ const billingCycle = ref<'subscription' | 'yearly' | 'monthly'>('subscription');
 const loading = ref(false);
 const rawPlans = ref<MembershipPlanDto[]>([]);
 const currentSubscription = ref<SubscriptionDetails | null>(null);
+const firstMonthPromoEligible = ref(false);
 
 const showPaymentModal = ref(false);
 const showSigningModal = ref(false);
@@ -133,7 +134,9 @@ const plans = computed(() => {
     const allFeatures = [creditsText, ...features];
 
     const firstMonthPriceYuan =
-      plan.firstMonthPriceCents != null ? plan.firstMonthPriceCents / 100 : null;
+      firstMonthPromoEligible.value && plan.firstMonthPriceCents != null
+        ? plan.firstMonthPriceCents / 100
+        : null;
 
     const isCurrentSubscription =
       currentSubscription.value !== null &&
@@ -164,13 +167,16 @@ const plans = computed(() => {
 async function fetchData() {
   try {
     loading.value = true;
-    const plansData = await getMembershipPlans(workspaceId.value || undefined);
+    const plansData = await getMembershipPlans();
     rawPlans.value = plansData || [];
 
     if (authStore.isAuthenticated && workspaceId.value) {
-      currentSubscription.value = await getCurrentSubscription(workspaceId.value).catch(() => null);
+      const me = await getCurrentSubscription(workspaceId.value).catch(() => null);
+      currentSubscription.value = me?.subscription ?? null;
+      firstMonthPromoEligible.value = me?.firstMonthPromoEligible ?? false;
     } else {
       currentSubscription.value = null;
+      firstMonthPromoEligible.value = false;
     }
   } catch (error) {
     console.error('Failed to fetch membership data:', error);
@@ -452,6 +458,6 @@ onMounted(() => {
 
     <!-- Signing Modal -->
     <MembershipSigningModal v-model:open="showSigningModal" :membership-plan="selectedPlan" :title="selectedPlanTitle"
-      @success="handleSigningSuccess" @cancel="handleSigningCancel" />
+      :first-month-promo-eligible="firstMonthPromoEligible" @success="handleSigningSuccess" @cancel="handleSigningCancel" />
   </div>
 </template>

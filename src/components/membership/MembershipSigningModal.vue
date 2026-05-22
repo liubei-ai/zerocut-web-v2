@@ -16,6 +16,7 @@ interface Props {
   open: boolean;
   membershipPlan: MembershipPlanDto | null;
   title?: string;
+  firstMonthPromoEligible?: boolean;
 }
 
 interface Emits {
@@ -49,6 +50,7 @@ let countdownInterval: number | null = null;
 let closingRequested = false;
 
 const firstMonthPriceYuan = computed<number | null>(() => {
+  if (!props.firstMonthPromoEligible) return null;
   const cents = props.membershipPlan?.firstMonthPriceCents;
   return cents != null ? cents / 100 : null;
 });

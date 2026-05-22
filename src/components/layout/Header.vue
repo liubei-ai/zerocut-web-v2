@@ -27,7 +27,8 @@ const loadSubscriptionInfo = async () => {
   if (!workspaceId) return;
 
   try {
-    currentSubscription.value = await getCurrentSubscription(workspaceId);
+    const me = await getCurrentSubscription(workspaceId);
+    currentSubscription.value = me.subscription;
   } catch (error) {
     console.error('Failed to load subscription info:', error);
     currentSubscription.value = null;
