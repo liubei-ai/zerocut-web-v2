@@ -43,9 +43,14 @@ const featureTranslations: Record<string, string> = {
   'zerocut.membership.priceList.benefits.quotas.basic': '最多可生成 250 张图片或最多生成 200 秒视频（以默认模型计算）',
   'zerocut.membership.priceList.benefits.quotas.standard': '最多可生成 1000 张图片或生成 800 秒视频（以默认模型计算）',
   'zerocut.membership.priceList.benefits.quotas.premium': '最多可生成 3125 张图片或生成 2500 秒视频（以默认模型计算）',
-  'zerocut.membership.priceList.benefits.universal.allModels': '所有模型均可使用',
+  'zerocut.membership.priceList.benefits.seedanceVideo.basic': '可生成 100 秒 Seedance2.0 视频',
+  'zerocut.membership.priceList.benefits.seedanceVideo.standard': '可生成 400 秒 Seedance2.0 视频',
+  'zerocut.membership.priceList.benefits.seedanceVideo.premium': '可生成 1000 秒 Seedance2.0 视频',
+  'zerocut.membership.priceList.benefits.universal.allModels': '积分通用，可使用多家主流大模型',
   'zerocut.membership.priceList.benefits.universal.hdVideo': '生成高清视频',
+  'zerocut.membership.priceList.benefits.universal.speedPriority': '会员专享加速，不排队',
   'zerocut.membership.priceList.benefits.universal.noWatermark': '没有水印',
+  'zerocut.membership.priceList.benefits.universal.aiToolkit': '一键成片、Agent 模式、智能分镜',
 };
 
 const userName = computed(() => {
