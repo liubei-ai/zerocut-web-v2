@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, watch, onMounted, ref, markRaw } from 'vue';
-import { VueFlow, useVueFlow, MarkerType, type Node, type Edge } from '@vue-flow/core';
+import { VueFlow, useVueFlow, MarkerType, type Node, type Edge, type NodeDragEvent } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
-import { MiniMap } from '@vue-flow/minimap';
 import MaterialNode from './MaterialNode.vue';
 import type { OssMaterial } from '@/types/ossMaterial';
 
@@ -20,13 +19,16 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const { fitView, setNodes: setFlowNodes, setEdges: setFlowEdges } = useVueFlow();
+const { fitView, setNodes: setFlowNodes, setEdges: setFlowEdges, getNodes: getFlowNodes } = useVueFlow();
 
 const nodeTypes = markRaw({
   material: MaterialNode,
 });
 
 const isLayouted = ref(false);
+
+// 记录用户手动拖拽过的节点位置，重新布局时优先使用这些位置
+const userMovedPositions = ref<Map<string, { x: number; y: number }>>(new Map());
 
 const materialsMap = computed(() => {
   const map = new Map<string, OssMaterial>();
@@ -237,14 +239,32 @@ const runLayout = () => {
     edges.value
   );
 
-  setFlowNodes(result.nodes);
+  // 用用户拖拽过的位置覆盖布局结果，保留手动调整
+  const validIds = new Set(result.nodes.map(n => n.id));
+  // 清理已不存在的节点的记录
+  Array.from(userMovedPositions.value.keys()).forEach(id => {
+    if (!validIds.has(id)) userMovedPositions.value.delete(id);
+  });
+
+  const finalNodes = result.nodes.map(node => {
+    const userPos = userMovedPositions.value.get(node.id);
+    if (userPos) {
+      return { ...node, position: { ...userPos } };
+    }
+    return node;
+  });
+
+  setFlowNodes(finalNodes);
   setFlowEdges(result.edges);
 
-  isLayouted.value = true;
+  // 只在首次布局时自动适应视图，后续不自动缩放以保留用户的手动缩放
+  if (!isLayouted.value) {
+    setTimeout(() => {
+      fitView({ padding: 0.15, duration: 400 });
+    }, 50);
+  }
 
-  setTimeout(() => {
-    fitView({ padding: 0.15, duration: 400 });
-  }, 50);
+  isLayouted.value = true;
 };
 
 interface LayoutNode extends Node {
@@ -1093,9 +1113,44 @@ const optimizeEdgeRouting = (nodes: LayoutNode[], edges: Edge[]): Edge[] => {
   });
 };
 
-watch([() => props.materials, edges], () => {
+// 只在节点集合（id 列表）或边集合变化时重新布局，
+// 避免因 material 内部字段（如轮询状态）变化导致节点位置被重置
+const layoutSignature = computed(() => {
+  const nodeIds = props.materials.map(m => getNodeId(m)).sort().join('|');
+  const edgeIds = edges.value.map(e => e.id).sort().join('|');
+  return `${nodeIds}__${edgeIds}`;
+});
+
+watch(layoutSignature, () => {
   runLayout();
+});
+
+// 当 material 数据变化但节点集合不变时，仅更新节点 data（保留现有位置）
+watch(() => props.materials, () => {
+  if (!isLayouted.value) return;
+  const materialById = new Map<string, OssMaterial>();
+  props.materials.forEach(m => materialById.set(getNodeId(m), m));
+
+  const getNodesFn = getFlowNodes as unknown as (() => Node[]) | { value: Node[] };
+  const currentNodes: Node[] = typeof getNodesFn === 'function' ? getNodesFn() : (getNodesFn?.value ?? []);
+  if (!currentNodes || currentNodes.length === 0) return;
+
+  const updatedNodes = currentNodes.map(node => {
+    const material = materialById.get(node.id);
+    if (!material) return node;
+    return { ...node, data: { ...(node.data as any), material } };
+  });
+  setFlowNodes(updatedNodes);
 }, { deep: true });
+
+const handleNodeDragStop = (event: NodeDragEvent) => {
+  const nodes = Array.isArray(event.nodes) && event.nodes.length > 0 ? event.nodes : [event.node];
+  nodes.forEach(n => {
+    if (n && n.id && n.position) {
+      userMovedPositions.value.set(n.id, { x: n.position.x, y: n.position.y });
+    }
+  });
+};
 
 onMounted(() => {
   if (props.materials.length > 0) {
@@ -1118,20 +1173,11 @@ const handleNodeRegenerate = (material: OssMaterial) => {
 
 <template>
   <div class="h-full w-full relative">
-    <VueFlow :nodes="initialNodes" :edges="edges" :node-types="nodeTypes" :default-viewport="{ x: 0, y: 0, zoom: 0.8 }"
+    <VueFlow :node-types="nodeTypes" :default-viewport="{ x: 0, y: 0, zoom: 0.8 }"
       :min-zoom="0.1" :max-zoom="2" :fit-view-on-init="false" class="vue-flow-canvas"
-      @node-click="(nodeEvent: any) => handleNodeSelect(nodeEvent.node.data.material)">
+      @node-click="(nodeEvent: any) => handleNodeSelect(nodeEvent.node.data.material)"
+      @node-drag-stop="handleNodeDragStop">
       <Background :gap="24" :size="1.5" variant="dots" color="hsl(var(--border) / 0.6)" />
-
-      <MiniMap position="bottom-left" :node-color="(node: any) => {
-        const material = node.data?.material;
-        if (!material) return 'hsl(var(--muted-foreground))';
-        if (material.status === 'SUCCESS') return '#10b981';
-        if (material.status === 'FAILED') return 'hsl(var(--destructive))';
-        if (material.status === 'RUNNING') return 'hsl(var(--primary))';
-        return 'hsl(var(--muted))';
-      }" :mask-color="'hsl(var(--muted) / 0.7)'"
-        class="!bg-card/95 !border-border !shadow-xl !rounded-xl backdrop-blur-sm" :pannable="true" :zoomable="true" />
 
       <!-- 空状态 - 优化版 -->
       <div v-if="materials.length === 0"

@@ -110,7 +110,7 @@ const formatFileSize = (bytes?: number) => {
     </div>
 
     <!-- 头部区域 -->
-    <div class="border-b border-border bg-card/80 px-4 py-3">
+    <div v-if="!material.model" class="border-b border-border bg-card/80 px-4 py-3">
       <div class="flex items-start gap-3">
         <div class="text-2xl shrink-0">
           {{ fileTypeIcon }}
@@ -134,26 +134,19 @@ const formatFileSize = (bytes?: number) => {
     <!-- 预览区域 -->
     <div v-if="material.ossUrl && material.fileType === 'image'" class="relative bg-muted/30">
       <img
-        :src="material.ossUrl"
+        :src="`${material.ossUrl}?x-tos-process=image/resize,w_400`"
         :alt="fileName"
-        class="h-40 w-full object-cover"
+        class="h-40 w-full object-contain"
       />
     </div>
-    <div v-else-if="material.ossUrl && material.fileType === 'video'" class="relative bg-muted/30">
+    <div v-else-if="material.ossUrl && material.fileType === 'video'" class="relative bg-muted/30 flex items-center justify-center">
       <video
         :src="material.ossUrl"
         :title="fileName"
-        class="h-40 w-full object-cover"
-        muted
+        class="h-40 w-full object-contain"
         playsinline
+        controls
       />
-      <div class="absolute inset-0 flex items-center justify-center">
-        <div class="rounded-full bg-black/60 p-3 backdrop-blur-sm">
-          <svg class="h-6 w-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M8 5v14l11-7z"/>
-          </svg>
-        </div>
-      </div>
     </div>
     <div v-else class="flex h-40 items-center justify-center bg-muted/30">
       <span class="text-5xl opacity-40">{{ fileTypeIcon }}</span>
