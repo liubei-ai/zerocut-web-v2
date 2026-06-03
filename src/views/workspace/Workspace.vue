@@ -1413,11 +1413,11 @@ const handleBackToVideoForm = () => {
         <!-- Left Panel: File List + Preview Area or Canvas Flow -->
         <div class="flex h-full flex-[2] flex-col border-r border-border">
           <!-- View Toggle -->
-          <div class="flex items-center justify-between border-b border-border px-4 py-3 bg-card">
+          <div class="flex items-center justify-between h-12 border-b border-border px-4 bg-card">
             <div class="flex items-center gap-2">
               <button
                 @click="workspaceView = 'list'"
-                class="rounded-lg px-4 py-2 text-sm font-medium transition-all shadow-sm"
+                class="rounded-lg px-4 py-1 text-sm font-medium transition-all shadow-sm"
                 :class="[
                   workspaceView === 'list'
                     ? 'bg-primary text-primary-foreground'
@@ -1428,7 +1428,7 @@ const handleBackToVideoForm = () => {
               </button>
               <button
                 @click="workspaceView = 'canvas'"
-                class="rounded-lg px-4 py-2 text-sm font-medium transition-all shadow-sm"
+                class="rounded-lg px-4 py-1 text-sm font-medium transition-all shadow-sm"
                 :class="[
                   workspaceView === 'canvas'
                     ? 'bg-primary text-primary-foreground'
@@ -1441,7 +1441,7 @@ const handleBackToVideoForm = () => {
           </div>
 
           <!-- File List View -->
-          <div v-show="workspaceView === 'list'" class="flex h-full flex-1 overflow-hidden bg-background">
+          <div v-show="workspaceView === 'list'" class="flex min-h-0 flex-1 overflow-hidden bg-background">
             <FileList
               :files="files"
               :selected-file-id="selectedFileId"
@@ -1474,7 +1474,7 @@ const handleBackToVideoForm = () => {
           </div>
 
           <!-- Canvas Flow View (默认视图，占据主要空间) -->
-          <div v-show="workspaceView === 'canvas'" class="h-full flex-1 overflow-hidden bg-background">
+          <div v-show="workspaceView === 'canvas'" class="min-h-0 flex-1 overflow-hidden bg-background">
             <CanvasFlow
               :materials="ossMaterials"
               :selected-material-id="selectedMaterialId"
@@ -1488,7 +1488,7 @@ const handleBackToVideoForm = () => {
         <!-- Right Panel: Chat/Video Generation Area with Tabs -->
         <div class="h-full w-[360px] flex-col border-l border-border bg-card lg:w-[420px] xl:w-[500px] flex">
           <!-- Tab Navigation -->
-          <div class="flex border-b border-border">
+          <div class="flex items-center h-12 border-b border-border">
             <button
               @click="workspaceTab = 'video'"
               class="flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors"

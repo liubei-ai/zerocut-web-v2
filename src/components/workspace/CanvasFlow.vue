@@ -161,7 +161,6 @@ const initialNodes = computed<Node[]>(() => {
     position: { x: 0, y: 0 },
     data: {
       material,
-      isSelected: props.selectedMaterialId === getNodeId(material),
     },
   }));
 });
@@ -1221,7 +1220,7 @@ const handleNodeRegenerate = (material: OssMaterial) => {
 
 .vue-flow__node {
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: filter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .vue-flow__node:hover {

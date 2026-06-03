@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useNode } from '@vue-flow/core';
 import type { NodeProps } from '@vue-flow/core';
 import type { OssMaterial, MaterialNodeData } from '@/types/ossMaterial';
 
@@ -15,7 +16,12 @@ const emit = defineEmits<{
   select: [material: OssMaterial];
 }>();
 
+// 使用 useNode 获取节点的选中状态
+const { node } = useNode();
+
 const material = computed(() => props.data.material);
+
+const isSelected = computed(() => node.selected);
 
 const fileName = computed(() => {
   if (material.value.localFile) {
@@ -34,9 +40,12 @@ const fileTypeIcon = computed(() => {
   return icons[material.value.fileType] || '📁';
 });
 
-const statusBorderColor = computed(() => {
+const borderColor = computed(() => {
+  // 选中状态优先显示 primary 颜色
+  if (isSelected.value) return 'border-primary';
+  
   const status = material.value.status;
-  if (status === 'SUCCESS') return 'border-child-emerald';
+  if (status === 'SUCCESS') return 'border-emerald-500';
   if (status === 'FAILED') return 'border-destructive';
   if (status === 'RUNNING') return 'border-primary';
   return 'border-border';
@@ -68,11 +77,8 @@ const formatFileSize = (bytes?: number) => {
 
 <template>
   <div
-    class="w-96 rounded-xl border-2 bg-card shadow-lg transition-all duration-300 hover:shadow-xl overflow-hidden"
-    :class="[
-      statusBorderColor,
-      data.isSelected ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-[1.02]' : '',
-    ]"
+    class="w-96 rounded-xl border-2 bg-card shadow-lg transition-shadow duration-300 hover:shadow-xl overflow-hidden"
+    :class="borderColor"
     @click="handleSelect"
   >
     <!-- Prompt和参数区域 -->
