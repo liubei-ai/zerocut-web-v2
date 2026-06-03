@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import axios from 'axios';
 import { useRoute, useRouter } from 'vue-router';
 import MainLayout from '@/components/layout/MainLayout.vue';
@@ -33,6 +33,7 @@ import {
 import { useChatMessages } from '@/composables';
 import { useToast } from '@/composables/useToast';
 import { useConfigStore } from '@/stores/configStore';
+import { useDebugStore } from '@/stores/debugStore';
 import type { FilePreview } from '@/types/fileReference';
 import { getReferencedFiles } from '@/utils/fileUtils';
 
@@ -51,6 +52,7 @@ export interface WorkspaceFile {
 const route = useRoute();
 const router = useRouter();
 const configStore = useConfigStore();
+const debugStore = useDebugStore();
 
 // Use chat messages composable
 const { messages, initMessages, addUserMessage, removeMessage, addAssistantMessage, loadChatHistory } =
@@ -79,7 +81,18 @@ const activeTab = ref<'files' | 'preview' | 'chat'>('chat');
 const isOwner = ref<boolean>(true);
 const isShared = ref<boolean>(false);
 const isCancelling = ref(false);
-const workspaceView = ref<'list' | 'canvas'>('canvas');
+const workspaceView = ref<'list' | 'canvas'>('list');
+
+// 在非debug模式下强制使用list视图
+watch(
+  () => debugStore.isDebugMode,
+  (isDebug) => {
+    if (!isDebug && workspaceView.value === 'canvas') {
+      workspaceView.value = 'list';
+    }
+  },
+  { immediate: true }
+);
 
 const videoGenerationFormRef = ref();
 
@@ -1412,8 +1425,8 @@ const handleBackToVideoForm = () => {
       <div class="hidden h-full w-full md:flex">
         <!-- Left Panel: File List + Preview Area or Canvas Flow -->
         <div class="flex h-full flex-[2] flex-col border-r border-border">
-          <!-- View Toggle -->
-          <div class="flex items-center justify-between h-12 border-b border-border px-4 bg-card">
+          <!-- View Toggle (仅在debug模式下显示) -->
+          <div v-if="debugStore.isDebugMode" class="flex items-center justify-between h-12 border-b border-border px-4 bg-card">
             <div class="flex items-center gap-2">
               <button
                 @click="workspaceView = 'list'"
