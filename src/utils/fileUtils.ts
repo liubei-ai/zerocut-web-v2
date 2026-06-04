@@ -154,6 +154,8 @@ export function buildReferencedMediaFromProjectFiles(
 
   for (const file of projectFiles) {
     if (!isFileReferencedInPrompt(prompt, file.file_name)) continue;
+    // 跳过尚未上传完成的文件（例如生成中的素材 file_url 为空），避免提交给后端空字符串 url
+    if (!file.file_url) continue;
 
     const cleanName = removeFileExtension(file.file_name);
 

@@ -1200,17 +1200,20 @@ const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
 
     // Add OSS files that weren't just uploaded (these are @mentioned files from project)
     for (const img of ossMedia.images) {
-      if (!uploadedUrls.has(decodeURI(img.url || ''))) {
+      if (!img.url) continue;
+      if (!uploadedUrls.has(decodeURI(img.url))) {
         images.push(img as VideoWorkflowImage);
       }
     }
     for (const video of ossMedia.videos) {
-      if (!uploadedUrls.has(decodeURI(video.url || ''))) {
+      if (!video.url) continue;
+      if (!uploadedUrls.has(decodeURI(video.url))) {
         videos.push(video as VideoWorkflowVideo);
       }
     }
     for (const audio of ossMedia.audios) {
-      if (!uploadedUrls.has(decodeURI(audio.url || ''))) {
+      if (!audio.url) continue;
+      if (!uploadedUrls.has(decodeURI(audio.url))) {
         audios.push(audio as VideoWorkflowAudio);
       }
     }
