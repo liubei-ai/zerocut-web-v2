@@ -25,7 +25,7 @@ export interface SystemConfigResponse {
   webHomeVideoModels?: VideoModelItem[];
   webHomeImageModelDefault?: string;
   webHomeVideoModelDefault?: string;
-  webHomeDefaultMode?: 'agent' | 'video_generation' | 'image_generation';
+  webHomeDefaultMode?: 'agent' | 'video_generation' | 'image_generation' | 'card';
   webVipVideoModels?: WebVipVideoModels;
 }
 

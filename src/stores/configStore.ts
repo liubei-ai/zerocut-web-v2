@@ -4,7 +4,7 @@ import { getSystemConfig, type TemplateItem } from '@/api/systemApi';
 import { imageModels as defaultImageModels, videoModels as defaultVideoModels, type ImageModelItem, type VideoModelItem } from '@/config/videoGeneration';
 import { useAuthStore } from './authStore';
 
-export type DefaultMode = 'agent' | 'video_generation' | 'image_generation';
+export type DefaultMode = 'agent' | 'video_generation' | 'image_generation' | 'card';
 
 export interface SuggestionsByMode {
   one_click: TemplateItem[];
@@ -158,7 +158,7 @@ export const useConfigStore = defineStore('config', () => {
       }
 
       if (config.webHomeDefaultMode) {
-        const validModes: DefaultMode[] = ['agent', 'video_generation', 'image_generation'];
+        const validModes: DefaultMode[] = ['agent', 'video_generation', 'image_generation', 'card'];
         if (validModes.includes(config.webHomeDefaultMode)) {
           defaultMode.value = config.webHomeDefaultMode;
         }

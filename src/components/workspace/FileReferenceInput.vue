@@ -43,6 +43,7 @@ interface Props {
   addButtonSubtext?: string;
   immediateUpload?: boolean;
   projectId?: string | number;
+  autoInsertFileReference?: boolean;
 }
 
 interface Slots {
@@ -70,6 +71,7 @@ const props = withDefaults(defineProps<Props>(), {
   addButtonText: '添加参考',
   addButtonSubtext: '图片/视频/音频',
   immediateUpload: false,
+  autoInsertFileReference: false,
 });
 
 const emit = defineEmits<Emits>();
@@ -80,6 +82,7 @@ const firstFrameInputRef = ref<HTMLInputElement>();
 const lastFrameInputRef = ref<HTMLInputElement>();
 const dropdownOpen = ref(false);
 const cursorPosition = ref({ top: 0, left: 0 });
+const filePickCursorPosition = ref<number | null>(null);
 const selectedFiles = ref<FilePreview[]>([]);
 const firstFrameImage = ref<FilePreview | null>(null);
 const lastFrameImage = ref<FilePreview | null>(null);
@@ -306,16 +309,16 @@ const handleInput = (e: Event) => {
   }
 };
 
-const insertMention = (name: string) => {
+const insertMention = (name: string, targetPosition?: number) => {
   if (!textareaRef.value) return;
 
   const displayName = removeFileExtension(name);
 
-  const position = textareaRef.value.selectionStart || 0;
+  const position = targetPosition ?? textareaRef.value.selectionStart ?? 0;
   const textBeforeCursor = inputValue.value.substring(0, position);
   const lastAtIndex = textBeforeCursor.lastIndexOf('@');
 
-  if (lastAtIndex !== -1) {
+  if (lastAtIndex !== -1 && targetPosition === undefined) {
     const beforeAt = inputValue.value.substring(0, lastAtIndex);
     const afterCursor = inputValue.value.substring(position);
     inputValue.value = beforeAt + displayName + ' ' + afterCursor;
@@ -350,6 +353,25 @@ const insertMention = (name: string) => {
   }, 50);
 };
 
+const insertFileReferences = (files: FilePreview[]) => {
+  if (!props.autoInsertFileReference || files.length === 0) return;
+
+  const position = Math.min(filePickCursorPosition.value ?? textareaRef.value?.selectionStart ?? inputValue.value.length, inputValue.value.length);
+  const referenceText = files.map(file => removeFileExtension(file.name)).join(' ');
+  const beforeCursor = inputValue.value.substring(0, position);
+  const afterCursor = inputValue.value.substring(position);
+  inputValue.value = beforeCursor + referenceText + ' ' + afterCursor;
+
+  nextTick(() => {
+    if (textareaRef.value) {
+      const newPosition = beforeCursor.length + referenceText.length + 1;
+      textareaRef.value.selectionStart = newPosition;
+      textareaRef.value.selectionEnd = newPosition;
+      textareaRef.value.focus();
+    }
+  });
+};
+
 const handleMentionButtonClick = () => {
   if (!textareaRef.value) return;
 
@@ -369,6 +391,9 @@ const handleMentionButtonClick = () => {
 };
 
 const handleFilePickClick = () => {
+  if (textareaRef.value) {
+    filePickCursorPosition.value = textareaRef.value.selectionStart ?? inputValue.value.length;
+  }
   fileInputRef.value?.click();
 };
 
@@ -562,6 +587,9 @@ const handleFileChange = async (e: Event) => {
       return;
     }
   }
+
+  insertFileReferences(filesToAdd);
+  filePickCursorPosition.value = null;
 
   // Show feedback messages
   if (duplicateCount > 0) {

@@ -31,7 +31,7 @@ const selectedFiles = ref<FilePreview[]>([]);
 const { toast } = useToast();
 
 // Free creation mode options
-const freeCreationMode = ref<DefaultMode>(configStore.defaultMode); // 'agent' or 'video_generation' or 'image_generation'
+const freeCreationMode = ref<DefaultMode>(configStore.defaultMode);
 
 // Video generation reference mode
 const videoReferenceMode = ref<'reference' | 'first_last_frame'>('reference'); // 'reference' 全能参考, 'first_last_frame' 首尾帧
@@ -48,6 +48,7 @@ const showVideoReferenceModeMenu = ref(false);
 const showVideoDurationMenu = ref(false);
 const showVideoAspectRatioMenu = ref(false);
 const showVideoResolutionMenu = ref(false);
+const showCardOptionMenu = ref(false);
 
 const aspectRatioMenuRef = ref<HTMLElement | null>(null);
 const styleMenuRef = ref<HTMLElement | null>(null);
@@ -57,6 +58,7 @@ const videoReferenceModeMenuRef = ref<HTMLElement | null>(null);
 const videoDurationMenuRef = ref<HTMLElement | null>(null);
 const videoAspectRatioMenuRef = ref<HTMLElement | null>(null);
 const videoResolutionMenuRef = ref<HTMLElement | null>(null);
+const cardOptionMenuRef = ref<HTMLElement | null>(null);
 
 const firstFrameImage = ref<FilePreview | null>(null);
 const lastFrameImage = ref<FilePreview | null>(null);
@@ -93,14 +95,14 @@ const shouldShowAttachmentButton = computed(() => {
   if (selectedMode.value !== 'free_creation') {
     return true;
   }
-  return freeCreationMode.value === 'agent' || freeCreationMode.value === 'image_generation';
+  return freeCreationMode.value === 'agent' || freeCreationMode.value === 'image_generation' || freeCreationMode.value === 'card';
 });
 
 const shouldAllowFilePick = computed(() => {
   if (selectedMode.value !== 'free_creation') {
     return true;
   }
-  return freeCreationMode.value === 'video_generation' || freeCreationMode.value === 'agent' || freeCreationMode.value === 'image_generation';
+  return freeCreationMode.value === 'video_generation' || freeCreationMode.value === 'agent' || freeCreationMode.value === 'image_generation' || freeCreationMode.value === 'card';
 });
 
 const shouldShowAtButton = computed(() => {
@@ -135,6 +137,10 @@ const referenceMode = computed(() => {
   return 'reference';
 });
 
+const shouldAutoInsertFileReference = computed(() => {
+  return selectedMode.value === 'free_creation' && freeCreationMode.value === 'agent';
+});
+
 const modes = [
   { id: 'free_creation', label: '自由创作', icon: '🎨' },
   { id: 'one_click', label: '一键成片', icon: '⚡' },
@@ -163,8 +169,18 @@ const styles = [
 const freeCreationModes = [
   { id: 'video_generation', label: '视频生成' },
   { id: 'image_generation', label: '图片生成' },
+  { id: 'card', label: '卡片模式' },
   { id: 'agent', label: 'Agent模式' },
 ];
+
+const cardOptions = [
+  { id: 'role_card', label: '角色卡', prefix: '生成角色卡', defaultPrompt: '骆驼祥子' },
+  { id: 'director_notes', label: '导演手记', prefix: '生成导演手记', defaultPrompt: '一只猫与一只柴犬展开激烈卡通风格的舞蹈对决' },
+  { id: 'storyboard_draft', label: '分镜草稿', prefix: '生成分镜草稿', defaultPrompt: '一只猫与一只柴犬展开激烈卡通风格的舞蹈对决，柴犬率先发动进攻，然后橘猫还击' },
+  { id: 'npc_card', label: 'NPC卡', prefix: '生成NPC卡', defaultPrompt: '一群高中学生' },
+];
+
+const selectedCardOption = ref('role_card');
 
 const imageModel = ref(configStore.effectiveImageModel);
 const showImageModelMenu = ref(false);
@@ -236,6 +252,9 @@ const placeholderByMode: Record<string, string> = {
 };
 
 const currentPlaceholder = computed(() => {
+  if (selectedMode.value === 'free_creation' && freeCreationMode.value === 'card') {
+    return cardOptions.find(option => option.id === selectedCardOption.value)?.defaultPrompt || '请输入卡片内容';
+  }
   if (selectedMode.value === 'free_creation' && freeCreationMode.value === 'image_generation') {
     return '描述你想生成的图片内容，例如：一只可爱的小猫在魔法世界中荡秋千';
   }
@@ -296,6 +315,9 @@ const handleSubmit = () => {
     } else if (selectedMode.value === 'free_creation') {
       if (freeCreationMode.value === 'agent') {
         chatMessage = `${videoPrompt.value}`;
+      } else if (freeCreationMode.value === 'card') {
+        const cardOption = cardOptions.find(option => option.id === selectedCardOption.value) || cardOptions[0];
+        chatMessage = `${cardOption.prefix}：${videoPrompt.value}，模型用 gpt-image-2-md`;
       } else if (freeCreationMode.value === 'image_generation') {
         const aspectRatioMap: Record<string, string> = {
           '1:1': '正方形1:1',
@@ -380,6 +402,11 @@ const selectStyle = (style: string) => {
 const selectFreeCreationMode = (mode: DefaultMode) => {
   freeCreationMode.value = mode;
   showFreeCreationModeMenu.value = false;
+};
+
+const selectCardOption = (option: string) => {
+  selectedCardOption.value = option;
+  showCardOptionMenu.value = false;
 };
 
 const selectVideoModel = (model: string) => {
@@ -517,6 +544,10 @@ const handleClickOutside = (event: MouseEvent) => {
   if (imageModelMenuRef.value && !imageModelMenuRef.value.contains(target)) {
     showImageModelMenu.value = false;
   }
+
+  if (cardOptionMenuRef.value && !cardOptionMenuRef.value.contains(target)) {
+    showCardOptionMenu.value = false;
+  }
 };
 
 onMounted(() => {
@@ -576,6 +607,7 @@ onUnmounted(() => {
               :accept="acceptFileTypes"
               :add-button-text="addButtonText"
               :add-button-subtext="addButtonSubtext"
+              :auto-insert-file-reference="shouldAutoInsertFileReference"
               @files-change="handleFilesChange"
               @first-frame-change="firstFrameImage = $event"
               @last-frame-change="lastFrameImage = $event"
@@ -696,6 +728,7 @@ onUnmounted(() => {
                             showVideoModelMenu = false;
                             showVideoDurationMenu = false;
                             showVideoAspectRatioMenu = false;
+                            showCardOptionMenu = false;
                           "
                           class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
                         >
@@ -1004,6 +1037,47 @@ onUnmounted(() => {
                             >
                               <span class="text-sm font-medium text-[#111827]">{{ ratio.label }}</span>
                               <span class="text-xs text-[#9ca3af]">{{ ratio.description }}</span>
+                            </Button>
+                          </div>
+                        </div>
+                      </template>
+                      <template v-if="freeCreationMode === 'card'">
+                        <div ref="cardOptionMenuRef" class="relative">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            @click="
+                              showCardOptionMenu = !showCardOptionMenu;
+                              showFreeCreationModeMenu = false;
+                              showVideoModelMenu = false;
+                              showVideoReferenceModeMenu = false;
+                              showVideoDurationMenu = false;
+                              showVideoAspectRatioMenu = false;
+                              showVideoResolutionMenu = false;
+                              showImageModelMenu = false;
+                            "
+                            class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
+                          >
+                            <span>🃏</span>
+                            <span>{{ cardOptions.find(option => option.id === selectedCardOption)?.label }}</span>
+                            <span class="text-xs">▼</span>
+                          </Button>
+
+                          <div
+                            v-if="showCardOptionMenu"
+                            class="absolute bottom-full left-0 z-[1000] mb-2 min-w-[160px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                          >
+                            <Button
+                              v-for="option in cardOptions"
+                              :key="option.id"
+                              variant="ghost"
+                              @click="selectCardOption(option.id)"
+                              :class="[
+                                'h-auto w-full justify-start rounded-lg px-3 py-2.5 text-left',
+                                selectedCardOption === option.id ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]',
+                              ]"
+                            >
+                              <span class="text-sm font-medium text-[#111827]">{{ option.label }}</span>
                             </Button>
                           </div>
                         </div>
