@@ -199,6 +199,7 @@ export interface OssMapping {
   uploadTime: string;
   status?: string;
   prompt?: string;
+  deleted?: boolean;
 }
 
 export interface OssMappingResponse {
@@ -209,6 +210,25 @@ export interface OssMappingResponse {
 
 export async function getOssMapping(projectId: string | number) {
   const response = await apiClient.get<OssMappingResponse>(`/video-creation/oss-mapping/${projectId}`);
+  return response.data;
+}
+
+export interface DeleteProjectMaterialResponse {
+  projectId: number;
+  localFile: string;
+  deleted: true;
+  alreadyDeleted: boolean;
+  localFileRemoved: boolean;
+}
+
+export async function deleteProjectMaterial(projectId: string | number, localFile: string) {
+  const response = await apiClient.delete<DeleteProjectMaterialResponse>(
+    `/video-creation/material/${projectId}`,
+    {
+      data: { localFile },
+      noErrorAlert: true,
+    }
+  );
   return response.data;
 }
 

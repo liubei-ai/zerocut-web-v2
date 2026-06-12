@@ -19,6 +19,7 @@ import {
   getStoryBoard,
   abortVideoCreation,
   updateVideoProject,
+  deleteProjectMaterial,
 } from '@/api/videoProjectApi';
 import { cancelRequest } from '@/api/client';
 import {
@@ -47,6 +48,7 @@ export interface WorkspaceFile {
   created_at: string;
   status?: string;
   prompt?: string;
+  localFile?: string;
 }
 
 const route = useRoute();
@@ -82,6 +84,7 @@ const isOwner = ref<boolean>(true);
 const isShared = ref<boolean>(false);
 const isCancelling = ref(false);
 const workspaceView = ref<'list' | 'canvas'>('list');
+const deletingFileId = ref<string>();
 
 // 在非debug模式下强制使用list视图
 watch(
@@ -264,8 +267,8 @@ const loadOssMapping = async () => {
 
     // Convert OSS mapping to file list and materials for canvas
     if (ossData.ossMapping && Array.isArray(ossData.ossMapping)) {
-      // Store raw materials for canvas (includes all items with full data)
-      ossMaterials.value = ossData.ossMapping.map((item: any) => ({
+      const visibleOssMapping = ossData.ossMapping.filter((item: any) => item.deleted !== true);
+      ossMaterials.value = visibleOssMapping.map((item: any) => ({
         ossKey: item.ossKey,
         ossUrl: item.ossUrl,
         source: item.source || 'manual',
@@ -281,7 +284,7 @@ const loadOssMapping = async () => {
       }));
 
       // Convert to file list for existing UI (filter out failed items)
-      files.value = ossData.ossMapping
+      files.value = visibleOssMapping
         .filter((item: any) => item.status !== 'FAILED')
         .map((item: any, index: number) => {
           const fileName = item.localFile ? (item.localFile.split('/').pop() || item.prompt || '未命名文件') : (item.prompt || '生成中...');
@@ -297,6 +300,7 @@ const loadOssMapping = async () => {
             created_at: item.uploadTime || new Date().toISOString(),
             status: item.status,
             prompt: item.prompt,
+            localFile: item.localFile,
           };
         });
 
@@ -602,6 +606,40 @@ const handleFileUpload = (file: File) => {
 const handleFileUploaded = async () => {
   // Refresh OSS mapping to get the newly uploaded file
   await loadOssMapping();
+};
+
+const handleFileDeleted = async (fileId: string) => {
+  if (!projectId.value || deletingFileId.value) return;
+
+  const targetFile = files.value.find(file => file.id === fileId);
+  if (!targetFile?.localFile) {
+    toast.error('无法删除该文件：缺少文件路径');
+    return;
+  }
+
+  if (!confirm(`确定要删除文件「${targetFile.file_name}」吗？`)) {
+    return;
+  }
+
+  try {
+    deletingFileId.value = fileId;
+    await deleteProjectMaterial(projectId.value, targetFile.localFile);
+    files.value = files.value.filter(file => file.id !== fileId);
+    ossMaterials.value = ossMaterials.value.filter(material => material.localFile !== targetFile.localFile);
+
+    if (selectedFileId.value === fileId) {
+      const firstCompletedFile = files.value.find(file => !file.status || file.status === 'SUCCESS');
+      selectedFileId.value = firstCompletedFile?.id;
+    }
+
+    await loadOssMapping();
+    toast.success('文件已删除');
+  } catch (error: any) {
+    console.error('❌ 删除文件失败:', error);
+    toast.error(error?.message || '删除文件失败，请稍后重试');
+  } finally {
+    deletingFileId.value = undefined;
+  }
 };
 
 const handleUploadStart = () => {
@@ -1466,12 +1504,14 @@ const handleBackToVideoForm = () => {
               :is-uploading="isUploading"
               :is-owner="isOwner"
               :is-shared="isShared"
+              :deleting-file-id="deletingFileId"
               @file-select="handleFileSelect"
               @project-title-change="handleProjectTitleChange"
               @share-toggle="handleShareToggle"
               @file-uploaded="handleFileUploaded"
               @upload-start="handleUploadStart"
               @upload-end="handleUploadEnd"
+              @file-delete="handleFileDeleted"
             />
 
             <PreviewArea
@@ -1600,12 +1640,14 @@ const handleBackToVideoForm = () => {
             :is-uploading="isUploading"
             :is-owner="isOwner"
             :is-shared="isShared"
+            :deleting-file-id="deletingFileId"
             @file-select="handleMobileFileSelect"
             @project-title-change="handleProjectTitleChange"
             @share-toggle="handleShareToggle"
             @file-uploaded="handleFileUploaded"
             @upload-start="handleUploadStart"
             @upload-end="handleUploadEnd"
+            @file-delete="handleFileDeleted"
           />
         </div>
 

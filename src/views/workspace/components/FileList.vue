@@ -13,6 +13,7 @@ interface Props {
   isUploading?: boolean;
   isOwner?: boolean;
   isShared?: boolean;
+  deletingFileId?: string;
 }
 
 interface Emits {
@@ -22,6 +23,7 @@ interface Emits {
   (e: 'file-uploaded'): void;
   (e: 'upload-start'): void;
   (e: 'upload-end'): void;
+  (e: 'file-delete', fileId: string): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -79,6 +81,12 @@ const handleTitleSave = () => {
 
 const handleFileUpload = () => {
   handleFileUploadClick(props.projectId);
+};
+
+const handleFileDelete = (e: MouseEvent, file: WorkspaceFile) => {
+  e.stopPropagation();
+  if (props.deletingFileId) return;
+  emit('file-delete', file.id);
 };
 
 const onFileChange = (e: Event) => {
@@ -317,7 +325,7 @@ const handleDownloadAll = async () => {
           :key="file.id"
           @click="$emit('file-select', file.id)"
           :class="[
-            'flex cursor-pointer items-start gap-2.5 rounded-lg border p-2.5 transition-all active:scale-[0.98]',
+            'group flex cursor-pointer items-start gap-2.5 rounded-lg border p-2.5 transition-all active:scale-[0.98]',
             selectedFileId === file.id ? 'border-gray-200 bg-gray-50' : 'border-transparent hover:bg-gray-50',
             file.status === 'RUNNING' ? 'opacity-80' : '',
           ]"
@@ -355,6 +363,24 @@ const handleDownloadAll = async () => {
               </template>
             </div>
           </div>
+
+          <button
+            v-if="props.isOwner && file.localFile && file.status !== 'RUNNING'"
+            @click="handleFileDelete($event, file)"
+            :disabled="!!props.deletingFileId"
+            :class="[
+              'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-xs transition-all md:opacity-0 md:group-hover:opacity-100',
+              props.deletingFileId === file.id
+                ? 'cursor-wait bg-red-50 text-red-400 opacity-100'
+                : props.deletingFileId
+                  ? 'cursor-not-allowed text-gray-300'
+                  : 'cursor-pointer text-gray-400 hover:bg-red-50 hover:text-red-500',
+            ]"
+            title="删除文件"
+          >
+            <span v-if="props.deletingFileId === file.id" class="animate-spin">⏳</span>
+            <span v-else>🗑️</span>
+          </button>
         </div>
       </div>
     </div>
