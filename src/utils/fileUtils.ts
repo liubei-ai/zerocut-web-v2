@@ -105,7 +105,12 @@ export function isFileReferencedInPrompt(prompt: string, fileName: string): bool
   const cleanFileName = removeFileExtension(fileName);
   const trimmedPrompt = prompt.trim();
 
-  return trimmedPrompt.includes(cleanFileName);
+  // Escape special regex characters in the file name
+  const escaped = cleanFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Ensure the file name is not immediately followed by more word characters or digits,
+  // which would mean it's a prefix of a longer name (e.g. "图片1" should not match inside "图片11")
+  const regex = new RegExp(escaped + '(?![\\w\\d])');
+  return regex.test(trimmedPrompt);
 }
 
 export function getReferencedFiles<T extends { name: string }>(
