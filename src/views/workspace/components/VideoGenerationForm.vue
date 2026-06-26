@@ -283,8 +283,30 @@ const resetPrompt = () => {
   lastFrameImage.value = null;
 };
 
+const fillForm = (params: {
+  prompt?: string;
+  model?: string;
+  duration?: number;
+  aspectRatio?: '16:9' | '9:16';
+  resolution?: '720p' | '1080p';
+}) => {
+  console.log('fillForm called with params:', params);
+  console.log('Before update - resolution.value:', resolution.value);
+  
+  if (params.prompt !== undefined) prompt.value = params.prompt;
+  if (params.model !== undefined) model.value = params.model;
+  if (params.duration !== undefined) duration.value = params.duration;
+  if (params.aspectRatio !== undefined) aspectRatio.value = params.aspectRatio;
+  if (params.resolution !== undefined) {
+    resolution.value = params.resolution;
+    console.log('After update - resolution.value:', resolution.value);
+    console.log('resolution ref object:', resolution);
+  }
+};
+
 defineExpose({
   resetPrompt,
+  fillForm,
 });
 
 const handleClickOutside = (e: MouseEvent) => {
@@ -471,6 +493,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
 
         <!-- Resolution -->
         <div data-menu>
+          <!-- DEBUG: resolution = {{ resolution }} -->
           <div class="relative" data-menu>
             <button
               @click.stop="showResolutionMenu"

@@ -60,7 +60,11 @@ const handleEdit = () => {
 };
 
 const handleRegenerate = () => {
-  emit('regenerate', material.value);
+  if (props.data.onRegenerate) {
+    props.data.onRegenerate(material.value);
+  } else {
+    emit('regenerate', material.value);
+  }
 };
 
 const handleSelect = () => {
@@ -155,18 +159,11 @@ const formatFileSize = (bytes?: number) => {
     <!-- 操作按钮 -->
     <div v-if="material.fileType === 'video' && isGenerated && material.status === 'SUCCESS'" class="flex gap-2 border-t border-border p-3 bg-muted/20">
       <button
-        @click.stop="handleEdit"
-        class="flex-1 rounded-lg bg-card px-3 py-2 text-xs font-medium text-foreground shadow-sm border border-border hover:bg-accent hover:border-primary transition-all duration-200 flex items-center justify-center gap-1.5"
-      >
-        <span class="i-lucide-edit-2 h-3.5 w-3.5"></span>
-        重新编辑
-      </button>
-      <button
         @click.stop="handleRegenerate"
         class="flex-1 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground shadow-sm hover:bg-primary/90 transition-all duration-200 flex items-center justify-center gap-1.5"
       >
         <span class="i-lucide-refresh-cw h-3.5 w-3.5"></span>
-        再次生成
+        重新生成
       </button>
     </div>
   </div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import axios from 'axios';
 import { useRoute, useRouter } from 'vue-router';
 import MainLayout from '@/components/layout/MainLayout.vue';
@@ -97,7 +97,8 @@ watch(
   { immediate: true }
 );
 
-const videoGenerationFormRef = ref();
+const videoGenerationFormRefDesktop = ref();
+const videoGenerationFormRefMobile = ref();
 
 // Video generation mode (passed from home page)
 const generationMode = ref<'agent' | 'video_generation'>('agent');
@@ -804,44 +805,24 @@ const handleCanvasEdit = (material: OssMaterial) => {
 const handleCanvasRegenerate = (material: OssMaterial) => {
   console.log('Regenerate material:', material);
   
-  // Use the material's parameters to regenerate
-  if (!material.prompt && !material.inputParams) {
-    toast.error('该素材没有生成参数，无法重新生成');
-    return;
-  }
-  
+  // Switch to video generation tab
   workspaceTab.value = 'video';
-  
-  // Prepare params for regeneration - convert references to appropriate types
-  const images = material.inputParams?.images?.map(img => ({
-    ...img,
-    type: img.type as 'reference' | 'first_frame' | 'last_frame',
-  }));
-  
-  const videos = material.inputParams?.videos?.map(vid => ({
-    ...vid,
-    type: vid.type as 'ref',
-  }));
-  
-  const audios = material.inputParams?.audios?.map(aud => ({
-    ...aud,
-    type: aud.type as 'reference' | 'speaker' | 'sound' | 'bgm' | 'lipsync',
-  }));
-  
-  const params: VideoGenerationParams = {
-    model: material.model || initialVideoModel.value,
-    prompt: material.prompt || '',
-    resolution: (material.inputParams?.resolution as '720p' | '1080p') || initialVideoResolution.value,
-    aspectRatio: (material.inputParams?.aspect_ratio as '16:9' | '9:16') || initialVideoAspectRatio.value,
-    duration: material.inputParams?.duration || initialVideoDuration.value,
-    referenceMode: 'reference',
-    images,
-    videos,
-    audios,
-  };
-  
-  // Start regeneration
-  handleVideoGenerationSubmit(params);
+  videoGenerationState.value = 'idle';
+
+  // Use nextTick to ensure Vue finishes updating before calling fillForm
+  nextTick(() => {
+    const formParams = {
+      prompt: material.prompt || '',
+      model: material.model,
+      duration: material.inputParams?.duration,
+      aspectRatio: material.inputParams?.aspect_ratio as '16:9' | '9:16' | undefined,
+      resolution: material.inputParams?.resolution as '720p' | '1080p' | undefined,
+    };
+    
+    // Call fillForm on both desktop and mobile forms
+    videoGenerationFormRefDesktop.value?.fillForm(formParams);
+    videoGenerationFormRefMobile.value?.fillForm(formParams);
+  });
 };
 
 const handleAbortTask = async () => {
@@ -1375,7 +1356,8 @@ const pollVideoWorkflowStatus = async () => {
       stopVideoPolling();
       toast.success('视频生成完成');
       // 重置视频描述，但保留其他选项
-      videoGenerationFormRef.value?.resetPrompt();
+      videoGenerationFormRefDesktop.value?.resetPrompt();
+      videoGenerationFormRefMobile.value?.resetPrompt();
       // Check if there are other running files and start OSS polling
       startOssPollingIfNeeded();
     } else if (data.status === 'FAILED') {
@@ -1573,7 +1555,7 @@ const handleBackToVideoForm = () => {
             <div v-show="workspaceTab === 'video'" class="h-full">
               <VideoGenerationForm
                 v-show="videoGenerationState === 'idle'"
-                ref="videoGenerationFormRef"
+                ref="videoGenerationFormRefDesktop"
                 :initial-prompt="initialPrompt"
                 :initial-model="initialVideoModel"
                 :initial-duration="initialVideoDuration"
@@ -1698,7 +1680,7 @@ const handleBackToVideoForm = () => {
             <div v-show="workspaceTab === 'video'" class="flex-1 overflow-hidden pb-16 md:hidden">
               <VideoGenerationForm
                 v-show="videoGenerationState === 'idle'"
-                ref="videoGenerationFormRef"
+                ref="videoGenerationFormRefMobile"
                 :initial-prompt="initialPrompt"
                 :initial-model="initialVideoModel"
                 :initial-duration="initialVideoDuration"

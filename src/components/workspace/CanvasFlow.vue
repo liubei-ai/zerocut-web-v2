@@ -163,6 +163,8 @@ const initialNodes = computed<Node[]>(() => {
     position: { x: 0, y: 0 },
     data: {
       material,
+      onEdit: handleNodeEdit,
+      onRegenerate: handleNodeRegenerate,
     },
   }));
 });
