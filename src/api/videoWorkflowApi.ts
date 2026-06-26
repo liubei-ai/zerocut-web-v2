@@ -13,7 +13,6 @@ export interface VideoWorkflowVideo {
   name?: string;
   url?: string;
   file?: File;
-  duration?: number;
 }
 
 export interface VideoWorkflowAudio {
@@ -21,7 +20,6 @@ export interface VideoWorkflowAudio {
   name?: string;
   url?: string;
   file?: File;
-  duration?: number;
 }
 
 export interface CreateOmniVideoRequest {

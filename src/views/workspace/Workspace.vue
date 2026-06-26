@@ -1151,14 +1151,12 @@ const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
           type: 'ref',
           name: fileName ? removeFileExtension(fileName) : undefined,
           url: encodeURI(response.url),
-          duration: video.duration,
         });
       } else if (video.url) {
         videos.push({
           type: 'ref',
           name: video.name ? removeFileExtension(video.name) : undefined,
           url: encodeURI(video.url),
-          duration: video.duration,
         });
       }
     }
@@ -1205,14 +1203,12 @@ const handleVideoGenerationSubmit = async (params: VideoGenerationParams) => {
           type: 'reference',
           name: fileName ? removeFileExtension(fileName) : undefined,
           url: encodeURI(response.url),
-          duration: audio.duration,
         });
       } else if (audio.url) {
         audios.push({
           type: 'reference',
           name: audio.name ? removeFileExtension(audio.name) : undefined,
           url: encodeURI(audio.url),
-          duration: audio.duration,
         });
       }
     }

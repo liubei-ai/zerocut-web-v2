@@ -245,14 +245,12 @@ const convertFilesToWorkflow = () => {
         type: 'ref',
         name: file.name,
         ...(isUploaded ? { url: file.url } : { file: file.file }),
-        duration: file.duration || 0,
       });
     } else if (file.type === 'audio') {
       audios.push({
         type: 'reference',
         name: file.name,
         ...(isUploaded ? { url: file.url } : { file: file.file }),
-        duration: file.duration || 0,
       });
     }
   });
