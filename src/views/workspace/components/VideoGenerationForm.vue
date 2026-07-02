@@ -468,25 +468,20 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
             <div
                v-if="openMenu === 'duration'"
                data-menu
-               class="absolute bottom-full left-0 z-50 mb-1.5 w-full rounded-xl border border-gray-200 bg-white py-1.5 shadow-lg"
+               class="absolute bottom-full left-0 z-50 mb-1.5 min-w-[200px] w-full rounded-xl border border-gray-200 bg-white p-2 shadow-lg"
              >
-              <button
-                v-for="d in videoDurations"
-                :key="d.id"
-                @click.stop="selectDuration(d.seconds)"
-                data-menu
-                class="flex w-full items-center gap-3 px-3.5 py-2 text-left transition-colors hover:bg-gray-50"
-                :class="{ 'bg-gray-50': duration === d.seconds }"
-              >
-                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-bold"
-                  :class="duration === d.seconds ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'">⏱️</span>
-                <div>
-                  <div class="text-sm font-medium text-gray-900">{{ d.label }}</div>
-                </div>
-                <svg v-if="duration === d.seconds" class="ml-auto h-4 w-4 text-gray-900" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              </button>
+              <div class="grid grid-cols-4 gap-1" style="grid-template-columns: repeat(4, minmax(0, 1fr))">
+                <button
+                  v-for="d in videoDurations"
+                  :key="d.id"
+                  @click.stop="selectDuration(d.seconds)"
+                  data-menu
+                  class="flex items-center justify-center rounded-lg py-2 text-sm font-medium transition-colors whitespace-nowrap hover:bg-gray-100"
+                  :class="duration === d.seconds ? 'bg-gray-900 text-white hover:bg-gray-800' : 'text-gray-700'"
+                >
+                  {{ d.label }}
+                </button>
+              </div>
             </div>
           </div>
         </div>

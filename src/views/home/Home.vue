@@ -871,21 +871,21 @@ onUnmounted(() => {
 
                           <div
                             v-if="showVideoDurationMenu"
-                            class="absolute bottom-full left-0 z-[1000] mb-2 min-w-[100px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                            class="absolute bottom-full left-0 z-[1000] mb-2 w-[200px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
                           >
-                            <Button
-                              v-for="duration in videoDurations"
-                              :key="duration.id"
-                              variant="ghost"
-                              @click="selectVideoDuration(duration.id)"
-                              :class="[
-                                'h-auto w-full justify-between rounded-lg px-3 py-2.5 text-left',
-                                videoDuration === duration.id ? 'bg-[#f3f4f6]' : 'hover:bg-[#f9fafb]',
-                              ]"
-                            >
-                              <span class="text-sm font-medium text-[#111827]">{{ duration.label }}</span>
-                              <!-- <span class="text-xs text-[#9ca3af]">{{ duration.description }}</span> -->
-                            </Button>
+                            <div class="grid grid-cols-4 gap-1">
+                              <button
+                                v-for="duration in videoDurations"
+                                :key="duration.id"
+                                @click="selectVideoDuration(duration.id)"
+                                :class="[
+                                  'flex items-center justify-center rounded-lg py-2 text-sm font-medium transition-colors',
+                                  videoDuration === duration.id ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100',
+                                ]"
+                              >
+                                {{ duration.label }}
+                              </button>
+                            </div>
                           </div>
                         </div>
 

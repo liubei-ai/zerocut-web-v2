@@ -30,11 +30,12 @@ export const videoModels: VideoModelItem[] = [
   { id: 'happyhorse', label: 'HappyHorse', description: '阿里快乐马', isNew: true },
 ];
 
-export const videoDurations: VideoDurationItem[] = [
-  { id: '5s', label: '5秒', description: '宫格分镜', seconds: 5 },
-  { id: '10s', label: '10秒', description: '宫格分镜', seconds: 10 },
-  { id: '15s', label: '15秒', description: '宫格分镜', seconds: 15 },
-];
+export const videoDurations: VideoDurationItem[] = Array.from({ length: 16 }, (_, i) => ({
+  id: `${i + 1}s`,
+  label: `${i + 1}秒`,
+  description: '宫格分镜',
+  seconds: i + 1,
+}));
 
 export const videoAspectRatios: VideoAspectRatioItem[] = [
   { id: '1:1', label: '1:1', description: '正方形' },
