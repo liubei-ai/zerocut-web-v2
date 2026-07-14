@@ -114,6 +114,16 @@ onUnmounted(() => {
 
       <!-- Right Actions -->
       <div class="flex items-center gap-4">
+        <!-- External link -->
+        <a
+          href="https://www.pilihuo.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-sm text-[#F25435] hover:text-[#111827] transition-colors"
+        >
+          霹雳火AI短剧创作
+        </a>
+
         <!-- Show login/register when not logged in -->
         <template v-if="!authStore.isAuthenticated">
           <Button size="sm" variant="ghost" @click="authStore.openLoginModal()" class="text-[#6b7280]"> 登录 </Button>

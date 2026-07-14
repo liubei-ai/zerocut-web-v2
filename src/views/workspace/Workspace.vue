@@ -84,8 +84,15 @@ const isOwner = ref<boolean>(true);
 const isShared = ref<boolean>(false);
 const isCancelling = ref(false);
 const workspaceView = ref<'list' | 'canvas'>('list');
+const rightPanelCollapsed = ref(false);
 const deletingFileId = ref<string>();
 
+// 切换到画布模式时自动折叠右侧面板，切回列表时展开
+watch(workspaceView, (view) => {
+  rightPanelCollapsed.value = view === 'canvas';
+});
+
+/*
 // 在非debug模式下强制使用list视图
 watch(
   () => debugStore.isDebugMode,
@@ -96,6 +103,7 @@ watch(
   },
   { immediate: true }
 );
+*/
 
 const videoGenerationFormRefDesktop = ref();
 const videoGenerationFormRefMobile = ref();
@@ -805,9 +813,10 @@ const handleCanvasEdit = (material: OssMaterial) => {
 const handleCanvasRegenerate = (material: OssMaterial) => {
   console.log('Regenerate material:', material);
   
-  // Switch to video generation tab
+  // Switch to video generation tab and ensure panel is visible
   workspaceTab.value = 'video';
   videoGenerationState.value = 'idle';
+  rightPanelCollapsed.value = false;
 
   // Use nextTick to ensure Vue finishes updating before calling fillForm
   nextTick(() => {
@@ -1444,8 +1453,8 @@ const handleBackToVideoForm = () => {
       <div class="hidden h-full w-full md:flex">
         <!-- Left Panel: File List + Preview Area or Canvas Flow -->
         <div class="flex h-full flex-[2] flex-col border-r border-border">
-          <!-- View Toggle (仅在debug模式下显示) -->
-          <div v-if="debugStore.isDebugMode" class="flex items-center justify-between h-12 border-b border-border px-4 bg-card">
+          <!-- View Toggle -->
+          <div class="flex items-center justify-between h-12 border-b border-border px-4 bg-card">
             <div class="flex items-center gap-2">
               <button
                 @click="workspaceView = 'list'"
@@ -1519,91 +1528,139 @@ const handleBackToVideoForm = () => {
           </div>
         </div>
 
-        <!-- Right Panel: Chat/Video Generation Area with Tabs -->
-        <div class="h-full w-[360px] flex-col border-l border-border bg-card lg:w-[420px] xl:w-[500px] flex">
-          <!-- Tab Navigation -->
-          <div class="flex items-center h-12 border-b border-border">
+        <!-- Right Panel: Chat/Video Generation Area with Tabs (collapsible) -->
+        <div
+          class="relative h-full flex-col border-l border-border bg-card flex transition-all duration-300 ease-in-out overflow-hidden"
+          :class="rightPanelCollapsed ? 'w-12' : 'w-[360px] lg:w-[420px] xl:w-[500px]'"
+        >
+          <!-- Collapsed: icon tab strip -->
+          <div v-if="rightPanelCollapsed" class="flex h-full flex-col items-center pt-3 gap-3">
+            <!-- Expand toggle -->
             <button
-              @click="workspaceTab = 'video'"
-              class="flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
-              :class="[
-                workspaceTab === 'video'
-                  ? 'border-b-2 border-primary text-primary bg-accent/50'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/30',
-              ]"
+              @click="rightPanelCollapsed = false"
+              class="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+              title="展开面板"
             >
-              <span>🎬</span>
-              <span>视频生成</span>
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 18 9 12 15 6"/>
+              </svg>
             </button>
+            <!-- Video generation icon tab -->
             <button
-              @click="workspaceTab = 'agent'"
-              class="flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
-              :class="[
-                workspaceTab === 'agent'
-                  ? 'border-b-2 border-primary text-primary bg-accent/50'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/30',
-              ]"
+              @click="workspaceTab = 'video'; rightPanelCollapsed = false"
+              class="flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
+              :class="workspaceTab === 'video' ? 'bg-primary/10 text-primary' : 'hover:bg-accent text-muted-foreground hover:text-foreground'"
+              title="视频生成"
             >
-              <span>🤖</span>
-              <span>Agent模式</span>
+              <span class="text-base leading-none">🎬</span>
+            </button>
+            <!-- Agent mode icon tab -->
+            <button
+              @click="workspaceTab = 'agent'; rightPanelCollapsed = false"
+              class="flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
+              :class="workspaceTab === 'agent' ? 'bg-primary/10 text-primary' : 'hover:bg-accent text-muted-foreground hover:text-foreground'"
+              title="Agent模式"
+            >
+              <span class="text-base leading-none">🤖</span>
             </button>
           </div>
 
-          <!-- Tab Content -->
-          <div class="flex-1 overflow-hidden">
-            <!-- Video Generation Tab -->
-            <div v-show="workspaceTab === 'video'" class="h-full">
-              <VideoGenerationForm
-                v-show="videoGenerationState === 'idle'"
-                ref="videoGenerationFormRefDesktop"
-                :initial-prompt="initialPrompt"
-                :initial-model="initialVideoModel"
-                :initial-duration="initialVideoDuration"
-                :initial-aspect-ratio="initialVideoAspectRatio"
-                :initial-resolution="initialVideoResolution"
-                :initial-reference-mode="initialVideoReferenceMode"
-                :initial-first-frame-file-id="initialFirstFrameFileId"
-                :initial-last-frame-file-id="initialLastFrameFileId"
-                :initial-files="initialFiles"
-                :is-loading="isRunning"
-                :project-files="files"
-                :immediate-upload="!!(projectId && projectId !== 'new')"
-                :project-id="projectId"
-                :video-models="configStore.videoModelList"
-                @submit="handleVideoGenerationSubmit"
-                @file-uploaded="handleFileUploaded"
-              />
-              <VideoGenerationProgress
-                v-show="videoGenerationState !== 'idle'"
-                :status="videoGenerationState === 'failed' ? 'FAILED' : (videoWorkflowData?.status || 'PENDING')"
-                :progress="videoWorkflowData?.output?.progress"
-                :result-url="videoWorkflowData?.output?.videoUrl || videoWorkflowData?.output?.videoUrls?.[0]"
-                :error-message="videoGenerationError"
-                :workflow-id="Number(videoWorkflowId)"
-                @cancel="handleCancelVideoGeneration"
-                @retry="handleRetryVideoGeneration"
-                @back="handleBackToVideoForm"
-              />
+          <!-- Expanded: full panel content -->
+          <template v-else>
+            <!-- Tab Navigation -->
+            <div class="flex items-center h-12 border-b border-border shrink-0">
+              <button
+                @click="workspaceTab = 'video'"
+                class="flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
+                :class="[
+                  workspaceTab === 'video'
+                    ? 'border-b-2 border-primary text-primary bg-accent/50'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent/30',
+                ]"
+              >
+                <span>🎬</span>
+                <span>视频生成</span>
+              </button>
+              <button
+                @click="workspaceTab = 'agent'"
+                class="flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
+                :class="[
+                  workspaceTab === 'agent'
+                    ? 'border-b-2 border-primary text-primary bg-accent/50'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent/30',
+                ]"
+              >
+                <span>🤖</span>
+                <span>Agent模式</span>
+              </button>
+              <!-- Collapse toggle -->
+              <button
+                @click="rightPanelCollapsed = true"
+                class="flex items-center justify-center w-8 h-8 mr-1 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                title="折叠面板"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </button>
             </div>
 
-            <!-- Agent Mode Tab -->
-            <div v-show="workspaceTab === 'agent'" class="h-full">
-              <ChatBox
-                :files="files"
-                :messages="messages"
-                :project-id="projectId"
-                :is-running="isRunning"
-                :is-uploading="isUploading"
-                :is-owner="isOwner"
-                :is-cancelling="isCancelling"
-                @send-message="handleSendMessage"
-                @abort-task="handleAbortTask"
-                @file-uploaded="handleFileUploaded"
-                @upload-start="handleUploadStart"
-                @upload-end="handleUploadEnd"
-              />
+            <!-- Tab Content -->
+            <div class="flex-1 overflow-hidden">
+              <!-- Video Generation Tab -->
+              <div v-show="workspaceTab === 'video'" class="h-full">
+                <VideoGenerationForm
+                  v-show="videoGenerationState === 'idle'"
+                  ref="videoGenerationFormRefDesktop"
+                  :initial-prompt="initialPrompt"
+                  :initial-model="initialVideoModel"
+                  :initial-duration="initialVideoDuration"
+                  :initial-aspect-ratio="initialVideoAspectRatio"
+                  :initial-resolution="initialVideoResolution"
+                  :initial-reference-mode="initialVideoReferenceMode"
+                  :initial-first-frame-file-id="initialFirstFrameFileId"
+                  :initial-last-frame-file-id="initialLastFrameFileId"
+                  :initial-files="initialFiles"
+                  :is-loading="isRunning"
+                  :project-files="files"
+                  :immediate-upload="!!(projectId && projectId !== 'new')"
+                  :project-id="projectId"
+                  :video-models="configStore.videoModelList"
+                  @submit="handleVideoGenerationSubmit"
+                  @file-uploaded="handleFileUploaded"
+                />
+                <VideoGenerationProgress
+                  v-show="videoGenerationState !== 'idle'"
+                  :status="videoGenerationState === 'failed' ? 'FAILED' : (videoWorkflowData?.status || 'PENDING')"
+                  :progress="videoWorkflowData?.output?.progress"
+                  :result-url="videoWorkflowData?.output?.videoUrl || videoWorkflowData?.output?.videoUrls?.[0]"
+                  :error-message="videoGenerationError"
+                  :workflow-id="Number(videoWorkflowId)"
+                  @cancel="handleCancelVideoGeneration"
+                  @retry="handleRetryVideoGeneration"
+                  @back="handleBackToVideoForm"
+                />
+              </div>
+
+              <!-- Agent Mode Tab -->
+              <div v-show="workspaceTab === 'agent'" class="h-full">
+                <ChatBox
+                  :files="files"
+                  :messages="messages"
+                  :project-id="projectId"
+                  :is-running="isRunning"
+                  :is-uploading="isUploading"
+                  :is-owner="isOwner"
+                  :is-cancelling="isCancelling"
+                  @send-message="handleSendMessage"
+                  @abort-task="handleAbortTask"
+                  @file-uploaded="handleFileUploaded"
+                  @upload-start="handleUploadStart"
+                  @upload-end="handleUploadEnd"
+                />
+              </div>
             </div>
-          </div>
+          </template>
         </div>
       </div>
 
