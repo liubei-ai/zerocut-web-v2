@@ -116,7 +116,7 @@ onUnmounted(() => {
       <div class="flex items-center gap-4">
         <!-- External link -->
         <a
-          href="https://www.pilihuo.com"
+          href="https://pilihuo.zerocut.cn"
           target="_blank"
           rel="noopener noreferrer"
           class="text-sm text-[#F25435] hover:text-[#111827] transition-colors"
