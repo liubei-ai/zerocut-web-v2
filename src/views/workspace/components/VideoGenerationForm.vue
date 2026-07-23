@@ -289,6 +289,7 @@ const fillForm = (params: {
   duration?: number;
   aspectRatio?: '16:9' | '9:16';
   resolution?: '720p' | '1080p';
+  referenceMode?: 'reference' | 'first_last_frame';
 }) => {
   console.log('fillForm called with params:', params);
   console.log('Before update - resolution.value:', resolution.value);
@@ -302,6 +303,7 @@ const fillForm = (params: {
     console.log('After update - resolution.value:', resolution.value);
     console.log('resolution ref object:', resolution);
   }
+  if (params.referenceMode !== undefined) referenceMode.value = params.referenceMode;
 };
 
 defineExpose({
@@ -558,7 +560,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
           <div
             v-if="openMenu === 'model'"
             data-menu
-            class="absolute bottom-full left-0 z-50 mb-1.5 w-full rounded-xl border border-gray-200 bg-white py-1.5 shadow-lg"
+            class="absolute bottom-full left-0 z-50 mb-1.5 w-full rounded-xl border border-gray-200 bg-white py-1.5 shadow-lg max-h-[430px] overflow-y-auto"
           >
             <button
               v-for="m in videoModels"

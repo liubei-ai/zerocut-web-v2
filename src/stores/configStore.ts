@@ -6,6 +6,12 @@ import { useAuthStore } from './authStore';
 
 export type DefaultMode = 'agent' | 'video_generation' | 'image_generation' | 'card';
 
+export interface WebHeaderLink {
+  href: string;
+  text: string;
+  color: string;
+}
+
 export interface SuggestionsByMode {
   one_click: TemplateItem[];
   free_creation: TemplateItem[];
@@ -81,6 +87,7 @@ export const useConfigStore = defineStore('config', () => {
   const imageModelDefault = ref<string>('banana2');
   const videoModelDefault = ref<string>('');
   const defaultMode = ref<DefaultMode>('agent');
+  const webHeaderLink = ref<WebHeaderLink | null>(null);
 
   const effectiveImageModel = computed(() => {
     return imageModelDefault.value || imageModelList.value[0]?.id || '';
@@ -105,6 +112,7 @@ export const useConfigStore = defineStore('config', () => {
         'web_home_video_model_default',
         'web_home_default_mode',
         'web_vip_video_models',
+        'web_header_link',
       ]);
 
       console.log('config store loaded config:', config);
@@ -164,6 +172,13 @@ export const useConfigStore = defineStore('config', () => {
         }
       }
 
+      if (config.webHeaderLink && typeof config.webHeaderLink === 'object') {
+        const link = config.webHeaderLink;
+        if (typeof link.href === 'string' && typeof link.text === 'string' && typeof link.color === 'string') {
+          webHeaderLink.value = link as WebHeaderLink;
+        }
+      }
+
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load config';
       console.error('Failed to load config:', err);
@@ -184,6 +199,7 @@ export const useConfigStore = defineStore('config', () => {
     defaultMode,
     effectiveImageModel,
     effectiveVideoModel,
+    webHeaderLink,
     loadConfig,
   };
 });

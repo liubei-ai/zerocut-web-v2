@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useCreditsStore } from '@/stores/creditsStore';
 import { useMembershipModalStore } from '@/stores/membershipModalStore';
 import { useDebugStore } from '@/stores/debugStore';
+import { useConfigStore } from '@/stores/configStore';
 import { getCurrentSubscription, type SubscriptionDetails } from '@/api/membershipApi';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { RouterLink } from 'vue-router';
@@ -13,6 +14,7 @@ const authStore = useAuthStore();
 const creditsStore = useCreditsStore();
 const membershipModalStore = useMembershipModalStore();
 const debugStore = useDebugStore();
+const configStore = useConfigStore();
 const showUserMenu = ref(false);
 const userMenuRef = ref<HTMLElement | null>(null);
 const currentSubscription = ref<SubscriptionDetails | null>(null);
@@ -116,12 +118,14 @@ onUnmounted(() => {
       <div class="flex items-center gap-4">
         <!-- External link -->
         <a
-          href="https://pilihuo.zerocut.cn"
+          v-if="configStore.webHeaderLink"
+          :href="configStore.webHeaderLink.href"
+          :style="{ color: configStore.webHeaderLink.color }"
           target="_blank"
           rel="noopener noreferrer"
-          class="text-sm text-[#F25435] hover:text-[#111827] transition-colors"
+          class="text-sm transition-colors hover:opacity-80"
         >
-          霹雳火AI短剧创作
+          {{ configStore.webHeaderLink.text }}
         </a>
 
         <!-- Show login/register when not logged in -->

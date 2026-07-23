@@ -26,58 +26,70 @@ const emit = defineEmits<Emits>();
       <h3 class="m-0 truncate text-sm font-semibold text-gray-900 md:text-[15px]">
         {{ fileName || '预览区' }}
       </h3>
-      <button
-        v-if="fileUrl"
-        @click="$emit('download')"
-        :disabled="isDownloading"
-        class="relative flex cursor-pointer items-center gap-1.5 overflow-hidden rounded-lg border transition-all disabled:cursor-not-allowed"
-        :class="[
-          isDownloading
-            ? 'border-blue-400 bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
-            : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900',
-        ]"
-        title="下载文件"
-      >
-        <!-- Animated progress bar with gradient -->
-        <div v-if="isDownloading" class="absolute inset-0 overflow-hidden">
-          <!-- Background shimmer effect -->
-          <div
-            class="animate-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-          ></div>
+      <div v-if="fileUrl" class="flex items-center gap-1.5">
+        <!-- 重新生成（仅 AI 生成的素材） -->
+        <button
+          v-if="prompt"
+          @click="$emit('regenerate')"
+          class="flex cursor-pointer items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-all hover:bg-gray-50 hover:text-gray-900"
+          title="重新生成"
+        >
+          <span>🔄</span>
+          <span class="hidden md:inline">重新生成</span>
+        </button>
 
-          <!-- Progress fill -->
-          <div
-            class="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-400 to-blue-500 transition-all duration-300 ease-out"
-            :style="{ width: `${downloadProgress}%` }"
-          >
-            <!-- Animated stripes -->
+        <!-- 提示词 -->
+        <button
+          v-if="prompt"
+          @click="$emit('show-prompt')"
+          class="flex cursor-pointer items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-all hover:bg-gray-50 hover:text-gray-900"
+          title="查看提示词"
+        >
+          <span>💡</span>
+          <span class="hidden md:inline">提示词</span>
+        </button>
+
+        <!-- 下载 -->
+        <button
+          @click="$emit('download')"
+          :disabled="isDownloading"
+          class="relative flex cursor-pointer items-center gap-1.5 overflow-hidden rounded-lg border transition-all disabled:cursor-not-allowed"
+          :class="[
+            isDownloading
+              ? 'border-blue-400 bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
+              : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+          ]"
+          title="下载文件"
+        >
+          <!-- Animated progress bar with gradient -->
+          <div v-if="isDownloading" class="absolute inset-0 overflow-hidden">
+            <div class="animate-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
             <div
-              class="animate-slide absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent bg-[length:200%_100%]"
-            ></div>
+              class="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-400 to-blue-500 transition-all duration-300 ease-out"
+              :style="{ width: `${downloadProgress}%` }"
+            >
+              <div class="animate-slide absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent bg-[length:200%_100%]"></div>
+            </div>
           </div>
-        </div>
 
-        <!-- Button content -->
-        <span
-          v-if="!isDownloading || downloadProgress < 100"
-          class="relative z-10 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium"
-        >
-          <span v-if="!isDownloading">⬇️</span>
-          <span v-else class="inline-block animate-bounce">📥</span>
-          <span class="hidden md:inline">
-            {{ isDownloading ? `下载中` : '下载' }}
+          <span
+            v-if="!isDownloading || downloadProgress < 100"
+            class="relative z-10 flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium"
+          >
+            <span v-if="!isDownloading">⬇️</span>
+            <span v-else class="inline-block animate-bounce">📥</span>
+            <span class="hidden md:inline">{{ isDownloading ? '下载中' : '下载' }}</span>
           </span>
-        </span>
 
-        <!-- Success checkmark animation -->
-        <span
-          v-if="isDownloading && downloadProgress === 100"
-          class="animate-scale-in relative z-20 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium"
-        >
-          <span>✓</span>
-          <span class="hidden md:inline">完成</span>
-        </span>
-      </button>
+          <span
+            v-if="isDownloading && downloadProgress === 100"
+            class="animate-scale-in relative z-20 flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium"
+          >
+            <span>✓</span>
+            <span class="hidden md:inline">完成</span>
+          </span>
+        </button>
+      </div>
     </div>
 
     <div class="flex flex-1 items-center justify-center overflow-auto p-4 md:p-10">

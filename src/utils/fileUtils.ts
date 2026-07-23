@@ -315,3 +315,12 @@ export async function processFiles(
 
   return result;
 }
+
+export function getFileTypeFromExtension(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  if (!ext) return 'document';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return 'image';
+  if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm'].includes(ext)) return 'video';
+  if (['mp3', 'wav', 'flac', 'aac', 'ogg'].includes(ext)) return 'audio';
+  return 'document';
+}
