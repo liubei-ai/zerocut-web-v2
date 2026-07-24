@@ -108,7 +108,7 @@ onUnmounted(() => {
 
 <template>
   <header class="sticky top-0 z-50 h-16 w-full border-b border-[#e5e7eb] bg-white">
-    <div class="flex h-full items-center justify-between px-10">
+    <div class="flex h-full items-center justify-between px-2 md:px-10">
       <!-- Logo -->
       <RouterLink to="/" class="flex items-center">
         <img src="/src/assets/logo.png" alt="ZeroCut" class="h-8 cursor-pointer" />
@@ -123,7 +123,7 @@ onUnmounted(() => {
           :style="{ color: configStore.webHeaderLink.color }"
           target="_blank"
           rel="noopener noreferrer"
-          class="text-sm transition-colors hover:opacity-80"
+          class="text-sm transition-colors hover:opacity-80 hidden md:inline"
         >
           {{ configStore.webHeaderLink.text }}
         </a>
