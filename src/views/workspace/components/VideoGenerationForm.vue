@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { Button } from '@/components/ui/button';
-import { videoModels as defaultVideoModels, videoDurations, videoAspectRatios, videoResolutions, type VideoModelItem } from '@/config/videoGeneration';
+import { videoModels as defaultVideoModels, videoDurations, videoAspectRatios, videoResolutions, type VideoModelItem, MIN_VIDEO_DURATION, getMaxVideoDuration } from '@/config/videoGeneration';
 import { calculateVideoCredits } from '@/utils/videoPriceCalculator';
 import { useAuthStore } from '@/stores/authStore';
 import { useCreditsStore } from '@/stores/creditsStore';
@@ -127,15 +127,20 @@ const selectAspectRatio = (ratio: '16:9' | '9:16') => {
   closeMenus();
 };
 
-const selectDuration = (seconds: number) => {
-  duration.value = seconds;
-  closeMenus();
-};
-
 const selectResolution = (res: '720p' | '1080p') => {
   resolution.value = res;
   closeMenus();
 };
+
+const maxDuration = computed(() => getMaxVideoDuration(model.value));
+
+// Cap duration when model changes if current duration exceeds max
+watch(model, (newModel) => {
+  const max = getMaxVideoDuration(newModel);
+  if (duration.value > max) {
+    duration.value = max;
+  }
+});
 
 const handleFilesChange = (files: FilePreview[]) => {
   selectedFiles.value = files;
@@ -460,7 +465,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
               <div class="flex items-center gap-2.5">
                 <span class="flex h-6 w-6 items-center justify-center rounded-md bg-gray-900 text-xs text-white font-bold">⏱️</span>
                 <div class="text-left">
-                  <div class="font-medium text-gray-900 leading-tight">{{ videoDurations.find(d => d.seconds === duration)?.label }}</div>
+                  <div class="font-medium text-gray-900 leading-tight">{{ duration }}秒</div>
                 </div>
               </div>
               <svg class="h-4 w-4 text-gray-400 transition-transform" :class="{ 'rotate-180': openMenu === 'duration' }" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -468,22 +473,22 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
               </svg>
             </button>
             <div
-               v-if="openMenu === 'duration'"
-               data-menu
-               class="absolute bottom-full left-0 z-50 mb-1.5 min-w-[200px] w-full rounded-xl border border-gray-200 bg-white p-2 shadow-lg"
-             >
-              <div class="grid grid-cols-4 gap-1" style="grid-template-columns: repeat(4, minmax(0, 1fr))">
-                <button
-                  v-for="d in videoDurations"
-                  :key="d.id"
-                  @click.stop="selectDuration(d.seconds)"
-                  data-menu
-                  class="flex items-center justify-center rounded-lg py-2 text-sm font-medium transition-colors whitespace-nowrap hover:bg-gray-100"
-                  :class="duration === d.seconds ? 'bg-gray-900 text-white hover:bg-gray-800' : 'text-gray-700'"
-                >
-                  {{ d.label }}
-                </button>
+              v-if="openMenu === 'duration'"
+              data-menu
+              class="absolute bottom-full left-0 z-50 mb-1.5 w-[180px] rounded-xl border border-gray-200 bg-white p-3 shadow-lg"
+            >
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-medium text-gray-400">{{ MIN_VIDEO_DURATION }}s</span>
+                <input
+                  type="range"
+                  :min="MIN_VIDEO_DURATION"
+                  :max="maxDuration"
+                  v-model.number="duration"
+                  class="duration-range min-w-0 flex-1"
+                />
+                <span class="text-xs font-medium text-gray-400">{{ maxDuration }}s</span>
               </div>
+              <p class="mt-1 text-center text-sm font-semibold text-gray-900">{{ duration }}秒</p>
             </div>
           </div>
         </div>
@@ -640,5 +645,54 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
 
 .new-tag-swing {
   animation: swing 1s ease-in-out 1;
+}
+
+/* Range slider */
+.duration-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: #d1d5db;
+  outline: none;
+  cursor: pointer;
+}
+
+.duration-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #111827;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.duration-range::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.duration-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #111827;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.duration-range::-moz-range-thumb:hover {
+  transform: scale(1.15);
+}
+
+.duration-range::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: #d1d5db;
 }
 </style>

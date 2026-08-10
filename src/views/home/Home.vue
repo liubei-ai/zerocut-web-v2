@@ -11,7 +11,7 @@ import { useMembershipModalStore } from '@/stores/membershipModalStore';
 import { useConfigStore, type DefaultMode } from '@/stores/configStore';
 import { type TemplateItem } from '@/api/systemApi';
 import { useToast } from '@/composables/useToast';
-import { videoDurations, videoAspectRatios, videoResolutions, type ImageModelItem, type VideoModelItem } from '@/config/videoGeneration';
+import { videoDurations, videoAspectRatios, videoResolutions, type ImageModelItem, type VideoModelItem, MIN_VIDEO_DURATION, getMaxVideoDuration } from '@/config/videoGeneration';
 import { calculateVideoCredits, calculateImageCredits } from '@/utils/videoPriceCalculator';
 import { MAX_FILES, MAX_IMAGE_COUNT, MAX_VIDEO_COUNT } from '@/types/fileReference';
 import type { FilePreview } from '@/types/fileReference';
@@ -39,14 +39,25 @@ const videoReferenceMode = ref<'reference' | 'first_last_frame'>('reference'); /
 const videoModel = ref(configStore.effectiveVideoModel);
 console.log('videoModel: ', videoModel);
 
-const videoDuration = ref('5s');
+const videoDuration = ref(5);
 const videoAspectRatio = ref('9:16');
 const videoResolution = ref<'720p' | '1080p'>('720p');
+
+const maxVideoDuration = computed(() => getMaxVideoDuration(videoModel.value));
+
+// Cap duration when model changes if current duration exceeds max
+watch(videoModel, (newModel) => {
+  const max = getMaxVideoDuration(newModel);
+  if (videoDuration.value > max) {
+    videoDuration.value = max;
+  }
+});
+
 const showFreeCreationModeMenu = ref(false);
 const showVideoModelMenu = ref(false);
 const showVideoReferenceModeMenu = ref(false);
-const showVideoDurationMenu = ref(false);
 const showVideoAspectRatioMenu = ref(false);
+const showVideoDurationMenu = ref(false);
 const showVideoResolutionMenu = ref(false);
 const showCardOptionMenu = ref(false);
 
@@ -55,8 +66,8 @@ const styleMenuRef = ref<HTMLElement | null>(null);
 const freeCreationModeMenuRef = ref<HTMLElement | null>(null);
 const videoModelMenuRef = ref<HTMLElement | null>(null);
 const videoReferenceModeMenuRef = ref<HTMLElement | null>(null);
-const videoDurationMenuRef = ref<HTMLElement | null>(null);
 const videoAspectRatioMenuRef = ref<HTMLElement | null>(null);
+const videoDurationMenuRef = ref<HTMLElement | null>(null);
 const videoResolutionMenuRef = ref<HTMLElement | null>(null);
 const cardOptionMenuRef = ref<HTMLElement | null>(null);
 
@@ -236,15 +247,6 @@ const availableVideoAspectRatios = computed(() => {
   return allRatios;
 });
 
-// Derive duration map from videoDurations array
-const durationMap = videoDurations.reduce(
-  (acc, item) => {
-    acc[item.id] = `${item.label}`;
-    return acc;
-  },
-  {} as Record<string, string>,
-);
-
 const placeholderByMode: Record<string, string> = {
   one_click: '输入视频创意主题、剧本或分镜，快速生成完整视频',
   free_creation: '最多支持上传6张参考图，可自由组合图片等元素，描述视频的创意内容。例如参考 @图片 输入具体的创意内容。',
@@ -378,7 +380,7 @@ const handleSubmit = () => {
         generationMode: isVideoGenerationMode ? 'video_generation' : 'agent',
         prompt: videoPrompt.value,
         videoModel: videoModel.value,
-        videoDuration: parseInt(videoDuration.value),
+        videoDuration: videoDuration.value,
         videoAspectRatio: videoAspectRatio.value,
         videoResolution: videoResolution.value,
         videoReferenceMode: videoReferenceMode.value,
@@ -412,11 +414,6 @@ const selectCardOption = (option: string) => {
 const selectVideoModel = (model: string) => {
   videoModel.value = model;
   showVideoModelMenu.value = false;
-};
-
-const selectVideoDuration = (duration: string) => {
-  videoDuration.value = duration;
-  showVideoDurationMenu.value = false;
 };
 
 const selectVideoAspectRatio = (ratio: string) => {
@@ -456,7 +453,7 @@ const updateCreditsNeeded = async () => {
 
   try {
     if (isVideoMode) {
-      const durationSeconds = parseInt(videoDuration.value);
+      const durationSeconds = videoDuration.value;
       const inputVideoDuration = getInputVideoDuration();
       creditsNeeded.value = await calculateVideoCredits(videoModel.value, durationSeconds, videoResolution.value, configStore.videoModelList, inputVideoDuration);
     } else {
@@ -728,6 +725,7 @@ onUnmounted(() => {
                             showVideoModelMenu = false;
                             showVideoDurationMenu = false;
                             showVideoAspectRatioMenu = false;
+                            showVideoResolutionMenu = false;
                             showCardOptionMenu = false;
                           "
                           class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
@@ -768,6 +766,7 @@ onUnmounted(() => {
                               showFreeCreationModeMenu = false;
                               showVideoDurationMenu = false;
                               showVideoAspectRatioMenu = false;
+                              showVideoResolutionMenu = false;
                             "
                             class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
                           >
@@ -810,6 +809,7 @@ onUnmounted(() => {
                               showVideoModelMenu = false;
                               showVideoDurationMenu = false;
                               showVideoAspectRatioMenu = false;
+                              showVideoResolutionMenu = false;
                             "
                             class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
                           >
@@ -861,31 +861,31 @@ onUnmounted(() => {
                               showFreeCreationModeMenu = false;
                               showVideoModelMenu = false;
                               showVideoAspectRatioMenu = false;
+                              showVideoResolutionMenu = false;
                             "
                             class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
                           >
                             <span>⏱️</span>
-                            <span>{{ videoDurations.find(d => d.id === videoDuration)?.label }}</span>
+                            <span>{{ videoDuration }}秒</span>
                             <span class="text-xs">▼</span>
                           </Button>
 
                           <div
                             v-if="showVideoDurationMenu"
-                            class="absolute bottom-full left-0 z-[1000] mb-2 w-[200px] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                            class="absolute bottom-full left-0 z-[1000] mb-2 w-[200px] rounded-xl border border-[#e5e7eb] bg-white p-3 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
                           >
-                            <div class="grid grid-cols-4 gap-1">
-                              <button
-                                v-for="duration in videoDurations"
-                                :key="duration.id"
-                                @click="selectVideoDuration(duration.id)"
-                                :class="[
-                                  'flex items-center justify-center rounded-lg py-2 text-sm font-medium transition-colors',
-                                  videoDuration === duration.id ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100',
-                                ]"
-                              >
-                                {{ duration.label }}
-                              </button>
+                            <div class="flex items-center gap-2">
+                              <span class="text-xs font-medium text-[#9ca3af]">{{ MIN_VIDEO_DURATION }}s</span>
+                              <input
+                                type="range"
+                                :min="MIN_VIDEO_DURATION"
+                                :max="maxVideoDuration"
+                                v-model.number="videoDuration"
+                                class="h-1 flex-1 cursor-pointer duration-range-home"
+                              />
+                              <span class="text-xs font-medium text-[#9ca3af]">{{ maxVideoDuration }}s</span>
                             </div>
+                            <p class="mt-1 text-center text-sm font-semibold text-[#111827]">{{ videoDuration }}秒</p>
                           </div>
                         </div>
 
@@ -899,6 +899,7 @@ onUnmounted(() => {
                               showFreeCreationModeMenu = false;
                               showVideoModelMenu = false;
                               showVideoDurationMenu = false;
+                              showVideoResolutionMenu = false;
                             "
                             class="h-auto gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-[#6b7280] hover:bg-[#f9fafb]"
                           >
@@ -1051,7 +1052,7 @@ onUnmounted(() => {
                               showFreeCreationModeMenu = false;
                               showVideoModelMenu = false;
                               showVideoReferenceModeMenu = false;
-                              showVideoDurationMenu = false;
+
                               showVideoAspectRatioMenu = false;
                               showVideoResolutionMenu = false;
                               showImageModelMenu = false;
@@ -1184,5 +1185,53 @@ onUnmounted(() => {
 
 .new-tag-swing {
   animation: swing 1s ease-in-out 1;
+}
+
+/* Range slider for video duration */
+.duration-range-home {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: #d1d5db;
+  outline: none;
+}
+
+.duration-range-home::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #111827;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.duration-range-home::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.duration-range-home::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #111827;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.duration-range-home::-moz-range-thumb:hover {
+  transform: scale(1.15);
+}
+
+.duration-range-home::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: #d1d5db;
 }
 </style>

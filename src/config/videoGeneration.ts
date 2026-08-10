@@ -30,6 +30,28 @@ export const videoModels: VideoModelItem[] = [
   { id: 'happyhorse', label: 'HappyHorse', description: '阿里快乐马', isNew: true },
 ];
 
+// 视频时长默认最小值（秒）
+export const MIN_VIDEO_DURATION = 1;
+// 视频时长默认最大值（秒）
+export const DEFAULT_MAX_VIDEO_DURATION = 16;
+// seedance-2.5 系列模型最大视频时长（秒）
+export const SEEDANCE_25_MAX_VIDEO_DURATION = 30;
+
+/**
+ * 判断模型ID是否以 seedance-2.5 开头
+ */
+export const isSeedance25Model = (modelId: string): boolean => {
+  if (!modelId) return false;
+  return modelId.startsWith('seedance-2.5');
+};
+
+/**
+ * 根据模型ID获取最大视频时长（秒）
+ */
+export const getMaxVideoDuration = (modelId: string): number => {
+  return isSeedance25Model(modelId) ? SEEDANCE_25_MAX_VIDEO_DURATION : DEFAULT_MAX_VIDEO_DURATION;
+};
+
 export const videoDurations: VideoDurationItem[] = Array.from({ length: 16 }, (_, i) => ({
   id: `${i + 1}s`,
   label: `${i + 1}秒`,
