@@ -180,6 +180,15 @@ const updateCreditsNeeded = async () => {
   }
 };
 
+const currentModelDiscount = computed(() => {
+  return videoModels.value.find(m => m.id === model.value)?.discount ?? null;
+});
+
+const displayedCreditsNeeded = computed(() => {
+  if (creditsNeeded.value === null || !currentModelDiscount.value) return null;
+  return Math.floor(creditsNeeded.value * currentModelDiscount.value);
+});
+
 watch([model, duration, resolution], updateCreditsNeeded);
 
 updateCreditsNeeded();
@@ -599,10 +608,13 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
       <!-- Credits -->
       <div class="mb-3 flex items-center justify-between rounded-lg bg-gray-50 px-3.5 py-2.5">
         <span class="text-xs text-gray-500">预计消耗积分</span>
-        <div class="flex items-center gap-1" :title="creditsError || (creditsLoading ? '获取价格中...' : '')">
+        <div class="flex items-center gap-1.5" :title="creditsError || (creditsLoading ? '获取价格中...' : '')">
           <span class="text-base">💎</span>
-          <span class="text-sm font-semibold text-gray-900">
-            {{ creditsLoading || creditsError || creditsNeeded === null ? '-' : creditsNeeded }}
+          <span class="text-sm font-semibold" :class="currentModelDiscount && creditsNeeded !== null && !creditsLoading && !creditsError ? 'text-orange-500' : 'text-gray-900'">
+            {{ creditsLoading || creditsError || creditsNeeded === null ? '-' : (currentModelDiscount ? displayedCreditsNeeded : creditsNeeded) }}
+          </span>
+          <span v-if="currentModelDiscount && creditsNeeded !== null && !creditsLoading && !creditsError" class="text-xs text-gray-400 line-through">
+            {{ creditsNeeded }}
           </span>
         </div>
       </div>

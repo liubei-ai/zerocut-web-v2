@@ -287,13 +287,14 @@ const handleSubmit = () => {
     return;
   }
   // Check if user has enough credits for video generation
+  const effectiveCredits = displayedCreditsNeeded.value ?? creditsNeeded.value;
   if (
     creditsStore.creditsBalance !== null &&
-    creditsNeeded.value !== null &&
-    creditsNeeded.value > 0 &&
-    creditsNeeded.value > creditsStore.creditsBalance.valueOf()
+    effectiveCredits !== null &&
+    effectiveCredits > 0 &&
+    effectiveCredits > creditsStore.creditsBalance.valueOf()
   ) {
-    toast.error(`积分不足！需要 ${creditsNeeded.value} 积分，当前余额 ${creditsStore.creditsBalance} 积分`, '积分不足');
+    toast.error(`积分不足！需要 ${effectiveCredits} 积分，当前余额 ${creditsStore.creditsBalance} 积分`, '积分不足');
     membershipModalStore.openMembershipModal();
     return;
   }
@@ -505,6 +506,17 @@ watch(() => configStore.effectiveImageModel, (newImageModel) => {
 });
 
 updateCreditsNeeded();
+
+const currentModelDiscount = computed(() => {
+  const isVideoMode = selectedMode.value === 'free_creation' && freeCreationMode.value === 'video_generation';
+  if (!isVideoMode) return null;
+  return configStore.videoModelList.find(m => m.id === videoModel.value)?.discount ?? null;
+});
+
+const displayedCreditsNeeded = computed(() => {
+  if (creditsNeeded.value === null || !currentModelDiscount.value) return null;
+  return Math.floor(creditsNeeded.value * currentModelDiscount.value);
+});
 
 // Handle click outside to close menus
 const handleClickOutside = (event: MouseEvent) => {
@@ -1120,8 +1132,11 @@ onUnmounted(() => {
                         :title="creditsError || (creditsLoading ? '获取价格中...' : '')"
                       >
                         <span class="text-base">💎</span>
-                        <span class="font-medium text-[#6b7280]">
-                          {{ creditsLoading || creditsError || creditsNeeded === null ? '-' : creditsNeeded }}
+                        <span class="font-medium" :class="currentModelDiscount && creditsNeeded !== null && !creditsLoading && !creditsError ? 'text-orange-500' : 'text-[#6b7280]'">
+                          {{ creditsLoading || creditsError || creditsNeeded === null ? '-' : (currentModelDiscount ? displayedCreditsNeeded : creditsNeeded) }}
+                        </span>
+                        <span v-if="currentModelDiscount && creditsNeeded !== null && !creditsLoading && !creditsError" class="text-xs text-gray-400 line-through">
+                          {{ creditsNeeded }}
                         </span>
                       </div>
 

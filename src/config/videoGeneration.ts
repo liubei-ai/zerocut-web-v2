@@ -3,6 +3,7 @@ export interface VideoModelItem {
   label: string;
   description: string;
   isNew?: boolean;
+  discount?: number;
 }
 
 export interface VideoDurationItem {

@@ -1,4 +1,4 @@
-# Zer0cut Web V2
+# Zerocut Web V2
 
 ## 关于workspace项目的说明
 
@@ -6,6 +6,12 @@
 所以我现在手动制造了一条id为20的数据。导入前删除20以外的数据即可。
 
 2. 开发环境生成视频前，agent会去本地数据库检查用户积分。用户积分在accounts表的credits_balance字段中。
+
+## zerocut-agent修改数据库字段
+
+直接把src/service/database-manager.ts 中 synchronize: process.env.DB_SYNCHRONIZE === 'true',
+改为 synchronize: true,
+然后重新run dev就行
 
 ## TODO
 
