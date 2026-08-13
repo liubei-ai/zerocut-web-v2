@@ -7,6 +7,11 @@ const routes = [
     component: () => import('@/views/home/Home.vue'),
   },
   {
+    path: '/desktop/authorize',
+    name: 'DesktopAuthorize',
+    component: () => import('@/views/desktop/DesktopAuthorize.vue'),
+  },
+  {
     path: '/projects',
     name: 'Projects',
     component: () => import('@/views/project/Projects.vue'),
